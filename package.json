@@ -1,0 +1,32 @@
+{
+  "name": "gambling-hub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Gambling Hub — shared wallet/auth/escrow layer with pluggable game modules (Solana Devnet)",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "treasury:new": "npm run treasury:new --workspace backend",
+    "db:up": "./scripts/db.sh up",
+    "db:down": "./scripts/db.sh down",
+    "db:reset": "./scripts/db.sh reset",
+    "db:logs": "./scripts/db.sh logs",
+    "db:psql": "./scripts/db.sh psql",
+    "db:status": "./scripts/db.sh status",
+    "prisma:migrate": "npm run prisma:migrate --workspace backend",
+    "prisma:studio": "npm run prisma:studio --workspace backend",
+    "setup": "npm install && npm run db:up && npm run prisma:migrate --workspace backend"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}

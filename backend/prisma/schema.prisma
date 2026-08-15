@@ -1,0 +1,223 @@
+// Gambling Hub — database schema
+//
+// Mirrors the Prisma models in the vault:
+//   User             -> 01-Auth-Wallet-Connect.md
+//   LedgerEntry      -> 02-Deposit-Withdraw.md
+//   Match, MatchParticipant -> 03-Escrow.md
+//
+// Field names and types follow those docs. A few fields are ADDED where a doc
+// requires behaviour its example model doesn't yet carry (noted inline) — none
+// of the documented fields are changed or dropped.
+//
+// MONEY: every amount is Decimal(20, 9) — Postgres NUMERIC, exact decimal
+// arithmetic, denominated in SOL. 9 decimal places is exactly SOL's precision
+// (1 lamport = 0.000000001 SOL). NUMERIC never drifts the way a float does, so
+// repeated credits and debits stay exact.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// Prisma 7 moved the connection URL out of the schema: the CLI reads it from
+// `prisma.config.ts`, and the runtime client gets it through a driver adapter
+// (src/config/db.ts). Same DATABASE_URL either way.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Doc 01 — identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String @id @default(uuid()) @db.Uuid
+  walletAddress String @unique
+
+  availableBalance Decimal @default(0) @db.Decimal(20, 9)
+  lockedBalance    Decimal @default(0) @db.Decimal(20, 9)
+
+  // ADDED — doc 06's profile and leaderboard sections need these.
+  displayName  String?  @db.VarChar(32)
+  totalWagered Decimal  @default(0) @db.Decimal(20, 9)
+  netProfit    Decimal  @default(0) @db.Decimal(20, 9)
+  gamesPlayed  Int      @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  lastLogin DateTime?
+
+  ledgerEntries  LedgerEntry[]
+  participations MatchParticipant[]
+
+  // The leaderboard sorts on this; without the index it's a full table scan.
+  @@index([netProfit(sort: Desc)])
+  @@map("users")
+}
+
+/// Doc 01's open question, answered: a single-use, wallet-bound, expiring
+/// sign-in challenge. Postgres has no TTL index, so expired rows are swept by
+/// `startNonceSweeper()` in src/auth/nonceSweeper.ts.
+model AuthNonce {
+  id            String    @id @default(uuid()) @db.Uuid
+  nonce         String    @unique
+  walletAddress String
+  /// The exact text the wallet was asked to sign, compared byte-for-byte.
+  message       String
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime
+
+  @@index([expiresAt])
+  @@map("auth_nonces")
+}
+
+// ---------------------------------------------------------------------------
+// Doc 02 + doc 03 — the audit trail
+// ---------------------------------------------------------------------------
+
+/// Doc 02 defines `deposit` and `withdrawal`. The rest are required by doc 03's
+/// final TODO: "Every lock, settlement, refund, and forfeit gets its own logged
+/// entry ... what makes any balance fully traceable/auditable."
+enum LedgerType {
+  deposit
+  withdrawal
+  lock
+  settlement
+  refund
+  forfeit
+  fee
+}
+
+enum LedgerStatus {
+  pending
+  confirmed
+  failed
+}
+
+model LedgerEntry {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// Solana transaction signature — on-chain rows only, so nullable.
+  /// Postgres treats NULLs as distinct in a unique index, which is exactly the
+  /// behaviour needed: at most one row per real signature, unlimited off-chain
+  /// rows. This is the double-credit guard from doc 02.
+  txSignature String? @unique
+
+  /// Nullable ONLY for funds from a wallet matching no user — doc 02 requires
+  /// those be flagged for manual review rather than dropped, and such a row has
+  /// no user to attach to.
+  userId String? @db.Uuid
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  type   LedgerType
+  status LedgerStatus @default(pending)
+
+  /// Signed from the user's perspective: positive credits them, negative debits.
+  amount Decimal @db.Decimal(20, 9)
+
+  // ADDED — balances immediately after this entry, so any dispute can be
+  // reconstructed from the ledger alone.
+  balanceAfterAvailable Decimal? @db.Decimal(20, 9)
+  balanceAfterLocked    Decimal? @db.Decimal(20, 9)
+
+  senderAddress      String? // deposits only
+  destinationAddress String? // withdrawals only
+
+  matchId  String? @db.Uuid
+  match    Match?  @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  gameType String?
+
+  note String?
+  meta Json?
+
+  timestamp DateTime @default(now())
+
+  @@index([userId, timestamp(sort: Desc)])
+  @@index([type])
+  @@index([status])
+  @@map("ledger_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Doc 03 — escrow
+// ---------------------------------------------------------------------------
+
+enum MatchStatus {
+  open
+  settled
+  refunded
+}
+
+/// ADDED — doc 03's settlement branches on "pooled/multiplayer or
+/// solo-vs-house" to decide fee handling, so the match has to record which it
+/// is. `gameType` stays the game's identifier (e.g. "coin-flip").
+enum MatchMode {
+  pooled
+  solo_vs_house
+}
+
+enum ParticipantStatus {
+  active
+  disconnected
+  forfeited
+  settled
+  refunded
+}
+
+model Match {
+  id       String      @id @default(uuid()) @db.Uuid
+  gameType String
+  mode     MatchMode
+  status   MatchStatus @default(open)
+
+  /// ADDED — the authoritative pot: every stake ever locked into this match.
+  /// Never reduced by a forfeit, because a forfeited stake stays in the pot for
+  /// the remaining players.
+  pot Decimal @default(0) @db.Decimal(20, 9)
+  /// ADDED — platform cut actually taken at settlement.
+  feeCollected Decimal @default(0) @db.Decimal(20, 9)
+
+  /// ADDED — opaque, owned entirely by the game module (board state, seeds).
+  gameState Json?
+  result    Json?
+
+  createdAt DateTime  @default(now())
+  settledAt DateTime?
+
+  participants  MatchParticipant[]
+  ledgerEntries LedgerEntry[]
+
+  @@index([gameType, status])
+  @@index([status])
+  @@map("matches")
+}
+
+model MatchParticipant {
+  id      String @id @default(uuid()) @db.Uuid
+  matchId String @db.Uuid
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  userId  String @db.Uuid
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Lamports-equivalent SOL this player STILL has frozen in lockedBalance.
+  /// Drops to 0 once released (settled, refunded, or forfeited).
+  lockedAmount Decimal @db.Decimal(20, 9)
+
+  /// ADDED — stake surrendered by failing to reconnect in time. Already removed
+  /// from the player's lockedBalance but still in the pot, tracked separately so
+  /// settlement can never debit the same stake twice.
+  forfeitedAmount Decimal @default(0) @db.Decimal(20, 9)
+
+  /// ADDED — paid back out at settlement (0 for a loser).
+  payout Decimal           @default(0) @db.Decimal(20, 9)
+  status ParticipantStatus @default(active)
+
+  joinedAt DateTime @default(now())
+
+  /// One row per player per match — a second lock accumulates onto this row
+  /// rather than creating a duplicate.
+  @@unique([matchId, userId])
+  @@index([userId])
+  @@map("match_participants")
+}

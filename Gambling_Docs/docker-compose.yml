@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: gamblinghub_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gamblinghub
+      POSTGRES_PASSWORD: gamblinghub
+      POSTGRES_DB: gamblinghub
+    ports:
+      - "5433:5432"
+    volumes:
+      - gamblinghub_pgdata:/var/lib/postgresql/data
+
+volumes:
+  gamblinghub_pgdata:

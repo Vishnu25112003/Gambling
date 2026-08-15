@@ -1,0 +1,71 @@
+@import 'tailwindcss';
+
+/* Wallet-adapter ships its own modal styles; we override the palette below. */
+@import '@solana/wallet-adapter-react-ui/styles.css';
+
+@theme {
+  --color-ink-950: #08090d;
+  --color-ink-900: #0d0f16;
+  --color-ink-850: #12141d;
+  --color-ink-800: #181b26;
+  --color-ink-700: #232735;
+  --color-ink-600: #333849;
+  --color-ink-400: #6b7280;
+  --color-ink-300: #9aa1b1;
+  --color-ink-100: #e6e8ef;
+
+  --color-neon-400: #4ade80;
+  --color-neon-500: #22c55e;
+  --color-gold-400: #fbbf24;
+  --color-gold-500: #f59e0b;
+  --color-danger-400: #f87171;
+  --color-danger-500: #ef4444;
+
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink-950 text-ink-100 antialiased;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(34, 197, 94, 0.12), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(251, 191, 36, 0.07), transparent);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* Match the wallet-adapter button to the site's own button styling. */
+.wallet-adapter-button {
+  font-family: inherit !important;
+  font-weight: 600 !important;
+  border-radius: 0.75rem !important;
+  height: auto !important;
+  padding: 0.625rem 1.25rem !important;
+  background: var(--color-neon-500) !important;
+  color: var(--color-ink-950) !important;
+  transition: filter 150ms ease;
+}
+.wallet-adapter-button:not([disabled]):hover {
+  background: var(--color-neon-400) !important;
+  filter: brightness(1.05);
+}
+.wallet-adapter-modal-wrapper {
+  background: var(--color-ink-850) !important;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fade-up {
+  animation: fade-up 400ms ease both;
+}

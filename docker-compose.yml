@@ -1,0 +1,37 @@
+# Local development database — see Gambling_Docs/07-Local-Dev-Environment.md
+#
+# Host port 5433 (not Postgres's default 5432) so this cannot collide with any
+# other Postgres you already run locally. Verified on this machine: 5432 is
+# occupied, 5433 is free.
+#
+#   docker compose up -d          start
+#   docker compose down           stop, KEEPING data
+#   docker compose down -v        stop and DELETE the data volume
+#
+# No Docker Compose on this machine yet? `npm run db:up` does the same thing
+# with plain `docker run`. See the README.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: gamblinghub_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gamblinghub
+      POSTGRES_PASSWORD: gamblinghub
+      POSTGRES_DB: gamblinghub
+    ports:
+      - '5433:5432'
+    volumes:
+      - gamblinghub_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Prisma migrations fail confusingly if they race the server's startup,
+      # so the container is not "healthy" until Postgres actually accepts
+      # connections.
+      test: ['CMD-SHELL', 'pg_isready -U gamblinghub -d gamblinghub']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  gamblinghub_pgdata:

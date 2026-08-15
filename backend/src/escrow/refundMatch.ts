@@ -1,0 +1,98 @@
+import { prisma } from '../config/db.js';
+import { conflict, notFound } from '../lib/errors.js';
+import { Decimal, toDecimal } from '../lib/money.js';
+import { createLogger } from '../lib/logger.js';
+import type { Id, RefundResult } from './types.js';
+
+const log = createLogger('escrow:refund');
+
+/**
+ * Doc 03 — full refund to everyone. Crash or cancel only.
+ *
+ * Doc 03 is explicit: NO FEE IS TAKEN HERE UNDER ANY CIRCUMSTANCE. A server or
+ * game crash is the platform's fault, not the player's, so every locked stake
+ * goes back untouched. There is deliberately no fee parameter on this function
+ * — the rule is not configurable by a caller.
+ */
+export async function refundMatch(matchId: Id, reason = 'Match refunded'): Promise<RefundResult> {
+  return prisma.$transaction(async (tx) => {
+    // Claim atomically so a crash-handler and a manual cancel racing each other
+    // cannot both refund the same stakes.
+    const claimed = await tx.$executeRaw`
+      UPDATE matches
+         SET status = 'refunded', "settledAt" = NOW()
+       WHERE id = ${matchId}::uuid AND status = 'open'
+    `;
+
+    if (claimed === 0) {
+      const existing = await tx.match.findUnique({ where: { id: matchId } });
+      if (!existing) throw notFound('Match not found.');
+      throw conflict(`Match is already ${existing.status} and cannot be refunded.`);
+    }
+
+    const match = await tx.match.findUniqueOrThrow({
+      where: { id: matchId },
+      include: { participants: true },
+    });
+
+    const refunded: { userId: string; amount: Decimal }[] = [];
+    let total = new Decimal(0);
+
+    for (const participant of match.participants) {
+      const stillLocked = toDecimal(participant.lockedAmount as unknown as Decimal);
+      // A stake already surrendered to a forfeit is refunded too — the crash
+      // invalidates the whole match, including the disconnect that preceded it.
+      // It's credited to availableBalance without touching lockedBalance,
+      // because forfeitPlayer already unlocked it.
+      const forfeited = toDecimal(participant.forfeitedAmount as unknown as Decimal);
+      const amount = stillLocked.plus(forfeited);
+
+      if (amount.lessThanOrEqualTo(0)) {
+        await tx.matchParticipant.update({
+          where: { id: participant.id },
+          data: { status: 'refunded' },
+        });
+        continue;
+      }
+
+      const user = await tx.user.update({
+        where: { id: participant.userId },
+        data: {
+          lockedBalance: { decrement: stillLocked },
+          availableBalance: { increment: amount },
+          // A refunded match never happened: unwind the wagered stat too, so a
+          // crash doesn't inflate a player's lifetime volume.
+          totalWagered: { decrement: amount },
+        },
+      });
+
+      await tx.matchParticipant.update({
+        where: { id: participant.id },
+        data: { lockedAmount: 0, forfeitedAmount: 0, payout: amount, status: 'refunded' },
+      });
+
+      refunded.push({ userId: participant.userId, amount });
+      total = total.plus(amount);
+
+      await tx.ledgerEntry.create({
+        data: {
+          userId: participant.userId,
+          type: 'refund',
+          status: 'confirmed',
+          amount,
+          balanceAfterAvailable: user.availableBalance,
+          balanceAfterLocked: user.lockedBalance,
+          matchId,
+          gameType: match.gameType,
+          note: reason,
+        },
+      });
+    }
+
+    await tx.match.update({ where: { id: matchId }, data: { feeCollected: 0 } });
+
+    log.info('refunded', { matchId, total: total.toFixed(9), players: refunded.length, reason });
+
+    return { matchId, refunded, total };
+  });
+}
