@@ -1,70 +1,34 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
+import { ConnectWalletPlaceholder } from '../../components/dashboard/ConnectWalletPlaceholder';
+import { Button, Card, Input, PageTitle, Spinner } from '../../components/shared/ui';
 import { useAuth } from '../../hooks/useAuth';
 import { useSocket } from '../../hooks/useSocket';
 import { walletApi } from '../../api/endpoints';
 import { formatSol, isPositiveAmount, shortAddress } from '../../lib/format';
-import { Badge, Button, Card, SectionHeading, Spinner } from '../shared/ui';
-import { ConnectWalletPlaceholder } from './ConnectWalletPlaceholder';
 import type { WalletInfo } from '../../types';
 
-/**
- * Doc 06: a GATED section — shows ConnectWalletPlaceholder until the user has
- * connected, then the real balance plus the deposit/withdraw controls.
- */
-export function WalletBalancePanel() {
-  const { isAuthenticated, balance, refreshBalance } = useAuth();
-
-  if (!isAuthenticated) {
-    return (
-      <section>
-        <SectionHeading title="Wallet" />
-        <ConnectWalletPlaceholder what="your balance, deposits and withdrawals" icon="💰" />
-      </section>
-    );
-  }
-
+/** One of the three figures at the top of the design's Escrow tab. */
+function BalanceCard({
+  label,
+  amount,
+  color,
+  note,
+}: {
+  label: string;
+  amount: string;
+  color?: string;
+  note?: string;
+}) {
   return (
-    <section className="space-y-6">
-      <SectionHeading title="Wallet" subtitle="Deposit once, then play across every game." />
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-wide text-ink-400">Available</p>
-          <p className="mt-2 font-mono text-2xl font-bold text-neon-400">
-            {balance ? formatSol(balance.availableBalance) : '—'}
-            <span className="ml-1 text-sm text-ink-400">SOL</span>
-          </p>
-          <p className="mt-1 text-xs text-ink-400">Free to bet or withdraw.</p>
-        </Card>
-
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-wide text-ink-400">In play</p>
-          <p className="mt-2 font-mono text-2xl font-bold text-gold-400">
-            {balance ? formatSol(balance.lockedBalance) : '—'}
-            <span className="ml-1 text-sm text-ink-400">SOL</span>
-          </p>
-          <p className="mt-1 text-xs text-ink-400">Locked in escrow until a match ends.</p>
-        </Card>
-
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-wide text-ink-400">Total</p>
-          <p className="mt-2 font-mono text-2xl font-bold">
-            {balance ? formatSol(balance.total) : '—'}
-            <span className="ml-1 text-sm text-ink-400">SOL</span>
-          </p>
-          <Button size="sm" variant="ghost" className="mt-2" onClick={() => void refreshBalance()}>
-            Refresh
-          </Button>
-        </Card>
+    <div className="rounded-[14px] border border-line bg-card p-5">
+      <div className="mb-2 text-[11.5px] font-semibold text-muted">{label}</div>
+      <div className="text-[22px] font-extrabold" style={color ? { color } : undefined}>
+        {amount} <span className="text-[13px] font-normal text-muted">SOL</span>
       </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <DepositCard onDone={refreshBalance} />
-        <WithdrawCard onDone={refreshBalance} />
-      </div>
-    </section>
+      {note && <div className="mt-1.5 text-xs text-faint">{note}</div>}
+    </div>
   );
 }
 
@@ -83,7 +47,10 @@ function DepositCard({ onDone }: { onDone: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void walletApi.info().then(setInfo).catch(() => setInfo(null));
+    void walletApi
+      .info()
+      .then(setInfo)
+      .catch(() => setInfo(null));
   }, []);
 
   // Live credit notification from the backend's deposit listener.
@@ -137,33 +104,34 @@ function DepositCard({ onDone }: { onDone: () => Promise<void> }) {
   };
 
   return (
-    <Card className="p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-semibold">Deposit</h3>
-        <Badge tone="success">On-chain</Badge>
-      </div>
+    <Card radius={16} className="p-[22px]">
+      <div className="mb-3.5 text-[15px] font-bold">Deposit</div>
 
       {info?.treasuryAddress ? (
-        <p className="mb-4 text-xs text-ink-400">
+        <p className="mb-3.5 text-xs text-faint">
           Sends to treasury{' '}
-          <span className="font-mono text-ink-300">{shortAddress(info.treasuryAddress, 6)}</span>
+          <span className="font-mono text-muted">{shortAddress(info.treasuryAddress, 6)}</span>
         </p>
       ) : (
-        <p className="mb-4 text-xs text-danger-400">Treasury is not configured on the server.</p>
+        <p className="mb-3.5 text-xs text-red">Treasury is not configured on the server.</p>
       )}
 
-      <div className="flex gap-2">
-        <input
+      <div className="flex gap-2.5">
+        <Input
           type="number"
           min="0"
           step="0.01"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="w-full rounded-xl border border-ink-700 bg-ink-900 px-4 py-2.5 font-mono
-            focus:border-neon-500 focus:outline-none"
+          className="min-w-0 flex-1 font-mono"
           placeholder="0.1"
+          aria-label="Deposit amount in SOL"
         />
-        <Button onClick={() => void deposit()} disabled={busy || !info?.treasuryAddress}>
+        <Button
+          variant="solid"
+          onClick={() => void deposit()}
+          disabled={busy || !info?.treasuryAddress}
+        >
           {busy ? <Spinner /> : 'Deposit'}
         </Button>
       </div>
@@ -173,20 +141,20 @@ function DepositCard({ onDone }: { onDone: () => Promise<void> }) {
           <button
             key={v}
             onClick={() => setAmount(v)}
-            className="rounded-lg bg-ink-800 px-3 py-1 text-xs text-ink-300 hover:bg-ink-700"
+            className="cursor-pointer rounded-lg border border-line bg-line2 px-3 py-1 text-xs text-muted hover:text-text"
           >
             {v} SOL
           </button>
         ))}
       </div>
 
-      {status && <p className="mt-3 text-sm text-neon-400">{status}</p>}
-      {error && <p className="mt-3 text-sm text-danger-400">{error}</p>}
+      {status && <p className="mt-3 text-sm text-green">{status}</p>}
+      {error && <p className="mt-3 text-sm text-red">{error}</p>}
     </Card>
   );
 }
 
-/** Doc 02 withdraw: treasury -> the user's own wallet, network fee absorbed by them. */
+/** Doc 02 withdraw: treasury -> the user's own wallet, network fee on them. */
 function WithdrawCard({ onDone }: { onDone: () => Promise<void> }) {
   const { balance } = useAuth();
   const [amount, setAmount] = useState('');
@@ -219,27 +187,24 @@ function WithdrawCard({ onDone }: { onDone: () => Promise<void> }) {
   const max = balance?.availableBalance ?? '0';
 
   return (
-    <Card className="p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-semibold">Withdraw</h3>
-        <Badge tone="warn">Network fee applies</Badge>
-      </div>
+    <Card radius={16} className="p-[22px]">
+      <div className="mb-3.5 text-[15px] font-bold">Withdraw</div>
 
-      <p className="mb-4 text-xs text-ink-400">
+      <p className="mb-3.5 text-xs text-faint">
         Goes to the wallet you signed in with. The Solana network fee comes out of the amount you
         receive.
       </p>
 
-      <div className="flex gap-2">
-        <input
+      <div className="flex gap-2.5">
+        <Input
           type="number"
           min="0"
           step="0.01"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="w-full rounded-xl border border-ink-700 bg-ink-900 px-4 py-2.5 font-mono
-            focus:border-neon-500 focus:outline-none"
+          className="min-w-0 flex-1 font-mono"
           placeholder="0.00"
+          aria-label="Withdrawal amount in SOL"
         />
         <Button
           variant="secondary"
@@ -252,13 +217,66 @@ function WithdrawCard({ onDone }: { onDone: () => Promise<void> }) {
 
       <button
         onClick={() => setAmount(max)}
-        className="mt-3 rounded-lg bg-ink-800 px-3 py-1 text-xs text-ink-300 hover:bg-ink-700"
+        className="mt-3 cursor-pointer rounded-lg border border-line bg-line2 px-3 py-1 text-xs text-muted hover:text-text"
       >
         Max ({formatSol(max)} SOL)
       </button>
 
-      {status && <p className="mt-3 text-sm text-neon-400">{status}</p>}
-      {error && <p className="mt-3 text-sm text-danger-400">{error}</p>}
+      {status && <p className="mt-3 text-sm text-green">{status}</p>}
+      {error && <p className="mt-3 text-sm text-red">{error}</p>}
     </Card>
+  );
+}
+
+/**
+ * Doc 06's gated wallet section, in the design's "Escrow" framing: the three
+ * balances, then deposit and withdraw side by side.
+ */
+export function Escrow() {
+  const { isAuthenticated, balance, refreshBalance } = useAuth();
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <PageTitle
+          title="Escrow"
+          subtitle="Deposit once, then play across every game — stakes lock in escrow until a match settles."
+        />
+        <ConnectWalletPlaceholder
+          what="your balance, deposits and withdrawals"
+          icon="lockbox"
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <PageTitle
+        title="Escrow"
+        subtitle="Deposit once, then play across every game — stakes lock in escrow until a match settles."
+      />
+
+      <div className="mb-[22px] grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-4">
+        <BalanceCard
+          label="AVAILABLE"
+          amount={formatSol(balance?.availableBalance ?? '0')}
+          color="var(--green)"
+          note="Free to bet or withdraw."
+        />
+        <BalanceCard
+          label="IN PLAY"
+          amount={formatSol(balance?.lockedBalance ?? '0')}
+          color="var(--gold)"
+          note="Locked in escrow until a match ends."
+        />
+        <BalanceCard label="TOTAL" amount={formatSol(balance?.total ?? '0')} />
+      </div>
+
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-4">
+        <DepositCard onDone={refreshBalance} />
+        <WithdrawCard onDone={refreshBalance} />
+      </div>
+    </>
   );
 }

@@ -1,40 +1,62 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { SolanaProvider } from './providers/SolanaProvider';
 import { AuthProvider } from './providers/AuthProvider';
-import { Layout } from './components/shared/Layout';
+import { ThemeProvider } from './providers/ThemeProvider';
+import { DashboardShell } from './components/dashboard/DashboardShell';
 import { Landing } from './pages/Landing';
-import {
-  DashboardHome,
-  DashboardHistory,
-  DashboardLeaderboard,
-  DashboardProfile,
-  DashboardWallet,
-} from './pages/Dashboard';
+import { Overview } from './pages/dashboard/Overview';
+import { Games } from './pages/dashboard/Games';
+import { Leaderboard } from './pages/dashboard/Leaderboard';
+import { Escrow } from './pages/dashboard/Escrow';
+import { Transactions } from './pages/dashboard/Transactions';
+import { Settings } from './pages/dashboard/Settings';
+import { Placeholder } from './pages/dashboard/Placeholder';
 import { NotFound } from './pages/NotFound';
 
 /**
  * Doc 06's two layers: a public landing page and a dashboard you can enter
  * freely. Note that NO route is guarded here — gating happens per-section
  * inside the dashboard, which is exactly what the doc specifies.
+ *
+ * The dashboard's ten sections are the design's sidebar. The four with no
+ * backend behind them yet render the shared placeholder rather than being
+ * hidden, so the navigation matches the design at every stage.
  */
 export default function App() {
   return (
     <BrowserRouter>
-      <SolanaProvider>
-        <AuthProvider>
-          <Routes>
-            <Route element={<Layout />}>
+      <ThemeProvider>
+        <SolanaProvider>
+          <AuthProvider>
+            <Routes>
               <Route path="/" element={<Landing />} />
-              <Route path="/dashboard" element={<DashboardHome />} />
-              <Route path="/dashboard/leaderboard" element={<DashboardLeaderboard />} />
-              <Route path="/dashboard/wallet" element={<DashboardWallet />} />
-              <Route path="/dashboard/history" element={<DashboardHistory />} />
-              <Route path="/dashboard/profile" element={<DashboardProfile />} />
+
+              <Route path="/dashboard" element={<DashboardShell />}>
+                <Route index element={<Overview />} />
+                <Route path="games" element={<Games />} />
+                <Route path="bets" element={<Placeholder navKey="mybets" />} />
+                <Route path="transactions" element={<Transactions />} />
+                <Route path="escrow" element={<Escrow />} />
+                <Route path="leaderboard" element={<Leaderboard />} />
+                <Route path="rewards" element={<Placeholder navKey="rewards" />} />
+                <Route path="affiliates" element={<Placeholder navKey="affiliates" />} />
+                <Route path="settings" element={<Settings />} />
+                <Route path="support" element={<Placeholder navKey="support" />} />
+
+                {/* The pre-redesign paths, kept alive so old links still land. */}
+                <Route path="wallet" element={<Navigate to="/dashboard/escrow" replace />} />
+                <Route
+                  path="history"
+                  element={<Navigate to="/dashboard/transactions" replace />}
+                />
+                <Route path="profile" element={<Navigate to="/dashboard/settings" replace />} />
+              </Route>
+
               <Route path="*" element={<NotFound />} />
-            </Route>
-          </Routes>
-        </AuthProvider>
-      </SolanaProvider>
+            </Routes>
+          </AuthProvider>
+        </SolanaProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

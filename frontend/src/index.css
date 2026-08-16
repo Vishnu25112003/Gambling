@@ -3,57 +3,146 @@
 /* Wallet-adapter ships its own modal styles; we override the palette below. */
 @import '@solana/wallet-adapter-react-ui/styles.css';
 
-@theme {
-  --color-ink-950: #08090d;
-  --color-ink-900: #0d0f16;
-  --color-ink-850: #12141d;
-  --color-ink-800: #181b26;
-  --color-ink-700: #232735;
-  --color-ink-600: #333849;
-  --color-ink-400: #6b7280;
-  --color-ink-300: #9aa1b1;
-  --color-ink-100: #e6e8ef;
-
-  --color-neon-400: #4ade80;
-  --color-neon-500: #22c55e;
-  --color-gold-400: #fbbf24;
-  --color-gold-500: #f59e0b;
-  --color-danger-400: #f87171;
-  --color-danger-500: #ef4444;
-
-  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-}
-
+/*
+ * The design's two palettes, verbatim from GamblingHub.dc.html. Dark is the
+ * default; `data-theme="light"` on <html> swaps it. Everything downstream
+ * reads these variables — no component hard-codes a colour.
+ */
 :root {
   color-scheme: dark;
+
+  --bg: #060a07;
+  --bg2: #0a0f0b;
+  --card: rgba(255, 255, 255, 0.03);
+  --border: rgba(255, 255, 255, 0.08);
+  --border2: rgba(255, 255, 255, 0.06);
+  --text: #eef2ee;
+  --muted: #8a978d;
+  --faint: #5c6b60;
+  --green: #4ade80;
+  --green-solid: #22c55e;
+  --green-deep: #16a34a;
+  --on-green: #04150a;
+  --gold: #eab308;
+  --banner-bg: #1a1505;
+  --stripe1: #101a13;
+  --stripe2: #0b130d;
+  --red: #f87171;
+
+  /* Strength of the ambient green glow behind the page — brighter in light. */
+  --page-glow: 0.1;
+  --scroll-thumb: #1c2620;
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f2f6f2;
+  --bg2: #ffffff;
+  --card: #ffffff;
+  --border: rgba(12, 32, 18, 0.1);
+  --border2: rgba(12, 32, 18, 0.07);
+  --text: #0e1a12;
+  --muted: #5b6b60;
+  --faint: #8b978f;
+  --green: #15803d;
+  --green-solid: #16a34a;
+  --green-deep: #15803d;
+  --on-green: #ffffff;
+  --gold: #a16207;
+  --banner-bg: #fdf3d3;
+  --stripe1: #eaf0ea;
+  --stripe2: #dfe7e0;
+  --red: #dc2626;
+
+  --page-glow: 0.14;
+  --scroll-thumb: #cbd6cc;
+}
+
+/*
+ * `inline` is what lets a theme token point at another custom property: the
+ * generated utilities resolve to var(--bg) at use time, so a data-theme swap
+ * repaints without regenerating any CSS.
+ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg2: var(--bg2);
+  --color-card: var(--card);
+  --color-line: var(--border);
+  --color-line2: var(--border2);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-green: var(--green);
+  --color-green-solid: var(--green-solid);
+  --color-green-deep: var(--green-deep);
+  --color-on-green: var(--on-green);
+  --color-gold: var(--gold);
+  --color-red: var(--red);
+  --color-banner: var(--banner-bg);
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
 body {
-  @apply bg-ink-950 text-ink-100 antialiased;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(34, 197, 94, 0.12), transparent),
-    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(251, 191, 36, 0.07), transparent);
-  background-attachment: fixed;
+  margin: 0;
+  overflow-x: hidden;
   min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Match the wallet-adapter button to the site's own button styling. */
+a {
+  color: var(--green);
+  text-decoration: none;
+}
+a:hover {
+  color: #86efac;
+}
+html[data-theme='light'] a:hover {
+  color: var(--green-deep);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Match the wallet-adapter modal and button to the site's own palette. */
 .wallet-adapter-button {
   font-family: inherit !important;
-  font-weight: 600 !important;
-  border-radius: 0.75rem !important;
+  font-weight: 700 !important;
+  border-radius: 0.7rem !important;
   height: auto !important;
-  padding: 0.625rem 1.25rem !important;
-  background: var(--color-neon-500) !important;
-  color: var(--color-ink-950) !important;
+  padding: 0.7rem 1.25rem !important;
+  font-size: 0.875rem !important;
+  background: var(--green-solid) !important;
+  color: var(--on-green) !important;
   transition: filter 150ms ease;
 }
 .wallet-adapter-button:not([disabled]):hover {
-  background: var(--color-neon-400) !important;
-  filter: brightness(1.05);
+  filter: brightness(1.08);
 }
 .wallet-adapter-modal-wrapper {
-  background: var(--color-ink-850) !important;
+  background: var(--bg2) !important;
+  color: var(--text) !important;
+}
+.wallet-adapter-modal-title,
+.wallet-adapter-modal-list li button {
+  color: var(--text) !important;
+}
+.wallet-adapter-modal-list li button:hover {
+  background: var(--border2) !important;
 }
 
 @keyframes fade-up {
@@ -68,4 +157,10 @@ body {
 }
 .animate-fade-up {
   animation: fade-up 400ms ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up {
+    animation: none;
+  }
 }

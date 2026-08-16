@@ -3,11 +3,9 @@ import { shortAddress } from '../../lib/format';
 import { Button, Spinner } from './ui';
 
 /**
- * Doc 01 + doc 06: ONE button, used in both places the docs name — the landing
- * page CTA area and every gated dashboard section.
- *
- * It has three states: signed out, signing, signed in. When signed in it shows
- * the short address and doubles as the sign-out control.
+ * Doc 01 + doc 06: ONE button, used everywhere a gated section asks for a
+ * wallet. Three states: signed out, signing, signed in — signed in shows the
+ * short address and doubles as the sign-out control.
  */
 export function ConnectWalletButton({
   size = 'md',
@@ -29,10 +27,10 @@ export function ConnectWalletButton({
   if (isAuthenticated && user) {
     return (
       <div className="flex items-center gap-2">
-        <span className="hidden rounded-xl border border-ink-700 bg-ink-850 px-3 py-2 font-mono text-sm text-ink-300 sm:inline">
+        <span className="hidden rounded-xl border border-line bg-card px-3 py-2 font-mono text-sm text-muted sm:inline">
           {user.displayName || shortAddress(user.walletAddress)}
         </span>
-        <Button size={size} variant="ghost" onClick={signOut}>
+        <Button size={size} variant="danger" onClick={signOut}>
           Disconnect
         </Button>
       </div>

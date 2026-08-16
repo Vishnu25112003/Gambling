@@ -8,12 +8,13 @@ import type { GameManifest } from '../types';
  * here when the backend returns none — so the moment a game is registered in
  * backend/src/games/registry.ts, it replaces its placeholder automatically.
  *
- * These are illustrative, NOT a decision about which games ship. That call
+ * The six entries and their taglines are the ones the design's game grid shows.
+ * They are illustrative, NOT a decision about which games ship — that call
  * belongs to the games pass.
  */
 export const PLACEHOLDER_GAMES: GameManifest[] = [
   {
-    id: 'coming-soon-1',
+    id: 'coming-soon-coinflip',
     name: 'Coin Flip',
     tagline: 'Heads or tails, double or nothing.',
     description: 'Placeholder card — not yet built.',
@@ -21,10 +22,9 @@ export const PLACEHOLDER_GAMES: GameManifest[] = [
     minPlayers: 1,
     maxPlayers: 1,
     status: 'coming-soon',
-    icon: '🪙',
   },
   {
-    id: 'coming-soon-2',
+    id: 'coming-soon-dice',
     name: 'Dice',
     tagline: 'Pick your odds, roll under to win.',
     description: 'Placeholder card — not yet built.',
@@ -32,10 +32,9 @@ export const PLACEHOLDER_GAMES: GameManifest[] = [
     minPlayers: 1,
     maxPlayers: 1,
     status: 'coming-soon',
-    icon: '🎲',
   },
   {
-    id: 'coming-soon-3',
+    id: 'coming-soon-mines',
     name: 'Mines',
     tagline: 'Cash out before you hit a bomb.',
     description: 'Placeholder card — not yet built.',
@@ -43,17 +42,35 @@ export const PLACEHOLDER_GAMES: GameManifest[] = [
     minPlayers: 1,
     maxPlayers: 1,
     status: 'coming-soon',
-    icon: '💣',
   },
   {
-    id: 'coming-soon-4',
+    id: 'coming-soon-roulette',
+    name: 'Roulette',
+    tagline: 'Bet on numbers, colors and more.',
+    description: 'Placeholder card — not yet built.',
+    mode: 'solo_vs_house',
+    minPlayers: 1,
+    maxPlayers: 1,
+    status: 'coming-soon',
+  },
+  {
+    id: 'coming-soon-crash',
     name: 'Crash',
-    tagline: 'Everyone rides the multiplier. Nerves decide.',
+    tagline: 'Predict the crash, cash out early.',
     description: 'Placeholder card — not yet built.',
     mode: 'pooled',
     minPlayers: 2,
     maxPlayers: 50,
     status: 'coming-soon',
-    icon: '📈',
+  },
+  {
+    id: 'coming-soon-blackjack',
+    name: 'Blackjack',
+    tagline: 'Beat the dealer without busting.',
+    description: 'Placeholder card — not yet built.',
+    mode: 'solo_vs_house',
+    minPlayers: 1,
+    maxPlayers: 1,
+    status: 'coming-soon',
   },
 ];

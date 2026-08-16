@@ -105,12 +105,32 @@ Gambling/
 │   │   └── lib/           logger, errors, money
 │   └── tests/             escrow money math (34 tests)
 └── frontend/src/
-    ├── pages/             Landing, Dashboard
-    ├── components/        landing/ · dashboard/ · shared/
-    ├── providers/         wallet adapter, auth context
-    ├── hooks/             useAuth, useSocket, useGames, useLeaderboard
+    ├── pages/
+    │   ├── Landing.tsx    public landing page
+    │   └── dashboard/     one file per sidebar section
+    ├── components/
+    │   ├── dashboard/     shell (sidebar/drawer/topbar), tiles, tables
+    │   └── shared/        ui primitives, icon set, SceneCanvas
+    ├── three/             the WebGL scenes behind the hero and cards
+    ├── providers/         wallet adapter, auth context, theme
+    ├── hooks/             useAuth, useSocket, useGames, useLeaderboard, useTheme
     └── games/             per-game UI — empty, ready for games
 ```
+
+### The UI
+
+The frontend is built from a Claude Design handoff (`GamblingHub.dc.html`).
+Its two palettes live as CSS custom properties in `src/index.css` — dark by
+default, light under `html[data-theme="light"]` — and Tailwind's theme tokens
+are declared `@theme inline` so a theme switch repaints without regenerating
+any CSS. No component hard-codes a colour; they all read `var(--…)`.
+
+The dice, coins and chips behind the hero and the dashboard welcome card are
+three.js scenes in `src/three/siteScenes.ts`, mounted through `<SceneCanvas>`.
+That module is imported dynamically, so three.js lands in its own ~140 kB gzip
+chunk and never blocks first paint; if it fails to load the pages render
+normally without it. Scenes stop rendering while offscreen and dispose their
+WebGL context on unmount.
 
 ---
 
