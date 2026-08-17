@@ -48,6 +48,7 @@ Online real-money gambling (games of chance for stakes) is currently restricted 
 - `Games/Game-*.md` — one self-contained file per game
 - `05-Progress-Log.md` — dated changelog of decisions
 - `06-Landing-Dashboard-Structure.md` — landing page + dashboard layout, sections, and gating rules
+- `08-Solana-Setup-Guide.md` — clusters, wallets, devnet SOL, treasury setup, and how browser/backend/chain communicate
 - `07-Local-Dev-Environment.md` — Docker setup for the local PostgreSQL container
 
 ## How to Use This Vault (for teammates / any AI picking this up)
