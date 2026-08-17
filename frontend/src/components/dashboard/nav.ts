@@ -23,15 +23,21 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'escrow', label: 'Escrow', icon: 'lockbox', to: '/dashboard/escrow' },
   { key: 'leaderboard', label: 'Leaderboard', icon: 'trophy', to: '/dashboard/leaderboard' },
   { key: 'rewards', label: 'Rewards', icon: 'gift', to: '/dashboard/rewards' },
-  { key: 'affiliates', label: 'Affiliates', icon: 'users', to: '/dashboard/affiliates' },
+  { key: 'affiliates', label: 'Invite & Earn', icon: 'users', to: '/dashboard/affiliates' },
   { key: 'settings', label: 'Settings', icon: 'cog', to: '/dashboard/settings' },
   { key: 'support', label: 'Support', icon: 'help', to: '/dashboard/support' },
 ];
 
-/** Copy for the sections that are still placeholders, verbatim from the design. */
+/**
+ * Copy for the sections that are still placeholders, verbatim from the design.
+ *
+ * `affiliates` is no longer among them — doc 09 shipped it as a real page, and
+ * its design copy ("Earn 5% of every bet your invited friends make") could not
+ * ship as written: 5% of every bet is the whole of the platform's own 5% pooled
+ * rake. The live rule is 5% of a friend's first winning game.
+ */
 export const PLACEHOLDER_COPY: Record<string, string> = {
   mybets: 'Every bet you place lands here — open, settled and cancelled.',
   rewards: 'Rakeback, streak bonuses and seasonal drops.',
-  affiliates: 'Earn 5% of every bet your invited friends make.',
   support: 'Reach the team, or read the devnet play guide.',
 };

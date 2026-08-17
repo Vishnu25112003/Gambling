@@ -69,7 +69,7 @@ export async function stopTestDb(): Promise<void> {
 export async function clearTables(): Promise<void> {
   if (!client) return;
   await client.$executeRawUnsafe(
-    'TRUNCATE TABLE ledger_entries, match_participants, matches, auth_nonces, users RESTART IDENTITY CASCADE',
+    'TRUNCATE TABLE referrals, ledger_entries, match_participants, matches, auth_nonces, users RESTART IDENTITY CASCADE',
   );
 }
 

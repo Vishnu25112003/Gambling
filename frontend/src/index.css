@@ -118,31 +118,252 @@ html[data-theme='light'] a:hover {
   background: transparent;
 }
 
-/* Match the wallet-adapter modal and button to the site's own palette. */
-.wallet-adapter-button {
+/* ───────────────────────────────────────────────────────────────────────────
+ * Wallet-adapter modal, restyled to the site's palette.
+ *
+ * The vendor sheet ships a purple/near-black look and its own DM Sans. Every
+ * rule below is unlayered and declared after the @import, so it wins on order.
+ *
+ * IMPORTANT: `.wallet-adapter-button` is shared by the trigger button AND by
+ * every wallet row inside the modal list. Filling that class with a solid
+ * accent paints each row as a green slab, so the accent fill is scoped to
+ * `.wallet-adapter-button-trigger` alone. Nothing in this app renders the
+ * trigger (AuthProvider drives the modal with `setVisible`), but keeping it
+ * correct means dropping in <WalletMultiButton /> later needs no CSS work.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+.wallet-adapter-button-trigger {
   font-family: inherit !important;
   font-weight: 700 !important;
-  border-radius: 0.7rem !important;
+  border-radius: 0.75rem !important;
   height: auto !important;
   padding: 0.7rem 1.25rem !important;
   font-size: 0.875rem !important;
-  background: var(--green-solid) !important;
+  background: linear-gradient(135deg, var(--green-solid), var(--green-deep)) !important;
   color: var(--on-green) !important;
   transition: filter 150ms ease;
 }
-.wallet-adapter-button:not([disabled]):hover {
+.wallet-adapter-button-trigger:not([disabled]):hover {
   filter: brightness(1.08);
 }
+
+/* ── Scrim ─────────────────────────────────────────────────────────────── */
+.wallet-adapter-modal-overlay {
+  background: rgba(3, 8, 5, 0.74) !important;
+  backdrop-filter: blur(7px) saturate(115%);
+}
+html[data-theme='light'] .wallet-adapter-modal-overlay {
+  background: rgba(8, 26, 15, 0.42) !important;
+}
+
+/* ── Panel ─────────────────────────────────────────────────────────────── */
 .wallet-adapter-modal-wrapper {
-  background: var(--bg2) !important;
+  max-width: 418px !important;
+  border-radius: 20px !important;
+  /* The same top-down green wash the dashboard uses, over the card surface. */
+  background:
+    radial-gradient(125% 85% at 50% -25%, rgba(34, 197, 94, 0.17), transparent 62%),
+    var(--bg2) !important;
+  border: 1px solid var(--border);
+  box-shadow:
+    0 26px 70px rgba(0, 0, 0, 0.5),
+    0 0 44px rgba(34, 197, 94, 0.07);
+  font-family: inherit !important;
+  color: var(--text) !important;
+  padding-bottom: 8px;
+  overflow: hidden;
+  animation: wallet-modal-pop 240ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+html[data-theme='light'] .wallet-adapter-modal-wrapper {
+  box-shadow:
+    0 26px 60px rgba(12, 32, 18, 0.16),
+    0 0 40px rgba(34, 197, 94, 0.09);
+}
+
+/* Accent hairline along the top edge. */
+.wallet-adapter-modal-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+  opacity: 0.75;
+}
+
+@keyframes wallet-modal-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Title ─────────────────────────────────────────────────────────────── */
+.wallet-adapter-modal-title {
+  padding: 34px 30px 18px !important;
+  font-family: inherit !important;
+  font-size: 19px !important;
+  line-height: 1.42 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em;
   color: var(--text) !important;
 }
-.wallet-adapter-modal-title,
-.wallet-adapter-modal-list li button {
-  color: var(--text) !important;
+
+/* ── Wallet rows ───────────────────────────────────────────────────────── */
+.wallet-adapter-modal-list {
+  margin: 0 !important;
+  padding: 0 14px 4px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.wallet-adapter-modal-list li button:hover {
-  background: var(--border2) !important;
+.wallet-adapter-modal-list .wallet-adapter-button {
+  height: auto !important;
+  line-height: 1.2 !important;
+  padding: 13px 14px !important;
+  font-family: inherit !important;
+  font-size: 14.5px !important;
+  font-weight: 700 !important;
+  border-radius: 13px !important;
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+/*
+ * Light theme sets --card and --bg2 to the same #ffffff, so a card-coloured row
+ * on the panel would be white-on-white with only a hairline to separate them.
+ * --bg is one step down, which reads as a recessed row instead.
+ */
+html[data-theme='light'] .wallet-adapter-modal-list .wallet-adapter-button,
+html[data-theme='light'] .wallet-adapter-modal-button-close {
+  background: var(--bg) !important;
+}
+
+.wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
+  background: color-mix(in oklab, var(--green-solid) 13%, transparent) !important;
+  border-color: color-mix(in oklab, var(--green-solid) 46%, transparent) !important;
+  transform: translateY(-1px);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.26),
+    0 0 0 3px color-mix(in oklab, var(--green-solid) 11%, transparent);
+}
+
+.wallet-adapter-modal-list .wallet-adapter-button-start-icon,
+.wallet-adapter-modal-list .wallet-adapter-button-start-icon img {
+  width: 26px !important;
+  height: 26px !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button-start-icon {
+  margin-right: 12px !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button-start-icon img {
+  border-radius: 7px;
+}
+
+/* The "Detected" label — a pill instead of dimmed grey text. */
+.wallet-adapter-modal-list .wallet-adapter-button span {
+  margin-left: auto !important;
+  opacity: 1 !important;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10.5px !important;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--green) !important;
+  background: color-mix(in oklab, var(--green-solid) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--green-solid) 30%, transparent);
+}
+
+/* ── Close button ──────────────────────────────────────────────────────── */
+.wallet-adapter-modal-button-close {
+  top: 15px !important;
+  right: 15px !important;
+  width: 34px;
+  height: 34px;
+  padding: 0 !important;
+  border-radius: 10px !important;
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
+}
+.wallet-adapter-modal-button-close svg {
+  width: 13px;
+  height: 13px;
+  fill: var(--muted) !important;
+}
+.wallet-adapter-modal-button-close:hover {
+  background: color-mix(in oklab, var(--green-solid) 13%, transparent) !important;
+  border-color: color-mix(in oklab, var(--green-solid) 40%, transparent) !important;
+}
+/* Outranks the light-theme base rule above, which is one element more specific
+ * than a bare `:hover` and would otherwise win. */
+html[data-theme='light'] .wallet-adapter-modal-button-close:hover {
+  background: color-mix(in oklab, var(--green-solid) 13%, transparent) !important;
+  border-color: color-mix(in oklab, var(--green-solid) 40%, transparent) !important;
+}
+.wallet-adapter-modal-button-close:hover svg {
+  fill: var(--green) !important;
+}
+
+/* ── "More options" collapse toggle ────────────────────────────────────── */
+.wallet-adapter-modal-list-more {
+  padding: 6px 22px 16px !important;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted) !important;
+  transition: color 150ms ease;
+}
+.wallet-adapter-modal-list-more svg {
+  fill: var(--muted) !important;
+  transition: fill 150ms ease;
+}
+.wallet-adapter-modal-list-more:hover,
+.wallet-adapter-modal-list-more:hover svg {
+  color: var(--green) !important;
+  fill: var(--green) !important;
+}
+
+/* ── No-wallet-installed state ─────────────────────────────────────────── */
+.wallet-adapter-modal-middle {
+  padding: 0 26px 24px !important;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.wallet-adapter-modal-middle-button {
+  margin-top: 14px !important;
+  border-radius: 12px !important;
+  padding: 12px 18px !important;
+  font-family: inherit !important;
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  background: linear-gradient(135deg, var(--green-solid), var(--green-deep)) !important;
+  color: var(--on-green) !important;
+  transition: filter 150ms ease;
+}
+.wallet-adapter-modal-middle-button:hover {
+  filter: brightness(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wallet-adapter-modal-wrapper {
+    animation: none;
+  }
+  .wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
+    transform: none;
+  }
 }
 
 @keyframes fade-up {

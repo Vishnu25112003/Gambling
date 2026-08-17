@@ -1,7 +1,10 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SceneCanvas } from '../components/shared/SceneCanvas';
 import { Icon, LogoMark, MoonIcon, SunIcon, type IconName } from '../components/shared/icons';
 import { useTheme } from '../hooks/useTheme';
+import { referralApi } from '../api/endpoints';
+import { captureReferralFromUrl } from '../lib/referralCapture';
 
 const CLUSTER = import.meta.env.VITE_SOLANA_CLUSTER || 'devnet';
 
@@ -28,6 +31,46 @@ const HERO_STATS: { title: string; desc: string; icon: IconName }[] = [
  * Nothing here touches the API or the wallet — the CTA routes into the
  * dashboard, which is where gating begins.
  */
+/**
+ * Doc 09 — confirms an invite link actually resolved.
+ *
+ * Without this, clicking a friend's link and landing on an unchanged page gives
+ * no sign the referral registered, and the visitor has no way to tell before
+ * they have connected a wallet. Renders nothing at all when there is no code, or
+ * when the code does not resolve.
+ */
+function InviteBanner() {
+  const [referrer, setReferrer] = useState<string | null>(null);
+
+  useEffect(() => {
+    const code = captureReferralFromUrl();
+    if (!code) return;
+
+    let cancelled = false;
+    void referralApi
+      .lookup(code)
+      .then((res) => {
+        if (!cancelled && res.valid) setReferrer(res.referrerName);
+      })
+      .catch(() => {
+        // An unreachable API is not worth a broken banner on the landing page.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!referrer) return null;
+
+  return (
+    <div className="border-b border-green-solid/20 bg-green-solid/[0.10] p-2 text-center text-[13px] font-medium text-green">
+      <span className="font-bold">{referrer}</span> invited you — connect your wallet and they
+      earn 5% of your first winning game. Costs you nothing.
+    </div>
+  );
+}
+
 export function Landing() {
   const navigate = useNavigate();
   const { isDark, toggleTheme } = useTheme();
@@ -56,6 +99,8 @@ export function Landing() {
           Playing on Solana <span className="uppercase">{CLUSTER}</span> — test SOL only, no real
           money.
         </div>
+
+        <InviteBanner />
 
         <header className="sticky top-0 z-50 flex items-center justify-between gap-2.5 border-b border-line2 bg-bg2 px-[clamp(14px,4vw,40px)] py-3">
           <div className="flex items-center gap-2.5">

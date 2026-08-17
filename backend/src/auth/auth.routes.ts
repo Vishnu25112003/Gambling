@@ -11,6 +11,7 @@ import { requireAuth } from './authMiddleware.js';
 import { prisma } from '../config/db.js';
 import { asyncHandler, badRequest, unauthorized } from '../lib/errors.js';
 import { publicUser } from '../lib/user.js';
+import { bindReferral } from '../referral/bindReferral.js';
 import { createLogger } from '../lib/logger.js';
 
 const log = createLogger('auth');
@@ -43,6 +44,8 @@ const verifyBody = z.object({
   walletAddress: z.string().min(32).max(64),
   nonce: z.string().min(8),
   signature: z.string().min(32), // base58 ed25519 signature
+  /** Doc 09 — captured from `?ref=` on the landing page. Optional, never trusted. */
+  referralCode: z.string().trim().min(4).max(16).optional(),
 });
 
 /**
@@ -57,7 +60,7 @@ authRouter.post(
     if (!parsed.success) {
       throw badRequest('walletAddress, nonce and signature are all required.');
     }
-    const { walletAddress, nonce, signature } = parsed.data;
+    const { walletAddress, nonce, signature, referralCode } = parsed.data;
 
     // Claim the nonce FIRST. Even a forged signature burns the challenge, so a
     // captured nonce cannot be ground against repeatedly.
@@ -73,7 +76,31 @@ authRouter.post(
 
     log.info(isNew ? 'new user created' : 'user signed in', { walletAddress });
 
-    res.json({ token, isNewUser: isNew, user: publicUser(user) });
+    /**
+     * Doc 09 — apply a captured invite code.
+     *
+     * Attempted for ANY eligible caller, not only `isNew`. One path then covers
+     * both a fresh signup and someone who connected a wallet earlier but has not
+     * played yet; `bindReferral` owns the eligibility rules either way.
+     *
+     * A failure here must never cost someone their sign-in — a stale code in
+     * localStorage, a self-referral, an already-bound account are all ordinary
+     * and none of them are a reason to reject a valid signature.
+     */
+    let referralApplied = false;
+    if (referralCode) {
+      try {
+        await bindReferral(user.id, referralCode);
+        referralApplied = true;
+      } catch (err) {
+        log.warn('invite code not applied', {
+          walletAddress,
+          reason: (err as Error).message,
+        });
+      }
+    }
+
+    res.json({ token, isNewUser: isNew, referralApplied, user: publicUser(user) });
   }),
 );
 

@@ -12,6 +12,7 @@ import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import bs58 from 'bs58';
 import { authApi, walletApi } from '../api/endpoints';
 import { tokenStore } from '../api/client';
+import { captureReferralFromUrl, referralStore } from '../lib/referralCapture';
 import type { AppUser, Balance } from '../types';
 
 export interface AuthState {
@@ -46,6 +47,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const inFlight = useRef(false);
   /** Set when the user explicitly signs out, so autoConnect doesn't re-prompt. */
   const suppressAuto = useRef(false);
+
+  /**
+   * Doc 09 — grab `?ref=` before anything else can navigate away from it.
+   *
+   * Runs on mount rather than at sign-in, because by the time a wallet is
+   * connected the visitor may be several route changes past the link they
+   * arrived on.
+   */
+  useEffect(() => {
+    captureReferralFromUrl();
+  }, []);
 
   // Restore an existing session on first load.
   useEffect(() => {
@@ -100,9 +112,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const signature = await signMessage(new TextEncoder().encode(message));
 
-      const { token, user: me } = await authApi.verify(address, nonce, bs58.encode(signature));
+      // Doc 09 — spend the captured invite code, if there is one. The server
+      // ignores it when the caller is not eligible and never fails the sign-in
+      // over it, so a stale code costs nothing.
+      const { token, user: me } = await authApi.verify(
+        address,
+        nonce,
+        bs58.encode(signature),
+        referralStore.peek() ?? undefined,
+      );
       tokenStore.set(token);
       setUser(me);
+
+      // Cleared whether or not it applied. A code that was rejected once — the
+      // account already has a referrer, or has already played — will be
+      // rejected every time, and keeping it around would re-send it forever.
+      referralStore.clear();
     } catch (err) {
       const msg = (err as Error).message || 'Sign-in failed.';
       // Rejecting the signature prompt is a normal user action, not an error.

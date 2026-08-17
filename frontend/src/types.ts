@@ -41,7 +41,8 @@ export type LedgerType =
   | 'settlement'
   | 'refund'
   | 'forfeit'
-  | 'fee';
+  | 'fee'
+  | 'referral';
 
 export interface LedgerRow {
   id: string;
@@ -83,6 +84,47 @@ export interface GameManifest {
   maxPlayers: number;
   status: 'live' | 'beta' | 'coming-soon';
   icon?: string;
+}
+
+// --- doc 09: invite & earn ------------------------------------------------
+
+/** `pending` — waiting on this friend's first winning match. `earned` — paid. */
+export type ReferralStatus = 'pending' | 'earned';
+
+export interface ReferredFriend {
+  id: string;
+  /** Display name, or an abbreviated wallet. Never a full address. */
+  name: string;
+  status: ReferralStatus;
+  /** Exact SOL decimal string; "0.000000000" while pending. */
+  earned: string;
+  joinedAt: string;
+  earnedAt: string | null;
+  gameType: string | null;
+}
+
+export interface ReferralStats {
+  code: string;
+  link: string;
+  /** Basis points — 500 = 5%. */
+  commissionBps: number;
+  stats: {
+    invited: number;
+    pending: number;
+    earned: number;
+    /** Exact SOL decimal string. */
+    totalEarned: string;
+  };
+  /** True while this player can still apply someone else's code. */
+  canEnterCode: boolean;
+  referredBy: { name: string; joinedAt: string } | null;
+  friends: ReferredFriend[];
+}
+
+export interface ReferralLookup {
+  valid: boolean;
+  referrerName: string | null;
+  commissionBps?: number;
 }
 
 export interface WithdrawResponse {

@@ -10,6 +10,7 @@ import { Leaderboard } from './pages/dashboard/Leaderboard';
 import { Escrow } from './pages/dashboard/Escrow';
 import { Transactions } from './pages/dashboard/Transactions';
 import { Settings } from './pages/dashboard/Settings';
+import { InviteEarn } from './pages/dashboard/InviteEarn';
 import { Placeholder } from './pages/dashboard/Placeholder';
 import { NotFound } from './pages/NotFound';
 
@@ -39,7 +40,9 @@ export default function App() {
                 <Route path="escrow" element={<Escrow />} />
                 <Route path="leaderboard" element={<Leaderboard />} />
                 <Route path="rewards" element={<Placeholder navKey="rewards" />} />
-                <Route path="affiliates" element={<Placeholder navKey="affiliates" />} />
+                {/* Doc 09. The path stays `affiliates` so existing links hold. */}
+                <Route path="affiliates" element={<InviteEarn />} />
+                <Route path="invite" element={<Navigate to="/dashboard/affiliates" replace />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="support" element={<Placeholder navKey="support" />} />
 

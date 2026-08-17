@@ -4,8 +4,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../hooks/useTheme';
 import { formatSol, shortAddress } from '../../lib/format';
+import { avatarGradient } from '../../lib/avatar';
 import {
-  BellIcon,
   ChevronDown,
   CloseIcon,
   Icon,
@@ -17,14 +17,22 @@ import {
   SignOutIcon,
   SunIcon,
 } from '../shared/icons';
+import { AccountMenu } from './AccountMenu';
+import { NotificationsMenu } from './NotificationsMenu';
 import { NAV_ITEMS } from './nav';
 
 const CLUSTER = import.meta.env.VITE_SOLANA_CLUSTER || 'devnet';
 
-/** The row style the design uses for both the sidebar and the mobile drawer. */
-const navRowClass = (active: boolean) =>
-  `flex w-full min-h-[46px] cursor-pointer items-center gap-3 rounded-[11px] border-none px-3
-   text-left text-sm font-semibold transition ${
+/**
+ * The row style the design uses for both the sidebar and the mobile drawer.
+ *
+ * `fill` swaps the fixed 46px height for "share whatever height is left". The
+ * drawer uses it so ten nav rows always fit the viewport instead of scrolling —
+ * see MobileDrawer.
+ */
+const navRowClass = (active: boolean, fill = false) =>
+  `flex w-full cursor-pointer items-center gap-3 rounded-[11px] border-none px-3
+   text-left text-sm font-semibold transition ${fill ? 'h-full min-h-0' : 'min-h-[46px]'} ${
      active ? 'bg-green-solid/[0.14] text-green' : 'bg-transparent text-muted hover:text-text'
    }`;
 
@@ -47,13 +55,22 @@ function LogoBadge({ box, glyph }: { box: number; glyph: number }) {
   );
 }
 
-function NavRows({ onNavigate }: { onNavigate?: () => void }) {
+function NavRows({ onNavigate, fill = false }: { onNavigate?: () => void; fill?: boolean }) {
   return (
     <>
       {NAV_ITEMS.map((item) => (
-        <NavLink key={item.key} to={item.to} end={item.end} onClick={onNavigate} className="block">
+        <NavLink
+          key={item.key}
+          to={item.to}
+          end={item.end}
+          onClick={onNavigate}
+          // basis-0 makes every row an equal share of the leftover space; the
+          // max stops them stretching absurdly tall on a big phone, and the min
+          // keeps them tappable on a very short one.
+          className={fill ? 'block max-h-[46px] min-h-[34px] flex-1 basis-0' : 'block'}
+        >
           {({ isActive }) => (
-            <span className={navRowClass(isActive)}>
+            <span className={navRowClass(isActive, fill)}>
               <span className="flex shrink-0">
                 <Icon name={item.icon} />
               </span>
@@ -71,8 +88,11 @@ function SessionButton({ onDone, bare = false }: { onDone?: () => void; bare?: b
   const { isAuthenticated, isAuthenticating, signIn, signOut } = useAuth();
   const navigate = useNavigate();
 
+  // The `bare` variant sits in the drawer's fixed footer, where every pixel is
+  // taken from the nav above it — so it sizes to its content instead of
+  // reserving a 46px slot.
   const base = bare
-    ? 'flex w-full min-h-[46px] cursor-pointer items-center gap-3 rounded-[11px] border-none bg-transparent px-3 text-sm font-semibold'
+    ? 'flex w-full cursor-pointer items-center gap-3 rounded-[11px] border-none bg-transparent px-3 py-2.5 text-sm font-semibold'
     : 'flex w-full min-h-[46px] cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-transparent px-3.5 text-[13.5px] font-semibold';
 
   if (!isAuthenticated) {
@@ -113,7 +133,7 @@ function ThemeRow({ compact = false }: { compact?: boolean }) {
     return (
       <button
         onClick={toggleTheme}
-        className="flex min-h-[46px] w-full cursor-pointer items-center gap-3 rounded-[11px] border-none bg-transparent px-3 text-sm font-semibold text-muted"
+        className="flex w-full cursor-pointer items-center gap-3 rounded-[11px] border-none bg-transparent px-3 py-2.5 text-sm font-semibold text-muted"
       >
         <span className="flex">{isDark ? <SunIcon /> : <MoonIcon />}</span>
         <span>{isDark ? 'Light mode' : 'Dark mode'}</span>
@@ -135,21 +155,21 @@ function ThemeRow({ compact = false }: { compact?: boolean }) {
   );
 }
 
+/** Live since doc 09 — the copy now states the real rule, not the design's placeholder. */
 function InviteCard() {
   return (
     <div className="relative overflow-hidden rounded-[15px] border border-green-solid/[0.24] bg-[linear-gradient(150deg,rgba(34,197,94,0.16),transparent_70%)] p-[18px]">
       <div className="mb-1.5 text-[14.5px] font-bold text-green">Invite &amp; Earn</div>
       <div className="mb-3.5 max-w-[150px] text-[12.5px] leading-[1.5] text-muted">
-        Earn 5% of every bet made by your friends.
+        Earn 5% of your friend&rsquo;s first winning game.
       </div>
-      <button
-        className="flex cursor-pointer items-center gap-2 rounded-[9px] border border-green-solid/30 bg-green-solid/[0.16] px-3.5 py-[9px] text-[12.5px] font-bold text-green disabled:cursor-not-allowed disabled:opacity-70"
-        disabled
-        title="Referrals arrive with the Affiliates section"
+      <NavLink
+        to="/dashboard/affiliates"
+        className="flex w-fit cursor-pointer items-center gap-2 rounded-[9px] border border-green-solid/30 bg-green-solid/[0.16] px-3.5 py-[9px] text-[12.5px] font-bold text-green"
       >
         <InviteIcon />
         Invite Now
-      </button>
+      </NavLink>
     </div>
   );
 }
@@ -172,10 +192,19 @@ function Sidebar() {
         <NavRows />
       </nav>
 
+      {/*
+        No session button here. On this breakpoint the top bar owns the session
+        entirely: "Connect Wallet" when signed out, and the account menu — which
+        carries Disconnect — when signed in. A second Disconnect in the sidebar
+        was the same action in two places.
+
+        The mobile drawer still has one, because the account menu has no room in
+        a mobile top bar and Settings offers no disconnect of its own; dropping
+        it there would leave no way off the account at all.
+      */}
       <div className="mt-auto flex shrink-0 flex-col gap-3">
         <InviteCard />
         <ThemeRow />
-        <SessionButton />
         <p className="text-[11.5px] leading-[1.5] text-faint">
           © 2026 GamblingHub
           <br />
@@ -206,16 +235,21 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
 
   return (
     <>
-      <div
-        onClick={onClose}
-        aria-hidden
-        className="fixed inset-0 z-[90] bg-black/55"
-      />
-      <div className="fixed top-0 bottom-0 left-0 z-[100] flex w-[min(76vw,270px)] flex-col gap-4 overflow-y-auto border-r border-line bg-bg2 px-4 py-[18px]">
-        <div className="flex items-center justify-between">
+      <div onClick={onClose} aria-hidden className="fixed inset-0 z-[90] bg-black/55" />
+
+      {/*
+        Exactly one viewport tall, and never scrolls.
+        `dvh` rather than `vh` because mobile browsers shrink the visible area
+        when their address bar is showing — `100vh` measures the *expanded*
+        viewport, so the footer would sit below the fold on first paint.
+        `overflow-hidden` is the guarantee: the nav in the middle is the only
+        flexible part, and its rows divide whatever is left over.
+      */}
+      <div className="fixed top-0 bottom-0 left-0 z-[100] flex h-[100dvh] w-[min(78vw,272px)] flex-col overflow-hidden border-r border-line bg-bg2 px-3.5 py-3.5">
+        <div className="flex shrink-0 items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <LogoBadge box={34} glyph={18} />
-            <Wordmark size={16} />
+            <LogoBadge box={32} glyph={17} />
+            <Wordmark size={15.5} />
           </div>
           <button
             onClick={onClose}
@@ -226,11 +260,13 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
           </button>
         </div>
 
-        <nav className="flex flex-col gap-1">
-          <NavRows onNavigate={onClose} />
+        <DrawerAccount onNavigate={onClose} />
+
+        <nav className="flex min-h-0 flex-1 flex-col gap-[3px] py-2.5">
+          <NavRows onNavigate={onClose} fill />
         </nav>
 
-        <div className="mt-auto flex flex-col gap-1 border-t border-line2 pt-3">
+        <div className="flex shrink-0 flex-col gap-0.5 border-t border-line2 pt-2">
           <ThemeRow compact />
           <SessionButton bare onDone={onClose} />
         </div>
@@ -239,10 +275,47 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
   );
 }
 
+/**
+ * Who you are, in the drawer.
+ *
+ * The top bar's account menu is desktop-only — there is no room for it beside a
+ * hamburger and a balance chip — so on mobile this is where the wallet address
+ * lives. Tapping it opens Settings rather than doing anything destructive.
+ */
+function DrawerAccount({ onNavigate }: { onNavigate: () => void }) {
+  const { isAuthenticated, user, balance } = useAuth();
+
+  if (!isAuthenticated || !user) return null;
+
+  return (
+    <NavLink
+      to="/dashboard/settings"
+      onClick={onNavigate}
+      // Hidden below 620px of viewport height. The nav rows are the only thing
+      // that can absorb this block's ~62px, and below that they would be pushed
+      // under their 34px floor — at which point the last item is clipped by the
+      // drawer's `overflow-hidden`. Losing a convenience beats losing Support.
+      className="mt-3 flex shrink-0 items-center gap-2.5 rounded-xl border border-line bg-card px-2.5 py-2 [@media(max-height:619px)]:hidden"
+    >
+      <span
+        className="size-8 shrink-0 rounded-[9px]"
+        style={{ background: avatarGradient(user.walletAddress) }}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-mono text-[12px] font-semibold">
+          {user.displayName || shortAddress(user.walletAddress, 5)}
+        </span>
+        <span className="block text-[11px] text-green">
+          {formatSol(balance?.availableBalance ?? '0')} SOL
+        </span>
+      </span>
+    </NavLink>
+  );
+}
+
 function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const isMobile = useIsMobile();
-  const { isAuthenticated, isAuthenticating, user, balance, signIn, signOut } = useAuth();
-  const navigate = useNavigate();
+  const { isAuthenticated, isAuthenticating, balance, signIn } = useAuth();
 
   return (
     <div className="sticky top-0 z-40 mb-4 border-b border-line2 bg-bg pt-3.5 pb-3">
@@ -285,33 +358,17 @@ function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
             </span>
           </div>
 
-          {!isMobile &&
-            (isAuthenticated && user ? (
-              <>
-                <button
-                  className="relative flex size-[42px] cursor-pointer items-center justify-center rounded-[11px] border border-line bg-card text-muted"
-                  title="Notifications"
-                  aria-label="Notifications"
-                >
-                  <BellIcon />
-                  <span className="absolute top-[9px] right-2.5 size-[7px] rounded-full border-[1.5px] border-bg2 bg-green" />
-                </button>
+          {/*
+            The bell is shown on every width — a settled match or a credited
+            deposit is worth knowing about on a phone too. The account menu is
+            desktop-only, because there is no room for it beside a hamburger and
+            a balance chip; on mobile that identity lives in the drawer.
+          */}
+          {isAuthenticated && <NotificationsMenu enabled={isAuthenticated} />}
 
-                <button
-                  onClick={() => {
-                    signOut();
-                    navigate('/');
-                  }}
-                  title="Disconnect wallet"
-                  className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-card py-[7px] pr-3 pl-2"
-                >
-                  <span className="size-7 rounded-lg bg-[linear-gradient(135deg,#7c3aed,#2563eb)]" />
-                  <span className="font-mono text-[12.5px] font-medium">
-                    {user.displayName || shortAddress(user.walletAddress)}
-                  </span>
-                  <ChevronDown size={14} color="var(--faint)" />
-                </button>
-              </>
+          {!isMobile &&
+            (isAuthenticated ? (
+              <AccountMenu />
             ) : (
               <button
                 onClick={() => void signIn()}

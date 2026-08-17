@@ -50,9 +50,10 @@ Online real-money gambling (games of chance for stakes) is currently restricted 
 - `06-Landing-Dashboard-Structure.md` — landing page + dashboard layout, sections, and gating rules
 - `08-Solana-Setup-Guide.md` — clusters, wallets, devnet SOL, treasury setup, and how browser/backend/chain communicate
 - `07-Local-Dev-Environment.md` — Docker setup for the local PostgreSQL container
+- `09-Referral-Program.md` — Invite & Earn: invite links, attribution, and the 5%-of-first-win commission
 
 ## How to Use This Vault (for teammates / any AI picking this up)
 Read this file first for the big picture. Then read `01`, `02`, and `03` — those three never change per-game and apply to every game automatically. `06` covers the landing/dashboard UI structure and can be worked on independently of the backend files. `07` covers local environment setup. Then open only the specific `Games/Game-X.md` file for the game you're working on; it's self-contained and doesn't require reading other game files.
 
 ## Last Updated
-2026-08-15 — Switched database from MongoDB to PostgreSQL/Prisma across all docs; added `07-Local-Dev-Environment.md`.
+2026-08-17 — Added `09-Referral-Program.md` (Invite & Earn), built on top of the escrow layer.

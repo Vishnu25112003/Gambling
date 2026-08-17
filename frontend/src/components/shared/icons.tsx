@@ -283,9 +283,27 @@ export function MoonIcon({ size = 19 }: { size?: number }) {
   );
 }
 
-export function ChevronDown({ size = 15, color = 'currentColor' }: { size?: number; color?: string }) {
+/** `className` is accepted so a caller can rotate it to signal an open menu. */
+export function ChevronDown({
+  size = 15,
+  color = 'currentColor',
+  className,
+}: {
+  size?: number;
+  color?: string;
+  className?: string;
+}) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} aria-hidden>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      className={className}
+      aria-hidden
+    >
       <path d="M6 9l6 6 6-6" />
     </svg>
   );

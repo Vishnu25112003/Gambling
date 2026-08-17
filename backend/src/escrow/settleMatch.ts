@@ -9,6 +9,7 @@ import {
   type MoneyInput,
 } from '../lib/money.js';
 import { createLogger } from '../lib/logger.js';
+import { awardReferralOnWin } from '../referral/awardReferral.js';
 import type { Id, SettleResult, SettleMatchOptions, SettlementPayout } from './types.js';
 
 const log = createLogger('escrow:settle');
@@ -187,6 +188,22 @@ export async function settleMatch(
             mode: match.mode,
           },
         },
+      });
+
+      /**
+       * Doc 09 — if this player was invited by someone and just turned their
+       * first profit, pay that referrer their cut.
+       *
+       * Inside the same transaction, so the commission, its ledger row and this
+       * settlement commit or roll back together. It reads the net win rather
+       * than the payout, takes nothing from the pot, and leaves `feeCollected`
+       * alone — see the header of awardReferral.ts for why.
+       */
+      await awardReferralOnWin(tx, {
+        userId: uid,
+        netWin: payout.minus(totalStake),
+        matchId,
+        gameType: match.gameType,
       });
     }
 

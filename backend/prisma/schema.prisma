@@ -43,12 +43,23 @@ model User {
   netProfit    Decimal  @default(0) @db.Decimal(20, 9)
   gamesPlayed  Int      @default(0)
 
+  /// Doc 09 — this user's own invite code, the `?ref=` half of their invite link.
+  ///
+  /// Nullable-unique for exactly the reason `LedgerEntry.txSignature` is: Postgres
+  /// treats NULLs as distinct in a unique index, so accounts that predate this
+  /// column need no backfill migration. The code is minted on signup for new users
+  /// and lazily on first read for everyone else (`referral/referralCode.ts`).
+  referralCode String? @unique @db.VarChar(12)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   lastLogin DateTime?
 
   ledgerEntries  LedgerEntry[]
   participations MatchParticipant[]
+
+  referralsMade    Referral[] @relation("referrer")
+  referralReceived Referral?  @relation("referred")
 
   // The leaderboard sorts on this; without the index it's a full table scan.
   @@index([netProfit(sort: Desc)])
@@ -87,6 +98,10 @@ enum LedgerType {
   refund
   forfeit
   fee
+  /// Doc 09 — a referrer's commission on a referred player's first win. Credited
+  /// by the house, so it is the one positive entry that is not funded by a
+  /// player's own stake.
+  referral
 }
 
 enum LedgerStatus {
@@ -220,4 +235,50 @@ model MatchParticipant {
   @@unique([matchId, userId])
   @@index([userId])
   @@map("match_participants")
+}
+
+// ---------------------------------------------------------------------------
+// Doc 09 — Invite & Earn
+// ---------------------------------------------------------------------------
+
+enum ReferralStatus {
+  /// Bound to a referrer, waiting on the referred player's first winning match.
+  /// A LOSS does not void this — it stays pending until they first profit.
+  pending
+  /// Commission paid. Terminal: a referral pays exactly once, ever.
+  earned
+}
+
+/// One row per referred player — the edge from referrer to referred.
+///
+/// `referredUserId` is UNIQUE, and that single constraint is what makes a
+/// referrer permanent: a player can be claimed once, by one person, and no
+/// later code entry can overwrite it.
+model Referral {
+  id String @id @default(uuid()) @db.Uuid
+
+  referrerId String @db.Uuid
+  referrer   User   @relation("referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+
+  referredUserId String @unique @db.Uuid
+  referred       User   @relation("referred", fields: [referredUserId], references: [id], onDelete: Cascade)
+
+  status ReferralStatus @default(pending)
+
+  /// Captured at BIND time, not read from config at payout time. Changing the
+  /// platform rate later must not silently re-price a referral already promised.
+  commissionBps Int @default(500)
+
+  earnedAmount Decimal @default(0) @db.Decimal(20, 9)
+
+  /// The match whose win triggered the payout. Null while pending.
+  matchId  String? @db.Uuid
+  gameType String?
+
+  createdAt DateTime  @default(now())
+  earnedAt  DateTime?
+
+  @@index([referrerId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("referrals")
 }

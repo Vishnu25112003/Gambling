@@ -5,6 +5,8 @@ import type {
   GameManifest,
   HistoryPage,
   LeaderboardEntry,
+  ReferralLookup,
+  ReferralStats,
   WalletInfo,
   WithdrawResponse,
 } from '../types';
@@ -19,12 +21,20 @@ export const authApi = {
       auth: false,
     }),
 
-  verify: (walletAddress: string, nonce: string, signature: string) =>
-    api<{ token: string; isNewUser: boolean; user: AppUser }>('/auth/verify', {
-      method: 'POST',
-      body: { walletAddress, nonce, signature },
-      auth: false,
-    }),
+  /**
+   * `referralCode` is the invite code captured from `?ref=` on the landing page.
+   * The server applies it only if the caller is still eligible, and never fails
+   * the sign-in over it — check `referralApplied` to know whether it stuck.
+   */
+  verify: (walletAddress: string, nonce: string, signature: string, referralCode?: string) =>
+    api<{ token: string; isNewUser: boolean; referralApplied: boolean; user: AppUser }>(
+      '/auth/verify',
+      {
+        method: 'POST',
+        body: { walletAddress, nonce, signature, ...(referralCode ? { referralCode } : {}) },
+        auth: false,
+      },
+    ),
 
   me: () => api<{ user: AppUser }>('/auth/me'),
 
@@ -56,6 +66,24 @@ export const walletApi = {
 
   history: (page = 1, limit = 25) =>
     api<HistoryPage>(`/wallet/history?page=${page}&limit=${limit}`),
+};
+
+// --- doc 09: invite & earn -------------------------------------------------
+
+export const referralApi = {
+  /** Everything the Invite & Earn page renders, in one call. */
+  me: () => api<ReferralStats>('/referrals/me'),
+
+  /** The fallback for someone who signed up without clicking an invite link. */
+  claim: (code: string) =>
+    api<{ referredBy: { name: string }; commissionBps: number }>('/referrals/claim', {
+      method: 'POST',
+      body: { code },
+    }),
+
+  /** Public — confirms a `?ref=` link resolved, before the visitor has an identity. */
+  lookup: (code: string) =>
+    api<ReferralLookup>(`/referrals/code/${encodeURIComponent(code)}`, { auth: false }),
 };
 
 // --- public ----------------------------------------------------------------

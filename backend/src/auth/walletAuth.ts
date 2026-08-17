@@ -6,6 +6,7 @@ import { env } from '../config/env.js';
 import { prisma } from '../config/db.js';
 import { badRequest, unauthorized } from '../lib/errors.js';
 import { isValidPublicKey } from '../config/solana.js';
+import { generateCode } from '../referral/referralCode.js';
 import type { User } from '../generated/prisma/client.js';
 
 /**
@@ -127,18 +128,34 @@ export async function findOrCreateUser(
     return { user, isNew: false };
   }
 
-  try {
-    const user = await prisma.user.create({
-      data: { walletAddress, lastLogin: new Date() },
-    });
-    return { user, isNew: true };
-  } catch (err: unknown) {
-    // Two first-time sign-ins racing: the unique constraint rejects the loser,
-    // so fall back to reading the row the winner just created.
-    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002') {
-      const raced = await prisma.user.findUnique({ where: { walletAddress } });
-      if (raced) return { user: raced, isNew: false };
+  /**
+   * The retry loop covers the second unique column doc 09 added. A P2002 here
+   * now means one of two different things:
+   *   - `walletAddress` — two first-time sign-ins raced, and the loser should
+   *     read back the row the winner created.
+   *   - `referralCode` — an astronomically unlikely code collision, which is
+   *     fixed simply by drawing another one.
+   * Telling them apart by re-reading the wallet is more robust than parsing the
+   * driver's error metadata.
+   */
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const user = await prisma.user.create({
+        // Doc 09 — every account is minted with an invite code, so the Invite &
+        // Earn page has something to show the moment they arrive. Accounts that
+        // predate doc 09 have NULL here and get one lazily on first read.
+        data: { walletAddress, lastLogin: new Date(), referralCode: generateCode() },
+      });
+      return { user, isNew: true };
+    } catch (err: unknown) {
+      if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002') {
+        const raced = await prisma.user.findUnique({ where: { walletAddress } });
+        if (raced) return { user: raced, isNew: false };
+        continue; // the code collided, not the wallet — draw again
+      }
+      throw err;
     }
-    throw err;
   }
+
+  throw new Error(`Could not create a user for ${walletAddress} after repeated code collisions`);
 }

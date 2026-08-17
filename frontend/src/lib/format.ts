@@ -43,6 +43,24 @@ export function shortAddress(address: string, size = 4): string {
   return `${address.slice(0, size)}…${address.slice(-size)}`;
 }
 
+/**
+ * "just now", "4m ago", "3h ago", "2d ago", then an absolute date.
+ *
+ * Notifications are read at a glance, and an absolute timestamp on something
+ * that happened ninety seconds ago makes the reader do arithmetic. Past a week
+ * the relative form stops being useful and it falls back to a real date.
+ */
+export function formatRelative(iso: string): string {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+
+  if (seconds < 45) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604_800) return `${Math.floor(seconds / 86_400)}d ago`;
+
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
     month: 'short',
@@ -60,6 +78,7 @@ const LEDGER_LABELS: Record<string, string> = {
   refund: 'Refund',
   forfeit: 'Forfeit',
   fee: 'Platform fee',
+  referral: 'Referral bonus',
 };
 
 export const ledgerLabel = (type: string): string => LEDGER_LABELS[type] ?? type;
