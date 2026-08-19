@@ -9,9 +9,11 @@ import {
 import { issueToken } from './jwt.js';
 import { requireAuth } from './authMiddleware.js';
 import { prisma } from '../config/db.js';
-import { asyncHandler, badRequest, unauthorized } from '../lib/errors.js';
+import { asyncHandler, badRequest, conflict, unauthorized } from '../lib/errors.js';
 import { publicUser } from '../lib/user.js';
 import { bindReferral } from '../referral/bindReferral.js';
+import { avatarUpload, removeAvatar, saveAvatar } from '../profile/avatarStore.js';
+import { parseUsername } from '../profile/username.js';
 import { createLogger } from '../lib/logger.js';
 
 const log = createLogger('auth');
@@ -116,23 +118,103 @@ authRouter.get(
   }),
 );
 
+/**
+ * Doc 11 — both mutable identity fields, both OPTIONAL.
+ *
+ * Optional is the important part. When `displayName` was required, every caller
+ * had to send it, which was fine while it was the only field — but a username-only
+ * save would then post `{username}` alone and blank the display name as a side
+ * effect. Absent now means "leave alone"; explicit `null` means "clear".
+ */
 const profileBody = z.object({
-  displayName: z.string().trim().min(2).max(32).nullable(),
+  displayName: z.string().trim().min(2).max(32).nullable().optional(),
+  username: z.string().trim().min(3).max(20).nullable().optional(),
 });
 
-/** PATCH /api/auth/me — the only mutable profile field for now. */
+/** PATCH /api/auth/me — display name and public handle. */
 authRouter.patch(
   '/me',
   requireAuth,
   asyncHandler(async (req, res) => {
     const parsed = profileBody.safeParse(req.body);
-    if (!parsed.success) throw badRequest('displayName must be 2-32 characters, or null.');
+    if (!parsed.success) {
+      throw badRequest(
+        'displayName must be 2-32 characters and username 3-20; send null to clear either.',
+      );
+    }
+
+    const { displayName, username } = parsed.data;
+    if (displayName === undefined && username === undefined) {
+      throw badRequest('Nothing to update.');
+    }
+
+    // Built key by key, so an absent field is genuinely untouched rather than
+    // overwritten with undefined.
+    const data: { displayName?: string | null; username?: string | null } = {};
+    if (displayName !== undefined) data.displayName = displayName;
+    // parseUsername normalises to lowercase and rejects reserved handles.
+    if (username !== undefined) data.username = username === null ? null : parseUsername(username);
+
+    let user;
+    try {
+      user = await prisma.user.update({ where: { id: req.user!.id }, data });
+    } catch (err) {
+      /**
+       * P2002 is the unique index on `username` firing. The availability check on
+       * the form cannot prevent this — two players can pass it in the same instant
+       * and only one can win the write — so the index is the real guard and this
+       * is how its verdict reaches the loser as something readable.
+       */
+      if ((err as { code?: string }).code === 'P2002') {
+        throw conflict('That username is already taken.');
+      }
+      throw err;
+    }
+
+    res.json({
+      user: { id: user.id, displayName: user.displayName, username: user.username },
+    });
+  }),
+);
+
+/**
+ * POST /api/auth/me/avatar — multipart/form-data, one file in an `avatar` field.
+ *
+ * The upload machinery lives in `profile/avatarStore.ts`; this route only ties it
+ * to a session. Note the file is named after `req.user!.id` in there and never
+ * after anything the client sent.
+ */
+authRouter.post(
+  '/me/avatar',
+  requireAuth,
+  avatarUpload,
+  asyncHandler(async (req, res) => {
+    const file = req.file;
+    if (!file?.buffer?.length) throw badRequest('Attach an image in an "avatar" field.');
+
+    const avatarUrl = await saveAvatar(req.user!.id, file.buffer, req.user!.avatarUrl);
 
     const user = await prisma.user.update({
       where: { id: req.user!.id },
-      data: { displayName: parsed.data.displayName },
+      data: { avatarUrl },
     });
 
-    res.json({ user: { id: user.id, displayName: user.displayName } });
+    res.json({ user: { id: user.id, avatarUrl: user.avatarUrl } });
+  }),
+);
+
+/** DELETE /api/auth/me/avatar — back to the gradient generated from the wallet. */
+authRouter.delete(
+  '/me/avatar',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    await removeAvatar(req.user!.id);
+
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { avatarUrl: null },
+    });
+
+    res.json({ user: { id: user.id, avatarUrl: user.avatarUrl } });
   }),
 );

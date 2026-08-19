@@ -11,12 +11,17 @@ export interface AppUser {
   id: string;
   walletAddress: string;
   displayName: string | null;
+  /** Doc 11 — the public handle, lowercase. Null until the player claims one. */
+  username: string | null;
+  /** Doc 11 — root-relative, with a `?v=` cache-buster. Null = generated gradient. */
+  avatarUrl: string | null;
   /** Exact SOL decimal string, e.g. "1.900000000". */
   availableBalance: string;
   lockedBalance: string;
   totalWagered: string;
   netProfit: string;
   gamesPlayed: number;
+  gamesWon: number;
   createdAt?: string;
   lastLogin?: string | null;
 }
@@ -68,9 +73,18 @@ export interface HistoryPage {
 export interface LeaderboardEntry {
   rank: number;
   name: string;
+  /** Doc 11 — the `:handle` for /dashboard/u/:handle. Username, else the user id. */
+  handle: string;
+  /** Doc 11 — derived from lifetime wagered. */
+  tier: TierKey;
+  /** Doc 11 — uploaded image, or null for the generated gradient. */
+  avatarUrl: string | null;
+  /** Doc 11 — shortened address; the gradient seed. Never the full address. */
+  walletShort: string;
   netProfit: string;
   totalWagered: string;
   gamesPlayed: number;
+  gamesWon: number;
   isYou: boolean;
 }
 
@@ -152,4 +166,128 @@ export interface WithdrawResponse {
   sent: string;
   availableBalance: string;
   explorerUrl: string;
+}
+
+// --- doc 11: user profiles -------------------------------------------------
+
+export type TierKey = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond';
+
+export interface TierRung {
+  key: TierKey;
+  label: string;
+  /** Exact SOL decimal string. */
+  minWagered: string;
+  /** 1-based position on the ladder. */
+  level: number;
+  reached: boolean;
+}
+
+export interface TierProgress {
+  key: TierKey;
+  label: string;
+  level: number;
+  next: { key: TierKey; label: string; minWagered: string } | null;
+  wagered: string;
+  /** Null at the top of the ladder. */
+  remainingToNext: string | null;
+  /** 0-100. A bar width, not money — the one number here that is a number. */
+  percentToNext: number;
+  ladder: TierRung[];
+}
+
+export interface CurrentStreak {
+  kind: 'win' | 'loss' | 'none';
+  count: number;
+}
+
+/**
+ * Lifetime figures. `totalDeposited` and `totalWithdrawn` are omitted from
+ * another player's profile — they are wallet facts, not a playing record — which
+ * is why both are optional here.
+ */
+export interface ProfileStats {
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesLost: number;
+  gamesDrawn: number;
+  gamesForfeited: number;
+  /** Percent to one decimal, or null for a player who has never finished a match. */
+  winRate: number | null;
+  totalWagered: string;
+  netProfit: string;
+  biggestWin: string;
+  biggestLoss: string;
+  avgStake: string;
+  totalDeposited?: string;
+  totalWithdrawn?: string;
+  referralEarnings: string;
+  currentStreak: CurrentStreak;
+  bestWinStreak: number;
+}
+
+export interface PerGameStat {
+  gameType: string;
+  played: number;
+  won: number;
+  lost: number;
+  wagered: string;
+  netProfit: string;
+}
+
+export interface DailyNet {
+  /** YYYY-MM-DD. */
+  day: string;
+  net: string;
+  games: number;
+}
+
+export interface ProfileIdentity {
+  handle: string;
+  username: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  /** Own profile only — a public profile carries `walletShort` instead. */
+  walletAddress?: string;
+  walletShort?: string;
+  /** Public profile only: the name to render. */
+  label?: string;
+  joinedAt: string;
+  lastLogin?: string | null;
+}
+
+export interface Profile {
+  isYou: boolean;
+  identity: ProfileIdentity;
+  tier: TierProgress;
+  stats: ProfileStats;
+  perGame: PerGameStat[];
+  curve: DailyNet[];
+}
+
+export type MatchResult = 'won' | 'lost' | 'draw' | 'refunded' | 'forfeited' | 'open';
+
+export interface MatchHistoryRow {
+  matchId: string;
+  gameType: string;
+  mode: 'pooled' | 'solo_vs_house';
+  result: MatchResult;
+  stake: string;
+  payout: string;
+  net: string;
+  pot: string;
+  settledAt: string | null;
+  joinedAt: string;
+}
+
+export interface MatchHistoryPage {
+  page: number;
+  limit: number;
+  total: number;
+  entries: MatchHistoryRow[];
+}
+
+export interface UsernameCheck {
+  username: string;
+  available: boolean;
+  reason: string | null;
 }

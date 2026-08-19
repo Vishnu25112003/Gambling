@@ -30,8 +30,16 @@ interface RequestOptions {
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = true } = options;
 
+  /**
+   * A FormData body must NOT get a Content-Type header. The browser sets it
+   * itself, including the multipart boundary it generated — writing our own
+   * `multipart/form-data` here would omit that boundary and the server would
+   * fail to parse the upload.
+   */
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+
   const headers: Record<string, string> = {};
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
 
   if (auth) {
     const token = tokenStore.get();
@@ -41,7 +49,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   const res = await fetch(`${BASE}/api${path}`, {
     method,
     headers,
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    ...(body !== undefined ? { body: isForm ? (body as FormData) : JSON.stringify(body) } : {}),
   });
 
   const text = await res.text();

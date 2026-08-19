@@ -55,6 +55,19 @@ export async function refundMatch(matchId: Id, reason = 'Match refunded'): Promi
         continue;
       }
 
+      /**
+       * Doc 11 — if this player had already forfeited, `forfeitPlayer` recorded
+       * the loss (`netProfit -= amount`) and counted the game
+       * (`gamesPlayed += 1`). A refund means the match never happened, so those
+       * two have to come back as well — otherwise a crash after a disconnect
+       * leaves a permanent phantom loss on the player's record, refunded in money
+       * but not in statistics.
+       *
+       * `gamesPlayed` can't go negative here: the forfeit incremented it earlier
+       * in this same match's life, which is the only way `forfeited > 0`.
+       */
+      const wasForfeited = forfeited.greaterThan(0);
+
       const user = await tx.user.update({
         where: { id: participant.userId },
         data: {
@@ -63,6 +76,9 @@ export async function refundMatch(matchId: Id, reason = 'Match refunded'): Promi
           // A refunded match never happened: unwind the wagered stat too, so a
           // crash doesn't inflate a player's lifetime volume.
           totalWagered: { decrement: amount },
+          ...(wasForfeited
+            ? { netProfit: { increment: forfeited }, gamesPlayed: { decrement: 1 } }
+            : {}),
         },
       });
 

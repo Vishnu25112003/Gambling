@@ -148,13 +148,38 @@ export async function settleMatch(
       );
       const payout = payoutByUser.get(uid) ?? new Decimal(0);
 
+      /**
+       * Doc 11 — the lifetime counters.
+       *
+       * A forfeited participant was ALREADY counted by `forfeitPlayer`, which
+       * debited their netProfit and incremented gamesPlayed the moment the
+       * reconnect window closed. Counting them again here would double both: one
+       * forfeit would read as two games played and twice the loss — which is
+       * exactly what happened before this guard existed, and what
+       * tests/profile.test.ts pins down.
+       *
+       * The money half stays unconditional, and is already a no-op for a
+       * forfeited row: `stillLocked` is 0 (forfeitPlayer unlocked it) and a
+       * forfeited player is never in `winners`, so `payout` is 0 too.
+       */
+      const alreadyCounted = participant.status === 'forfeited';
+      const won = payout.greaterThan(totalStake);
+
       const user = await tx.user.update({
         where: { id: uid },
         data: {
           lockedBalance: { decrement: stillLocked },
           availableBalance: { increment: payout },
-          netProfit: { increment: payout.minus(totalStake) },
-          gamesPlayed: { increment: 1 },
+          ...(alreadyCounted
+            ? {}
+            : {
+                netProfit: { increment: payout.minus(totalStake) },
+                gamesPlayed: { increment: 1 },
+                // A win is finishing in profit, not merely being listed in
+                // `winners` — a pooled draw returns every stake and pays nobody,
+                // and that is not a win for anyone.
+                ...(won ? { gamesWon: { increment: 1 } } : {}),
+              }),
         },
       });
 

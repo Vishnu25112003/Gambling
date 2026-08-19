@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useDismissable } from '../../hooks/useDismissable';
 import { formatSol, shortAddress } from '../../lib/format';
-import { avatarGradient } from '../../lib/avatar';
+import { Avatar } from '../shared/Avatar';
 import { ChevronDown, Icon, SignOutIcon } from '../shared/icons';
 import type { AppUser, Balance } from '../../types';
 
@@ -36,7 +36,7 @@ export function AccountMenu() {
           open ? 'border-green-solid/40' : 'border-line hover:border-green-solid/25'
         }`}
       >
-        <Avatar address={user.walletAddress} />
+        <Avatar src={user.avatarUrl} address={user.walletAddress} name={user.displayName ?? undefined} />
         <span className="max-w-[130px] truncate font-mono text-[12.5px] font-medium">{label}</span>
         <ChevronDown
           size={14}
@@ -102,7 +102,12 @@ function AccountHeader({ user, balance }: { user: AppUser; balance: Balance | nu
   return (
     <div className="border-b border-line2 bg-[linear-gradient(135deg,rgba(34,197,94,0.10),transparent)] px-4 pt-4 pb-3.5">
       <div className="mb-3 flex items-center gap-2.5">
-        <Avatar address={user.walletAddress} size={38} />
+        <Avatar
+          src={user.avatarUrl}
+          address={user.walletAddress}
+          name={user.displayName ?? undefined}
+          size={38}
+        />
         <div className="min-w-0">
           <div className="truncate text-[14px] font-bold">
             {user.displayName || 'Unnamed player'}
@@ -173,16 +178,3 @@ function MenuLink({
   );
 }
 
-function Avatar({ address, size = 28 }: { address: string; size?: number }) {
-  return (
-    <span
-      className="shrink-0"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size * 0.29,
-        background: avatarGradient(address),
-      }}
-    />
-  );
-}

@@ -10,6 +10,8 @@ import { Leaderboard } from './pages/dashboard/Leaderboard';
 import { Escrow } from './pages/dashboard/Escrow';
 import { Transactions } from './pages/dashboard/Transactions';
 import { Settings } from './pages/dashboard/Settings';
+import { Profile } from './pages/dashboard/Profile';
+import { PublicProfile } from './pages/dashboard/PublicProfile';
 import { InviteEarn } from './pages/dashboard/InviteEarn';
 import { Placeholder } from './pages/dashboard/Placeholder';
 import { NotFound } from './pages/NotFound';
@@ -46,13 +48,16 @@ export default function App() {
                 <Route path="settings" element={<Settings />} />
                 <Route path="support" element={<Placeholder navKey="support" />} />
 
+                {/* Doc 11 — own profile, and anyone's by handle. */}
+                <Route path="profile" element={<Profile />} />
+                <Route path="u/:handle" element={<PublicProfile />} />
+
                 {/* The pre-redesign paths, kept alive so old links still land. */}
                 <Route path="wallet" element={<Navigate to="/dashboard/escrow" replace />} />
                 <Route
                   path="history"
                   element={<Navigate to="/dashboard/transactions" replace />}
                 />
-                <Route path="profile" element={<Navigate to="/dashboard/settings" replace />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

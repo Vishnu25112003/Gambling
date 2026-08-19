@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../hooks/useTheme';
 import { formatSol, shortAddress } from '../../lib/format';
-import { avatarGradient } from '../../lib/avatar';
+import { Avatar } from '../shared/Avatar';
 import {
   ChevronDown,
   CloseIcon,
@@ -297,9 +297,12 @@ function DrawerAccount({ onNavigate }: { onNavigate: () => void }) {
       // drawer's `overflow-hidden`. Losing a convenience beats losing Support.
       className="mt-3 flex shrink-0 items-center gap-2.5 rounded-xl border border-line bg-card px-2.5 py-2 [@media(max-height:619px)]:hidden"
     >
-      <span
-        className="size-8 shrink-0 rounded-[9px]"
-        style={{ background: avatarGradient(user.walletAddress) }}
+      <Avatar
+        src={user.avatarUrl}
+        address={user.walletAddress}
+        name={user.displayName ?? undefined}
+        size={32}
+        radiusRatio={0.28}
       />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-mono text-[12px] font-semibold">

@@ -20,12 +20,73 @@ export function publicUser(user: User) {
     id: user.id,
     walletAddress: user.walletAddress,
     displayName: user.displayName,
+    username: user.username,
+    avatarUrl: user.avatarUrl,
     availableBalance: toAmountString(user.availableBalance),
     lockedBalance: toAmountString(user.lockedBalance),
     totalWagered: toAmountString(user.totalWagered),
     netProfit: toAmountString(user.netProfit),
     gamesPlayed: user.gamesPlayed,
+    gamesWon: user.gamesWon,
     createdAt: user.createdAt,
     lastLogin: user.lastLogin,
+  };
+}
+
+/** The label to show for a user in public: their name, else a shortened wallet. */
+export function userLabel(user: Pick<User, 'displayName' | 'username' | 'walletAddress'>): string {
+  return user.displayName ?? user.username ?? shortAddress(user.walletAddress);
+}
+
+/**
+ * The `:handle` in `/dashboard/u/:handle`.
+ *
+ * A username once claimed, the internal id until then — so every player is
+ * linkable from the leaderboard immediately and the URL simply gets prettier
+ * later. Deliberately NOT the wallet address: `leaderboard.routes.ts` already
+ * refuses to publish full addresses, and a URL is more public than a table cell
+ * (it ends up in history, referrers and shared links). The id is safe to expose
+ * because nothing authorizes off it — see the note in auth/jwt.ts.
+ */
+export function userHandle(user: Pick<User, 'username' | 'id'>): string {
+  return user.username ?? user.id;
+}
+
+/**
+ * Doc 11 — the shape sent for SOMEBODY ELSE'S profile.
+ *
+ * A separate projection rather than `publicUser` with fields deleted, and that is
+ * the whole point: `publicUser` returns both balances and the full wallet address,
+ * so filtering it would mean every future field added there leaks by default. Here
+ * the omission is structural — there is nothing to forget to remove.
+ */
+export function publicProfile(
+  user: Pick<
+    User,
+    | 'id'
+    | 'walletAddress'
+    | 'displayName'
+    | 'username'
+    | 'avatarUrl'
+    | 'totalWagered'
+    | 'netProfit'
+    | 'gamesPlayed'
+    | 'gamesWon'
+    | 'createdAt'
+  >,
+) {
+  return {
+    handle: userHandle(user),
+    username: user.username,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    /** Shortened, never the full address. */
+    walletShort: shortAddress(user.walletAddress),
+    label: userLabel(user),
+    totalWagered: toAmountString(user.totalWagered),
+    netProfit: toAmountString(user.netProfit),
+    gamesPlayed: user.gamesPlayed,
+    gamesWon: user.gamesWon,
+    joinedAt: user.createdAt,
   };
 }

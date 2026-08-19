@@ -43,6 +43,28 @@ model User {
   netProfit    Decimal  @default(0) @db.Decimal(20, 9)
   gamesPlayed  Int      @default(0)
 
+  /// Doc 11 — matches this player finished in profit.
+  ///
+  /// Denormalised alongside `gamesPlayed` rather than derived, because it is
+  /// written exactly where the win is decided (`escrow/settleMatch.ts`) and read
+  /// on every profile and leaderboard row. A CHECK constraint keeps it within
+  /// `gamesPlayed`, so the pair can never describe an impossible record.
+  gamesWon Int @default(0)
+
+  /// Doc 11 — the public profile handle: the `:handle` in /dashboard/u/:handle.
+  ///
+  /// Nullable-unique for exactly the reason `referralCode` is: Postgres treats
+  /// NULLs as distinct in a unique index, so accounts that predate this column
+  /// need no backfill. Stored already lowercased (`profile/username.ts`), which is
+  /// what makes this single unique index case-insensitive; a database CHECK pins
+  /// the shape, because a username is a URL segment.
+  username String? @unique @db.VarChar(20)
+
+  /// Doc 11 — root-relative path to an uploaded avatar, carrying a cache-busting
+  /// version: "/uploads/avatars/<id>.webp?v=3". NULL means "draw the gradient
+  /// generated from the wallet address", which is the default for every account.
+  avatarUrl String? @db.VarChar(255)
+
   /// Doc 09 — this user's own invite code, the `?ref=` half of their invite link.
   ///
   /// Nullable-unique for exactly the reason `LedgerEntry.txSignature` is: Postgres
@@ -205,6 +227,8 @@ model Match {
 
   @@index([gameType, status])
   @@index([status])
+  // Doc 11 — match history and streaks order by settle time, newest first.
+  @@index([status, settledAt(sort: Desc)])
   @@map("matches")
 }
 
@@ -223,6 +247,16 @@ model MatchParticipant {
   /// from the player's lockedBalance but still in the pot, tracked separately so
   /// settlement can never debit the same stake twice.
   forfeitedAmount Decimal @default(0) @db.Decimal(20, 9)
+
+  /// Doc 11 — every lamport this player ever staked into this match, written once
+  /// at lock time and never reduced.
+  ///
+  /// `lockedAmount` is set to 0 by `settleMatch`, so after a match it can no
+  /// longer answer "what did they stake" — and without that number there is no
+  /// win, no loss and no net for any row of match history. The ledger's `lock`
+  /// entries do preserve it, but reconstructing every stat from a signed ledger
+  /// sum is both slower and easier to get wrong than one immutable column.
+  stakeTotal Decimal @default(0) @db.Decimal(20, 9)
 
   /// ADDED — paid back out at settlement (0 for a loser).
   payout Decimal           @default(0) @db.Decimal(20, 9)

@@ -5,8 +5,11 @@ import type {
   GameManifest,
   HistoryPage,
   LeaderboardEntry,
+  MatchHistoryPage,
+  Profile,
   ReferralLookup,
   ReferralStats,
+  UsernameCheck,
   WalletInfo,
   WithdrawResponse,
 } from '../types';
@@ -38,11 +41,58 @@ export const authApi = {
 
   me: () => api<{ user: AppUser }>('/auth/me'),
 
-  updateProfile: (displayName: string | null) =>
-    api<{ user: { id: string; displayName: string | null } }>('/auth/me', {
-      method: 'PATCH',
-      body: { displayName },
+  /**
+   * Doc 11 — both identity fields, both optional.
+   *
+   * An OMITTED key means "leave it alone"; an explicit `null` means "clear it".
+   * That distinction is why this takes an object rather than positional
+   * arguments — saving a username must not blank the display name as a side
+   * effect.
+   */
+  updateProfile: (patch: { displayName?: string | null; username?: string | null }) =>
+    api<{ user: { id: string; displayName: string | null; username: string | null } }>(
+      '/auth/me',
+      { method: 'PATCH', body: patch },
+    ),
+
+  /** Doc 11 — multipart upload. `client.ts` omits the JSON Content-Type for FormData. */
+  uploadAvatar: (file: File) => {
+    const form = new FormData();
+    form.append('avatar', file);
+    return api<{ user: { id: string; avatarUrl: string | null } }>('/auth/me/avatar', {
+      method: 'POST',
+      body: form,
+    });
+  },
+
+  removeAvatar: () =>
+    api<{ user: { id: string; avatarUrl: string | null } }>('/auth/me/avatar', {
+      method: 'DELETE',
     }),
+};
+
+// --- doc 11: user profiles -------------------------------------------------
+
+export const profileApi = {
+  /** Everything the own-profile page renders, in one call. */
+  me: () => api<Profile>('/profile/me'),
+
+  /**
+   * Somebody else's profile. Public — `auth: false` so a signed-out visitor can
+   * open a shared link, matching doc 06's ungated sections.
+   */
+  byHandle: (handle: string) =>
+    api<Profile>(`/profile/${encodeURIComponent(handle)}`, { auth: false }),
+
+  history: (handle: string | 'me', page = 1, limit = 20) =>
+    api<MatchHistoryPage>(
+      `/profile/${handle === 'me' ? 'me' : encodeURIComponent(handle)}/history?page=${page}&limit=${limit}`,
+      { auth: handle === 'me' },
+    ),
+
+  /** Advisory only — the unique index decides, and PATCH returns 409 on a race. */
+  checkUsername: (username: string) =>
+    api<UsernameCheck>(`/profile/username/check?u=${encodeURIComponent(username)}`),
 };
 
 // --- doc 02: wallet --------------------------------------------------------

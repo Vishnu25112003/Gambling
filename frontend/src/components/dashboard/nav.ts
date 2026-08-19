@@ -17,6 +17,8 @@ export interface NavItem {
  */
 export const NAV_ITEMS: NavItem[] = [
   { key: 'overview', label: 'Dashboard', icon: 'home', to: '/dashboard', end: true },
+  // Doc 11 — second, right under the dashboard: identity belongs at the top.
+  { key: 'profile', label: 'Profile', icon: 'user', to: '/dashboard/profile' },
   { key: 'games', label: 'Games', icon: 'dice', to: '/dashboard/games' },
   { key: 'mybets', label: 'My Bets', icon: 'ticket', to: '/dashboard/bets' },
   { key: 'transactions', label: 'Transactions', icon: 'receipt', to: '/dashboard/transactions' },
