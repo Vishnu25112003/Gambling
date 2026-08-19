@@ -1,8 +1,9 @@
 # Game modules
 
 Empty on purpose. The foundation (auth, deposit/withdraw, escrow, dashboard) is
-built first; games come in a separate pass, and `Gambling_Docs/04-Games-Index.md`
-has no entries yet.
+built first; games come in a separate pass. `Gambling_Docs/04-Games-Index.md`
+holds the master list and assigns each game its number — Game 01 (`coin-flip`)
+is designed in `Gambling_Docs/Games/G01-Coin-Flip.md` but not yet coded.
 
 ## Adding a game
 

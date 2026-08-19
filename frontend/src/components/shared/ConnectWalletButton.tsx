@@ -30,7 +30,7 @@ export function ConnectWalletButton({
         <span className="hidden rounded-xl border border-line bg-card px-3 py-2 font-mono text-sm text-muted sm:inline">
           {user.displayName || shortAddress(user.walletAddress)}
         </span>
-        <Button size={size} variant="danger" onClick={signOut}>
+        <Button size={size} variant="danger" onClick={() => void signOut()}>
           Disconnect
         </Button>
       </div>

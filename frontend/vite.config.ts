@@ -6,6 +6,15 @@ import path from 'node:path';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
+    /*
+     * `node_modules/react-dom` at the repo ROOT is 16.14.0 — hoisted in by
+     * @solana/wallet-adapter-keystone -> @keystonehq/sdk -> react-qr-reader,
+     * which peer-deps `react-dom: ~16` — while the app runs React 19.
+     * react-dom@16 throws on import against react@19. @vitejs/plugin-react
+     * happens to inject this same dedupe today, so the breakage is currently
+     * masked; declaring it here means it does not depend on that.
+     */
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@': path.resolve(import.meta.dirname, 'src'),
       // The Solana stack imports the Node `buffer` builtin, which Vite would

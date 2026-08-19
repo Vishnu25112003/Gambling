@@ -4,7 +4,7 @@
 Handles bet locking, match settlement, refunds, and disconnect/forfeit rules — the shared "money during a game" layer every game plugs into.
 
 ## Overview
-Once a user has a balance (from `02-Deposit-Withdraw.md`), this is what happens to that balance while they're actually playing a game. No blockchain transaction happens per bet — it's all database bookkeeping between two balance fields: `availableBalance` and `lockedBalance`. Every game, no matter what it is, calls the same four functions defined here. This file is what makes games "pluggable" — a game never writes its own money-handling code.
+Once a user has a balance (from `02-Deposit-Withdraw.md`), this is what happens to that balance while they're actually playing a game. No blockchain transaction happens per bet — it's all database bookkeeping between two balance fields: `availableBalance` and `lockedBalance`. **A third is now required and not yet built** — Rule 4 in `10-Game-Common-Rules.md` reserves a stake at match creation, before any lock, and a reserved amount is neither available nor locked. See Open Questions. Every game, no matter what it is, calls the same four functions defined here. This file is what makes games "pluggable" — a game never writes its own money-handling code.
 
 **Scope — mechanism, not policy.** This file describes *how* money moves. It does not define the fee rate, the payout split, or the betting modes — those live in `10-Game-Common-Rules.md` and are the single source of truth for them. When you see a percentage referenced below, doc 10 is where it is set.
 
@@ -176,6 +176,7 @@ model MatchParticipant {
 - Fee is applied at settlement only — `refundMatch` never takes one
 
 ## Open Questions
+- **A third balance state is missing: reserved.** `10-Game-Common-Rules.md` Rule 4 now fences a player's stake off at match creation — before `lockBalance()` runs — so the confirm step cannot fail for insufficient funds. A reserved amount is unspendable but not at risk: no match holds it, and neither `settleMatch` nor `refundMatch` may touch it. This file models only `availableBalance` and `lockedBalance`, so nothing implements it. Three things follow: a `reservedBalance` field on User; `lockBalance()`'s validation counting reserved funds as unavailable (`amount <= availableBalance` is wrong once reserves exist); and a release path for cancelled or expired matches. `02-Deposit-Withdraw.md` must respect it too — a withdrawal that only checks `availableBalance` would drain a reserved stake and reintroduce exactly the failure the reserve prevents.
 - **Rule 3 (fixed vs free bet) is not enforceable yet** — the `Match` model has no `betMode` column, so every match currently behaves as Free Bet. See the implementation plan above.
 - **Forfeit timers are in-memory**, so more than one backend process would double-fire them. Needs Redis before scaling out (see `05-Progress-Log.md`, 2026-08-15).
 
@@ -187,6 +188,7 @@ model MatchParticipant {
 - `11-User-Profiles.md` — reads every statistic on a profile out of the matches this layer settles, and writes `gamesWon` / `stakeTotal` from here
 
 ## Last Updated
+2026-08-19 — A third balance state (`reservedBalance`) is now required by Rule 4's stake reservation and is not built. `lockBalance()`'s max-bet validation is wrong until it lands.
 2026-08-18 — Recorded the `gamesWon` / `stakeTotal` writes added for `11-User-Profiles.md`, and two forfeit double-counting bugs found and fixed during that work.
 2026-08-18 — Fee/payout policy moved out to `10-Game-Common-Rules.md`; status, folder layout, and implementation plan brought in line with what actually shipped.
 2026-08-14 — Initial version, written after escrow flow discussion.

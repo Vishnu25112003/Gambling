@@ -23,7 +23,7 @@ This is Option A of the deposit/withdraw design: a single backend-held wallet (t
 
 **Withdraw:**
 1. User requests a withdrawal amount from their dashboard
-2. Backend checks their `availableBalance` covers the requested amount
+2. Backend checks their `availableBalance` covers the requested amount *(insufficient — see Open Questions: a reserved stake is not yet excluded, so a withdrawal can currently drain funds already committed to a pending match)*
 3. Backend signs a transfer **from treasury → user's wallet address**, for (amount − network fee) — the user absorbs the small network fee, not the house
 4. Backend waits for transaction confirmation
 5. On success, backend debits the user's `availableBalance` and logs the withdrawal
@@ -125,7 +125,9 @@ model LedgerEntry {
 - No smart contract / on-chain program involved in this phase — plain System Program transfers only
 
 ## Open Questions
-- None currently — this layer is locked for the dev/testnet phase.
+- **Withdrawal must exclude reserved stakes, and does not.** `10-Game-Common-Rules.md` Rule 4 reserves a player's stake at match creation, before escrow locks anything. The withdrawal check above tests `availableBalance` alone, so a player with a published match or an outstanding rematch offer could withdraw the very funds that reserve is holding — reintroducing the confirm-time lock failure the reserve exists to prevent. Blocked on the `reservedBalance` field tracked in `03-Escrow.md`; once it exists, the withdrawal validation must subtract it.
+- ~~None currently — this layer is locked for the dev/testnet phase.~~ No longer true: the reserved-stake requirement above reopened it.
 
 ## Last Updated
+2026-08-19 — Reopened: withdrawal validation must exclude reserved stakes once `reservedBalance` exists (Rule 4, `10-Game-Common-Rules.md`). The layer is no longer fully locked.
 2026-08-14 — Initial version, written after deposit/withdraw flow discussion.
