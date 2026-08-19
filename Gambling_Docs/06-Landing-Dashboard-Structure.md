@@ -43,7 +43,8 @@ The site has two layers. The **landing page** is public, static-feeling, and nee
   ├── dashboard/
   │   ├── GamesList.jsx
   │   ├── LeaderboardFull.jsx
-  │   ├── ProfilePanel.jsx
+  │   ├── ProfilePanel.jsx               → NOT what shipped; the profile is a PAGE
+  │   │                                    (pages/dashboard/Profile.tsx), see doc 11
   │   ├── WalletBalancePanel.jsx
   │   ├── TransactionHistoryPanel.jsx
   │   └── ConnectWalletPlaceholder.jsx   → reused across all 3 gated sections
@@ -84,7 +85,7 @@ The site has two layers. The **landing page** is public, static-feeling, and nee
 ## Reference
 
 **Gated sections (require wallet connection to show real content):**
-- Profile
+- Profile — **built**, see `11-User-Profiles.md`. Note the *public* profile at `/dashboard/u/:handle` is deliberately UNGATED: another player's record is public data, so a shared link opens without a wallet.
 - Wallet Balance (+ Deposit/Withdraw panel)
 - Transaction/Game History
 
@@ -99,4 +100,5 @@ The site has two layers. The **landing page** is public, static-feeling, and nee
 - Visual/branding design (colors, layout details, styling) not yet decided — that's a separate design pass, not a structural one.
 
 ## Last Updated
+2026-08-18 — Profile marked as built and linked to `11-User-Profiles.md`; noted that the public profile is ungated by design. Flagged the proposed `ProfilePanel.jsx` as not what shipped. The five sections described here are still stale against the ten in the shipped sidebar.
 2026-08-14 — Initial version, written after landing/dashboard flow discussion.

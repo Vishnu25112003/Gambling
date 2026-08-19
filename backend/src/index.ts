@@ -8,6 +8,7 @@ import { startDepositListener, stopDepositListener } from './wallet/depositListe
 import { isTreasuryConfigured, getTreasuryAddress } from './wallet/treasury.js';
 import { recoverOpenMatches, clearAllForfeitTimers } from './escrow/index.js';
 import { startNonceSweeper, stopNonceSweeper } from './auth/nonceSweeper.js';
+import { ensureAvatarDir } from './profile/avatarStore.js';
 import { createLogger } from './lib/logger.js';
 
 const log = createLogger('boot');
@@ -21,6 +22,10 @@ async function main(): Promise<void> {
 
   // Postgres has no TTL index, so expired sign-in challenges are swept here.
   startNonceSweeper();
+
+  // Doc 11 — created up front so `express.static` has a directory to serve and
+  // the first upload isn't the thing that discovers it's missing.
+  await ensureAvatarDir();
 
   loadGames();
   await initGames();

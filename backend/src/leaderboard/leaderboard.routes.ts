@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { prisma } from '../config/db.js';
 import { optionalAuth } from '../auth/authMiddleware.js';
 import { asyncHandler } from '../lib/errors.js';
-import { shortAddress } from '../lib/user.js';
+import { shortAddress, userHandle, userLabel } from '../lib/user.js';
+import { tierFor } from '../profile/tiers.js';
 import { toAmountString } from '../lib/money.js';
 
 export const leaderboardRouter = Router();
@@ -28,9 +29,12 @@ leaderboardRouter.get(
         id: true,
         walletAddress: true,
         displayName: true,
+        username: true,
+        avatarUrl: true,
         netProfit: true,
         totalWagered: true,
         gamesPlayed: true,
+        gamesWon: true,
       },
     });
 
@@ -40,10 +44,18 @@ leaderboardRouter.get(
       entries: top.map((u, i) => ({
         rank: i + 1,
         // Never expose a full wallet address on a public board.
-        name: u.displayName || shortAddress(u.walletAddress),
+        name: userLabel(u),
+        /** Doc 11 — what /dashboard/u/:handle needs to link this row to a profile. */
+        handle: userHandle(u),
+        /** Doc 11 — derived from totalWagered, which is already selected here. */
+        tier: tierFor(u.totalWagered),
+        avatarUrl: u.avatarUrl,
+        /** Doc 11 — the avatar gradient seed, and never the full address. */
+        walletShort: shortAddress(u.walletAddress),
         netProfit: toAmountString(u.netProfit),
         totalWagered: toAmountString(u.totalWagered),
         gamesPlayed: u.gamesPlayed,
+        gamesWon: u.gamesWon,
         isYou: me ? u.id === me : false,
       })),
     });

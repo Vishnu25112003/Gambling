@@ -62,12 +62,19 @@ export async function lockBalance(
 
     const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
 
-    // One participant row per player per match (enforced by a unique index) —
-    // a second lock accumulates onto the existing row.
+    /**
+     * One participant row per player per match (enforced by a unique index) —
+     * a second lock accumulates onto the existing row.
+     *
+     * Doc 11 — `stakeTotal` accumulates alongside `lockedAmount` but is never
+     * reduced. `settleMatch` zeroes `lockedAmount`, so this is the only record of
+     * what was staked once a match is over, and every win/loss/net figure on the
+     * profile page is computed against it.
+     */
     await tx.matchParticipant.upsert({
       where: { matchId_userId: { matchId, userId } },
-      create: { matchId, userId, lockedAmount: stake, status: 'active' },
-      update: { lockedAmount: { increment: stake } },
+      create: { matchId, userId, lockedAmount: stake, stakeTotal: stake, status: 'active' },
+      update: { lockedAmount: { increment: stake }, stakeTotal: { increment: stake } },
     });
 
     await tx.match.update({

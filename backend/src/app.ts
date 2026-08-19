@@ -3,6 +3,7 @@ import cors from 'cors';
 import { corsOrigins, isProd } from './config/env.js';
 import { buildApiRouter } from './routes/index.js';
 import { AppError } from './lib/errors.js';
+import { UPLOAD_ROOT, UPLOAD_URL_PREFIX } from './profile/avatarStore.js';
 import { createLogger } from './lib/logger.js';
 
 const log = createLogger('http');
@@ -20,6 +21,32 @@ export function createApp(): Express {
   });
 
   app.use('/api', buildApiRouter());
+
+  /**
+   * Doc 11 — uploaded profile images.
+   *
+   * Mounted before the 404 handler, and cached hard: an avatar's path is stable
+   * (`<userId>.webp`), so the URL stored on the user carries a `?v=` counter that
+   * changes on every replace. That makes a year-long immutable cache correct
+   * rather than a stale-image bug — and cheap, since the browser never re-requests
+   * an unchanged avatar.
+   *
+   * `fallthrough` is left ON deliberately. With it off, express.static hands a
+   * missing file to the error handler as a plain Error carrying `status: 404` —
+   * which is not an AppError, so it would surface as a 500. Falling through
+   * reaches the 404 handler below instead and returns a real 404. The JSON body is
+   * meaningless to an <img>, but the STATUS is what the browser and the Avatar
+   * component's onError fallback actually read.
+   */
+  app.use(
+    UPLOAD_URL_PREFIX,
+    express.static(UPLOAD_ROOT, {
+      maxAge: '1y',
+      immutable: true,
+      index: false,
+      dotfiles: 'deny',
+    }),
+  );
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found.' } });

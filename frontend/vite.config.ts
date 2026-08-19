@@ -27,6 +27,9 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://localhost:4000', changeOrigin: true },
       '/socket.io': { target: 'http://localhost:4000', ws: true },
+      // Doc 11 — uploaded avatars are served by the API, not by Vite. Without
+      // this every uploaded image 404s in development while working in a build.
+      '/uploads': { target: 'http://localhost:4000', changeOrigin: true },
     },
   },
 });

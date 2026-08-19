@@ -74,26 +74,53 @@ There's no traditional signup form here. A user proves who they are by connectin
 ## Reference
 
 **User Model (PostgreSQL via Prisma)**
+
+*(As shipped. This table originally listed only the six identity/balance columns; the rest were added during later builds and are recorded here so this doc matches the actual schema — a gap flagged in `05-Progress-Log.md` on 2026-08-15.)*
+
 | Field | Type | Notes |
 |---|---|---|
 | `id` | UUID | Internal primary key, used everywhere else in the app |
 | `walletAddress` | String | Unique, indexed — the user's Solana public address |
 | `availableBalance` | Decimal | `NUMERIC` type — no float rounding errors on SOL amounts. Defined fully in `02-Deposit-Withdraw.md` / `03-Escrow.md` |
 | `lockedBalance` | Decimal | `NUMERIC` type. Defined fully in `03-Escrow.md` |
+| `displayName` | String? | Free-form label, max 32 chars. Shown on the leaderboard in place of a shortened address |
+| `totalWagered` | Decimal | Lifetime volume. Written by `lockBalance`, unwound by `refundMatch`. Drives the loyalty tier — see `11-User-Profiles.md` |
+| `netProfit` | Decimal | Lifetime profit/loss. The leaderboard's sort key |
+| `gamesPlayed` | Int | Settled matches. Also gates referral eligibility (`09-Referral-Program.md`) |
+| `gamesWon` | Int | Matches finished in profit. Added by `11-User-Profiles.md`; CHECK-constrained to `<= gamesPlayed` |
+| `username` | String? | Unique, lowercase, 3–20 of `[a-z0-9_]`. The public profile handle — `11-User-Profiles.md` |
+| `avatarUrl` | String? | Uploaded profile image path with a cache-busting `?v=`. Null means the generated gradient |
+| `referralCode` | String? | Unique 8-char invite code — `09-Referral-Program.md` |
 | `createdAt` | DateTime | |
-| `lastLogin` | DateTime | |
+| `updatedAt` | DateTime | |
+| `lastLogin` | DateTime? | |
 
 ```prisma
 model User {
-  id               String   @id @default(uuid())
+  id               String   @id @default(uuid()) @db.Uuid
   walletAddress    String   @unique
   availableBalance Decimal  @default(0) @db.Decimal(20, 9)
   lockedBalance    Decimal  @default(0) @db.Decimal(20, 9)
-  createdAt        DateTime @default(now())
-  lastLogin        DateTime?
+
+  displayName  String?  @db.VarChar(32)
+  totalWagered Decimal  @default(0) @db.Decimal(20, 9)
+  netProfit    Decimal  @default(0) @db.Decimal(20, 9)
+  gamesPlayed  Int      @default(0)
+  gamesWon     Int      @default(0)
+
+  username  String? @unique @db.VarChar(20)
+  avatarUrl String? @db.VarChar(255)
+
+  referralCode String? @unique @db.VarChar(12)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  lastLogin DateTime?
 }
 ```
 *(Decimal precision `20,9` covers SOL's 9 decimal places safely.)*
+
+**The three nullable-unique columns** — `username`, `referralCode` and (on `LedgerEntry`) `txSignature` — all use the same trick for the same reason: Postgres treats NULLs as distinct in a unique index, so each could be added to a live table with no backfill migration.
 
 **Rules**
 - Private keys **never** touch the backend or database — the wallet extension signs everything on the user's side
@@ -103,4 +130,5 @@ model User {
 - Exact nonce/message format for the sign-in challenge (random token + short expiry window) — needs to be decided before this gets built, to prevent signature replay attacks
 
 ## Last Updated
+2026-08-18 — `User` model table brought in line with the shipped schema: `displayName`, `totalWagered`, `netProfit`, `gamesPlayed`, `updatedAt` and `referralCode` were all missing, and `gamesWon`, `username` and `avatarUrl` were added by `11-User-Profiles.md`.
 2026-08-14 — Initial version, written after auth flow discussion.

@@ -4,6 +4,158 @@ Dated changelog of decisions and milestones. Newest entry on top.
 
 ---
 
+## 2026-08-18 — User Profiles: Identity, Tier Badges & Deep Statistics
+
+New doc: `11-User-Profiles.md`. Every player now has a profile page — username,
+uploaded picture, loyalty tier, and their full playing record — plus a read-only
+public version at `/dashboard/u/:handle` reachable from the leaderboard. First
+feature work since doc 09; the dashboard previously had no profile at all, and
+`/dashboard/profile` just redirected to Settings.
+
+**Done:**
+- **Schema:** `User.username` (nullable-unique, lowercase, CHECK-constrained to
+  `^[a-z0-9_]{3,20}$` because it is a URL segment), `User.avatarUrl`,
+  `User.gamesWon`, and `MatchParticipant.stakeTotal`. Migration
+  `20260818120000_add_user_profiles`, with hand-added CHECKs and a backfill,
+  following the convention set by the init migration.
+- **`backend/src/profile/`** — tiers, usernames, avatar storage, statistics,
+  match history and routes. Read-only aggregation, so it queries Prisma directly;
+  the only WRITES it needs live in escrow, where a game module can't forget them.
+- **Avatar upload** on local disk: multer memory storage, real magic-byte
+  sniffing, `sharp` to a 256px WebP, filename derived only from the session id.
+- **Frontend:** two pages, nine profile components, a shared `Avatar`, a
+  hand-rolled SVG `Sparkline`, two hooks, and five tier colours as CSS custom
+  properties in both palettes.
+- **Tests:** `backend/tests/profile.test.ts`, 37 cases against real PostgreSQL.
+  Suite is now 100 tests, up from 63. A further 96 end-to-end HTTP checks were run
+  against a live API during the build (sign-in, profiles, uploads, populated
+  stats driven through real escrow calls).
+
+**Two pre-existing escrow bugs found and fixed:**
+- **A forfeited player was counted twice.** `forfeitPlayer` debits `netProfit` and
+  increments `gamesPlayed` when the reconnect window closes; `settleMatch` then
+  looped over *every* participant and did both again. One 1 SOL forfeit recorded
+  two games played and a 2 SOL loss.
+- **A forfeit followed by a crash-refund never unwound.** `refundMatch` returned
+  the stake and decremented `totalWagered` but left the forfeit's `netProfit`
+  debit and `gamesPlayed` increment in place permanently.
+
+Both were found by tracing the counters while designing the win/loss split, and
+both would have made the profile visibly self-contradictory —
+`gamesWon + gamesLost` would not have equalled `gamesPlayed`. Each has a
+regression test, and each test was confirmed to FAIL against the old code before
+the fix was kept.
+
+**Decided during the build:**
+- **A tier is derived on every read, never stored.** Deliberately the opposite of
+  doc 09's `commissionBps`, and the contrast is the reasoning: a commission is a
+  *promise* fixed at bind time, so re-pricing it later would break it; a tier is a
+  *current standing*. Storing it would mean a threshold change applied to new
+  players but not old ones, and needed a backfill to correct.
+- **`MatchParticipant.stakeTotal` had to exist.** `settleMatch` sets
+  `lockedAmount` to 0, so after a match the participant row cannot answer "what
+  did they stake" — and without that there is no win, loss or net for any history
+  row. The stake did survive inside a ledger entry's `meta` JSON, but parsing
+  money back out of a JSON blob is exactly what doc 03's money discipline exists
+  to avoid.
+- **Streaks are a SQL window function, not stored counters.** Counters would need
+  maintaining in three separate escrow files and would be silently wrong forever
+  after any drift — which the two bugs above show is not hypothetical.
+- **The profile handle is a username, falling back to the internal UUID — never
+  the wallet address.** The leaderboard already refuses to publish full addresses,
+  and a URL is more public than a table cell: it lands in browser history, referer
+  headers and shared links. The UUID fallback means every player is linkable
+  immediately and the URL simply gets prettier once they claim a name.
+- **A public profile is a separate projection, not a filtered `publicUser()`.**
+  `publicUser` returns balances and the full address; filtering it would mean every
+  field added there later leaks by default. As a separate function the omission is
+  structural.
+- **Built against real queries with no games in existence.** Every figure is zero
+  today and every section renders the empty state, but the queries are real — so
+  the page is correct from the first match ever settled rather than needing a
+  second pass when doc 04 fills in.
+- **Statistics moved OUT of Settings.** Settings kept three stat tiles duplicating
+  the same numbers; two places showing one figure is how they eventually disagree.
+  Settings now keeps the wallet address and the recovery note and links across.
+- **The avatar was consolidated from three implementations into one.** A local
+  component in `AccountMenu`, a rival five-gradient palette in `LeaderboardTable`,
+  and `lib/avatar.ts`. One wallet is now one colour everywhere.
+
+**Notes for the docs:**
+- `01-Auth-Wallet-Connect.md`'s `User` table was six columns behind the shipped
+  schema — the gap flagged in the 2026-08-15 entry below. Now corrected in full.
+- `06-Landing-Dashboard-Structure.md`'s proposed `ProfilePanel.jsx` is not what
+  shipped (the profile is a page, not a panel); flagged in place. Its five-section
+  description is still stale against the ten in the shipped sidebar.
+- Doc 11 uses `[[wikilinks]]`, matching `09`. The vault's mixed link style is
+  still unresolved.
+
+**Pending:**
+- The tier ladder is **cosmetic** — a badge and nothing else. A real benefit
+  (rakeback, a fee discount) is what the unbacked **Rewards** section has been
+  promising since the design handoff, and any fee discount would have to be
+  specified in `10-Game-Common-Rules.md` Rule 1, not in doc 11.
+- Tier thresholds (1 / 10 / 50 / 250 SOL) are guesses, uncalibrated against real
+  volume.
+- No achievement badges, no image moderation, and username changes leave no
+  redirect — an old profile link can silently resolve to a different person.
+- Avatars on local disk do not survive a second backend instance. Same shape as
+  the treasury-key and Redis notes: fine for devnet, must move before launch.
+- Games list still not decided — Phase 2 remains the blocker.
+
+**Status:** Profiles built, tested and verified end-to-end. 100 backend tests
+passing. Still no games.
+
+---
+
+## 2026-08-18 — Game Common Rules Split Out; Docs Restructured
+
+New doc: `10-Game-Common-Rules.md`. Rules 1–3 (platform fee, payout
+distribution, betting mode) now live in one file instead of being scattered
+across escrow and the game index. No code changed — this is a documentation
+restructure only.
+
+**Done:**
+- `10-Game-Common-Rules.md` created, linked from `00`, `03`, `04`, and `09`, and
+  written in the vault's standard section format.
+- **Fee policy removed from `03-Escrow.md` without losing any of it.** Every
+  sentence that defined a *rate* moved to doc 10 Rule 1; escrow keeps the
+  *mechanism* and links out for the number.
+- `04-Games-Index.md` gained a **Players (1v1 / Multiplayer)** column, so Rule 2's
+  payout mode is actually recorded per game rather than being implicit.
+- Stale content corrected: `00`'s "no code written yet" status, its roadmap
+  checkboxes (Phases 3 and 4 shipped on 2026-08-15), and the MongoDB reference
+  flagged in the 2026-08-15 entry's Notes. `03`'s "0% complete", its proposed
+  `/backend/escrow/*.js` layout (actually `backend/src/escrow/*.ts`), and a
+  leftover "same pattern as Raja Rani" reference from Trumpcard Hub.
+
+**Decided during the restructure:**
+- **Policy and mechanism are separate files.** `03` is *how* money moves, `10` is
+  *what* the rules are. A rate changes far more often than escrow code does, and
+  with it stated in one place a change is one edit, not a hunt through the vault.
+  Locked as Architecture Principle #5 in `00`.
+- **The file is `10-`, not `010-`.** Alphabetical sort put `010-` between
+  `00-Overview.md` and `01-Auth-Wallet-Connect.md`, so the vault sidebar listed
+  the newest, highest-numbered doc second. Two-digit prefixes throughout.
+- **Rules 2 and 3 are documented but not enforceable.** Nothing on `Match`
+  records 1v1-vs-multiplayer or fixed-vs-free bet, so both are conventions a game
+  module upholds rather than database facts. Logged as an open question in both
+  `03` and `10` rather than quietly assumed to work.
+
+**Pending:**
+- **`betMode` + `fixedBetAmount` on `Match`** — Rule 3 does nothing until these
+  exist and `lockBalance` validates against them. Every match is Free Bet today.
+  Needed before the first game with a host-created lobby.
+- Link style is mixed across the vault: `09` uses Obsidian wikilinks
+  (`[[03-Escrow]]`), every other doc uses backticks. Worth picking one.
+- `06-Landing-Dashboard-Structure.md` still describes five dashboard sections;
+  the shipped sidebar has ten. Carried over from the 2026-08-17 entry, still open.
+- Games list still undecided — Phase 2 remains the blocker.
+
+**Status:** Docs restructured and cross-linked. No code written. Still no games.
+
+---
+
 ## 2026-08-17 — Invite & Earn (Referral Program) Implemented
 
 The Affiliates section had a sidebar entry, a route, and a disabled "Invite Now"
@@ -163,3 +315,4 @@ cover lock/settlement/refund/forfeit/fee, which doc 03 requires.
 - Actual code implementation not yet started
 
 **Status:** Documentation phase — `00-Overview.md` and `01-Wallet-Auth-Escrow.md` created and locked.
+*(`01-Wallet-Auth-Escrow.md` was later split into `01-Auth-Wallet-Connect.md`, `02-Deposit-Withdraw.md`, and `03-Escrow.md`. Kept as written — this is a historical entry.)*

@@ -18,7 +18,7 @@ This is the hub's only growth loop, and it is deliberately the smallest one that
 
 The reward is funded entirely by the platform. The referred player's stake, payout and balance are untouched — they never pay for having been invited, and they are never told a different number than they won. Every commission is a `referral` row in the ledger, so the platform's true revenue is `sum(fee) − sum(referral)` and both halves are auditable.
 
-**Correction to the shipped design copy.** The mock's text read *"Earn 5% of every bet your invited friends make."* That could not ship as written: the platform fee is itself 5% of the pot ([[03-Escrow]]), so paying a referrer 5% of every bet would hand away the entire rake and leave the house running at exactly zero on every pooled game a referred player touched. The live rule pays 5% of **net profit**, **once**, on the friend's **first winning** match. Both the sidebar card and the nav copy were updated to match.
+**Correction to the shipped design copy.** The mock's text read *"Earn 5% of every bet your invited friends make."* That could not ship as written: the platform fee is itself 5% of the pot ([[10-Game-Common-Rules]], Rule 1), so paying a referrer 5% of every bet would hand away the entire rake and leave the house running at exactly zero on every pooled game a referred player touched. The live rule pays 5% of **net profit**, **once**, on the friend's **first winning** match. Both the sidebar card and the nav copy were updated to match.
 
 ## Status
 - **Phase:** Devnet/testnet
@@ -139,10 +139,13 @@ In a `solo_vs_house` match where the player wins more than the pot, `feeCollecte
 - Multi-level referrals, and a top-referrer leaderboard, are deliberately out of scope.
 
 ## Related Docs
+- [[11-User-Profiles]] — a player's total referral earnings also surface on their profile, read off the `referral` ledger rows this doc writes
 - [[00-Overview]] — architecture principles, especially #2
 - [[01-Auth-Wallet-Connect]] — where attribution happens
-- [[03-Escrow]] — the settlement this hooks into, and the 5% platform fee
+- [[03-Escrow]] — the settlement this hooks into
+- [[10-Game-Common-Rules]] — the platform fee this commission is funded alongside (Rule 1), never skimmed from
 - [[06-Landing-Dashboard-Structure]] — the Affiliates section this fills in
 
 ## Last Updated
+2026-08-18 — Noted that referral earnings now also appear on the profile page ([[11-User-Profiles]]).
 2026-08-17 — Initial version, written alongside the implementation.

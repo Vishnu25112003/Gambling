@@ -1,22 +1,16 @@
+import { Link } from 'react-router-dom';
 import { formatSol, formatSolSigned } from '../../lib/format';
 import { PodiumBadge } from '../shared/icons';
+import { Avatar } from '../shared/Avatar';
+import { TierBadge } from '../profile/TierBadge';
 import type { LeaderboardEntry } from '../../types';
 
-/** The five avatar gradients from the design, assigned deterministically. */
-const AVATARS = [
-  'linear-gradient(135deg,#f59e0b,#b45309)',
-  'linear-gradient(135deg,#a855f7,#6d28d9)',
-  'linear-gradient(135deg,#22c55e,#15803d)',
-  'linear-gradient(135deg,#38bdf8,#1d4ed8)',
-  'linear-gradient(135deg,#f472b6,#9d174d)',
-];
-
-/** Same name -> same avatar on every load, with no avatar field in the API. */
-function avatarFor(name: string): string {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return AVATARS[h % AVATARS.length];
-}
+/**
+ * The design's rival five-gradient avatar palette used to live here. It is gone:
+ * `<Avatar>` is now the one implementation, so a player is the same colour on this
+ * board, in the top bar and on their profile — and it renders their uploaded image
+ * when they have one.
+ */
 
 /** Gold, silver and bronze for the podium; everyone else gets the muted chip. */
 const RANK_STYLES: Record<number, { background: string; color: string }> = {
@@ -51,6 +45,13 @@ export function LeaderboardTable({
 }) {
   const full = variant === 'full';
   const grid = 'grid grid-cols-[34px_1fr_auto_auto] items-center';
+  const TIER_LABEL: Record<LeaderboardEntry['tier'], string> = {
+    bronze: 'Bronze',
+    silver: 'Silver',
+    gold: 'Gold',
+    platinum: 'Platinum',
+    diamond: 'Diamond',
+  };
   const gap = full ? 'gap-3.5' : 'gap-3';
 
   return (
@@ -75,16 +76,27 @@ export function LeaderboardTable({
               <RankPill rank={p.rank} />
 
               <span className="flex min-w-0 items-center gap-2.5">
-                <span
-                  className={`shrink-0 rounded-full ${full ? 'size-8' : 'size-[30px]'}`}
-                  style={{ background: avatarFor(p.name) }}
+                <Avatar
+                  src={p.avatarUrl}
+                  name={p.name}
+                  address={p.walletShort}
+                  size={full ? 32 : 30}
+                  radiusRatio={0.5}
                 />
-                <span
-                  className={`truncate font-semibold ${full ? 'text-sm' : 'text-[13.5px]'}`}
-                  title={p.name}
+                {/*
+                  Only the NAME is the link, not the whole row — the numeric cells
+                  stay selectable, and a stray click on a figure doesn't navigate.
+                */}
+                <Link
+                  to={`/dashboard/u/${p.handle}`}
+                  className={`truncate font-semibold text-text hover:underline ${
+                    full ? 'text-sm' : 'text-[13.5px]'
+                  }`}
+                  title={`View ${p.name}'s profile`}
                 >
                   {p.name}
-                </span>
+                </Link>
+                <TierBadge tier={p.tier} label={TIER_LABEL[p.tier]} iconOnly />
                 {p.rank <= 3 && (
                   <span className="flex shrink-0 text-green" title={`Top ${p.rank}`}>
                     <PodiumBadge />
