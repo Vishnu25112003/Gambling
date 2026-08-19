@@ -14,4 +14,11 @@ export { REFERRAL_COMMISSION_BPS, REFERRAL_CODE_LENGTH, CODE_ALPHABET } from './
 export { generateCode, ensureReferralCode, normaliseCode, isPlausibleCode } from './referralCode.js';
 export { bindReferral, referrerLabel, type BindResult } from './bindReferral.js';
 export { awardReferralOnWin, type AwardInput, type AwardResult } from './awardReferral.js';
+export {
+  checkPayoutEligibility,
+  qualifiedUserIds,
+  payoutThresholds,
+  type PayoutEligibility,
+  type Requirement,
+} from './payoutEligibility.js';
 export { referralRouter } from './referral.routes.js';

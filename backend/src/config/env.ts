@@ -32,6 +32,13 @@ const schema = z.object({
     .default('true')
     .transform((v) => v !== 'false'),
   MIN_WITHDRAWAL_SOL: z.coerce.number().nonnegative().default(0.01),
+
+  // --- doc 09: referral anti-Sybil ---------------------------------------
+  // A referral commission is only PAID once the invited player has put real
+  // money at risk. Both gates must clear; either set to 0 disables that half.
+  // See referral/payoutEligibility.ts for why these two signals and not others.
+  REFERRAL_MIN_DEPOSIT_SOL: z.coerce.number().nonnegative().default(0.05),
+  REFERRAL_MIN_WAGERED_SOL: z.coerce.number().nonnegative().default(0.1),
 });
 
 const parsed = schema.safeParse(process.env);

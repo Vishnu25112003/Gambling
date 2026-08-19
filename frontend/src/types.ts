@@ -91,6 +91,16 @@ export interface GameManifest {
 /** `pending` — waiting on this friend's first winning match. `earned` — paid. */
 export type ReferralStatus = 'pending' | 'earned';
 
+/**
+ * Doc 09 anti-Sybil — what an invited friend must do before a commission is paid.
+ * Either field at "0.000000000" means that half of the gate is switched off.
+ */
+export interface PayoutRequirements {
+  /** Exact SOL decimal string. */
+  minDeposit: string;
+  minWagered: string;
+}
+
 export interface ReferredFriend {
   id: string;
   /** Display name, or an abbreviated wallet. Never a full address. */
@@ -101,6 +111,12 @@ export interface ReferredFriend {
   joinedAt: string;
   earnedAt: string | null;
   gameType: string | null;
+  /**
+   * Doc 09 anti-Sybil — this friend has cleared the deposit/wagering thresholds,
+   * so their next win pays out. One boolean by design: a referrer is told whether
+   * the reward is live, never how much their friend deposited or wagered.
+   */
+  unlocked: boolean;
 }
 
 export interface ReferralStats {
@@ -108,6 +124,8 @@ export interface ReferralStats {
   link: string;
   /** Basis points — 500 = 5%. */
   commissionBps: number;
+  /** Activity an invited friend must reach before a commission is paid. */
+  payoutRequirements: PayoutRequirements;
   stats: {
     invited: number;
     pending: number;

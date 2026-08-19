@@ -9,6 +9,7 @@ import { env } from '../config/env.js';
 import { bindReferral, referrerLabel } from './bindReferral.js';
 import { ensureReferralCode, isPlausibleCode, normaliseCode } from './referralCode.js';
 import { REFERRAL_COMMISSION_BPS } from './constants.js';
+import { payoutThresholds, qualifiedUserIds } from './payoutEligibility.js';
 
 export const referralRouter = Router();
 
@@ -54,7 +55,10 @@ referralRouter.get(
           createdAt: true,
           earnedAt: true,
           gameType: true,
-          referred: { select: { displayName: true, walletAddress: true } },
+          referredUserId: true,
+          referred: {
+            select: { displayName: true, walletAddress: true, totalWagered: true },
+          },
         },
       }),
       prisma.referral.findUnique({
@@ -68,6 +72,24 @@ referralRouter.get(
     ]);
 
     const earned = friends.filter((f) => f.status === 'earned');
+
+    /**
+     * Doc 09 anti-Sybil — which pending friends have already cleared the
+     * deposit/wagering thresholds, so their next win pays out.
+     *
+     * Deliberately reduced to one boolean per friend. The referrer is told
+     * whether the reward is live, never how much their friend deposited or
+     * wagered — that is the friend's financial history, and inviting someone
+     * does not entitle you to read it.
+     */
+    const qualified = await qualifiedUserIds(
+      prisma,
+      friends
+        .filter((f) => f.status === 'pending')
+        .map((f) => ({ id: f.referredUserId, totalWagered: f.referred.totalWagered })),
+    );
+
+    const { minDeposit, minWagered } = payoutThresholds();
     const totalEarned = earned.reduce(
       (acc, f) => acc + Number(toAmountString(f.earnedAmount)),
       0,
@@ -77,6 +99,15 @@ referralRouter.get(
       code,
       link: inviteLink(code),
       commissionBps: REFERRAL_COMMISSION_BPS,
+      /**
+       * The activity an invited friend must reach before a commission is paid.
+       * Sent so the page can state the rule up front rather than leaving a
+       * referrer wondering why a win paid nothing.
+       */
+      payoutRequirements: {
+        minDeposit: toAmountString(minDeposit),
+        minWagered: toAmountString(minWagered),
+      },
       stats: {
         invited: friends.length,
         pending: friends.length - earned.length,
@@ -99,6 +130,8 @@ referralRouter.get(
         joinedAt: f.createdAt,
         earnedAt: f.earnedAt,
         gameType: f.gameType,
+        /** Thresholds cleared — the next win this friend takes pays out. */
+        unlocked: f.status === 'earned' || qualified.has(f.referredUserId),
       })),
     });
   }),

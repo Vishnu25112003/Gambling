@@ -1,6 +1,7 @@
 import { Decimal, applyFeeBps, toDecimal, type MoneyInput } from '../lib/money.js';
 import { createLogger } from '../lib/logger.js';
 import { shortAddress } from '../lib/user.js';
+import { checkPayoutEligibility } from './payoutEligibility.js';
 import type { Prisma } from '../generated/prisma/client.js';
 
 const log = createLogger('referral:award');
@@ -72,6 +73,30 @@ export async function awardReferralOnWin(
     select: { id: true, referrerId: true, commissionBps: true, status: true },
   });
   if (!referral || referral.status !== 'pending') return null;
+
+  /**
+   * Doc 09 anti-Sybil — has this player actually put money at risk yet?
+   *
+   * Checked here, at payout, rather than at bind time: attribution stays
+   * instant and generous, and only the money waits. A referral that fails
+   * stays `pending` and pays out on the next win once the invited player
+   * clears the thresholds, so an honest slow starter loses nothing.
+   *
+   * Two queries, and only ever on the rare path where a referred player has
+   * genuinely profited — the common settlement does not reach this line.
+   */
+  const eligibility = await checkPayoutEligibility(tx, userId);
+  if (!eligibility.eligible) {
+    log.info('referral commission withheld — payout thresholds not met', {
+      referrerId: referral.referrerId,
+      referredUserId: userId,
+      matchId,
+      unmet: eligibility.requirements
+        .filter((r) => !r.met)
+        .map((r) => `${r.key}: ${r.actual}/${r.required}`),
+    });
+    return null;
+  }
 
   // Basis points snapshotted at bind time, not read from config, so a rate
   // change never re-prices a referral that was already promised.

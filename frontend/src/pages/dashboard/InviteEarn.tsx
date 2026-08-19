@@ -16,9 +16,24 @@ import { useReferrals } from '../../hooks/useReferrals';
 import { referralApi } from '../../api/endpoints';
 import { referralStore } from '../../lib/referralCapture';
 import { formatDate, formatSol } from '../../lib/format';
-import type { ReferredFriend } from '../../types';
+import type { PayoutRequirements, ReferredFriend } from '../../types';
 
 const SUBTITLE = 'Share your link and earn a cut of your friends’ first win.';
+
+/**
+ * The qualifying rule, in a sentence.
+ *
+ * Both thresholds are configurable per environment and either can be 0, which
+ * switches that half off — so the sentence is built from whichever gates are
+ * actually live rather than hard-coding two of them.
+ */
+function describeRequirements({ minDeposit, minWagered }: PayoutRequirements): string {
+  const parts: string[] = [];
+  if (Number(minDeposit) > 0) parts.push(`deposit at least ${formatSol(minDeposit)} SOL`);
+  if (Number(minWagered) > 0) parts.push(`wager ${formatSol(minWagered)} SOL`);
+  if (parts.length === 0) return '';
+  return `Rewards go live once they ${parts.join(' and ')}.`;
+}
 
 /** Doc 06: a GATED section — placeholder until connected. */
 export function InviteEarn() {
@@ -79,7 +94,7 @@ export function InviteEarn() {
         />
       </div>
 
-      <HowItWorks rate={rate} />
+      <HowItWorks rate={rate} requirements={data.payoutRequirements} />
 
       {data.referredBy && (
         <p className="mt-4 text-[12.5px] text-muted">
@@ -90,7 +105,7 @@ export function InviteEarn() {
 
       {data.canEnterCode && <ClaimCodeCard onClaimed={reload} />}
 
-      <FriendsTable friends={data.friends} rate={rate} />
+      <FriendsTable friends={data.friends} rate={rate} requirements={data.payoutRequirements} />
     </>
   );
 }
@@ -172,10 +187,21 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
   );
 }
 
-function HowItWorks({ rate }: { rate: number }) {
+function HowItWorks({ rate, requirements }: { rate: number; requirements: PayoutRequirements }) {
+  const rule = describeRequirements(requirements);
   const steps = [
     ['Share your link', 'Your friend signs up with their Solana wallet through it.'],
-    ['They play', 'Nothing is taken from them — their bets and payouts are untouched.'],
+    [
+      // Stated up front on purpose. The gate is easy to mistake for a bug when a
+      // friend wins and nothing arrives, so the condition is part of the pitch
+      // rather than something a referrer has to discover. With both thresholds
+      // switched off there is no condition to state, and the step reverts to the
+      // copy it had before the gate existed.
+      rule ? 'They play for real' : 'They play',
+      rule
+        ? `${rule} Nothing is taken from them — their bets and payouts are untouched.`
+        : 'Nothing is taken from them — their bets and payouts are untouched.',
+    ],
     [
       'You get paid',
       `The first time they finish a game in profit, ${rate}% of that profit lands in your balance. A loss doesn’t cost you the reward — it just waits for their first win.`,
@@ -252,7 +278,29 @@ function ClaimCodeCard({ onClaimed }: { onClaimed: () => void }) {
   );
 }
 
-function FriendsTable({ friends, rate }: { friends: ReferredFriend[]; rate: number }) {
+/**
+ * Doc 09 — the three states an invited friend can be in.
+ *
+ * `pending` splits in two: a friend who has not yet deposited/wagered enough for
+ * the reward to be live at all, and one who has and is now only waiting on a
+ * win. Collapsing both into "awaiting first win" is what would make a withheld
+ * commission look like a bug.
+ */
+function friendState(f: ReferredFriend): { label: string; tone: 'success' | 'warn' | 'neutral' } {
+  if (f.status === 'earned') return { label: 'paid', tone: 'success' };
+  if (!f.unlocked) return { label: 'getting started', tone: 'neutral' };
+  return { label: 'awaiting first win', tone: 'warn' };
+}
+
+function FriendsTable({
+  friends,
+  rate,
+  requirements,
+}: {
+  friends: ReferredFriend[];
+  rate: number;
+  requirements: PayoutRequirements;
+}) {
   if (friends.length === 0) {
     return (
       <div className="mt-4">
@@ -285,9 +333,7 @@ function FriendsTable({ friends, rate }: { friends: ReferredFriend[]; rate: numb
                 <td className="px-5 py-3 font-semibold">{f.name}</td>
                 <td className="px-5 py-3 whitespace-nowrap text-muted">{formatDate(f.joinedAt)}</td>
                 <td className="px-5 py-3 text-right">
-                  <Badge tone={f.status === 'earned' ? 'success' : 'warn'}>
-                    {f.status === 'earned' ? 'paid' : 'awaiting first win'}
-                  </Badge>
+                  <Badge tone={friendState(f).tone}>{friendState(f).label}</Badge>
                 </td>
                 <td
                   className={`px-5 py-3 text-right font-mono font-bold whitespace-nowrap ${
@@ -301,6 +347,14 @@ function FriendsTable({ friends, rate }: { friends: ReferredFriend[]; rate: numb
           </tbody>
         </table>
       </div>
+      {friends.some((f) => f.status === 'pending' && !f.unlocked) && (
+        <p className="border-t border-line2 px-5 py-3.5 text-[12px] leading-[1.55] text-faint">
+          <span className="font-semibold text-muted">Getting started</span> means that
+          friend hasn’t played enough for the reward to be live yet.{' '}
+          {describeRequirements(requirements)} Your {rate}% is waiting either way — it
+          never expires.
+        </p>
+      )}
     </Card>
   );
 }

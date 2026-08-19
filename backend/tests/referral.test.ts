@@ -4,6 +4,11 @@ import { settleMatch } from '../src/escrow/settleMatch.js';
 import { refundMatch } from '../src/escrow/refundMatch.js';
 import { createMatch } from '../src/escrow/index.js';
 import { bindReferral } from '../src/referral/bindReferral.js';
+import {
+  checkPayoutEligibility,
+  qualifiedUserIds,
+} from '../src/referral/payoutEligibility.js';
+import { env } from '../src/config/env.js';
 import { ensureReferralCode, generateCode } from '../src/referral/referralCode.js';
 import { toAmountString } from '../src/lib/money.js';
 import { startTestDb, stopTestDb, clearTables, getTestPrisma } from './setup.js';
@@ -55,6 +60,42 @@ async function playPooled(
 beforeAll(startTestDb, 180_000);
 afterAll(stopTestDb);
 beforeEach(clearTables);
+
+/**
+ * The anti-Sybil payout gate is OFF for every test above its own describe block.
+ *
+ * `payoutThresholds()` reads these at call time, so setting them to 0 turns both
+ * halves off (the documented per-environment kill switch) and leaves every test
+ * of the commission rules testing exactly what it says it does — a stake of 10
+ * lamports would otherwise be stopped by the wagering gate long before it
+ * reached the truncates-to-zero-lamports branch it exists to cover.
+ *
+ * The gate's own suite sets real thresholds in a nested hook, which runs after
+ * this one.
+ */
+beforeEach(() => {
+  env.REFERRAL_MIN_DEPOSIT_SOL = 0;
+  env.REFERRAL_MIN_WAGERED_SOL = 0;
+});
+
+/** A confirmed on-chain deposit, the only kind the gate counts. */
+let depositSeq = 0;
+async function deposit(
+  userId: string,
+  amount: string,
+  status: 'confirmed' | 'pending' | 'failed' = 'confirmed',
+) {
+  depositSeq += 1;
+  return db().ledgerEntry.create({
+    data: {
+      userId,
+      type: 'deposit',
+      status,
+      amount,
+      txSignature: `depsig-${depositSeq}-${Math.random().toString(36).slice(2, 10)}`,
+    },
+  });
+}
 
 describe('referral codes', () => {
   it('mints a code that is unambiguous to read aloud', () => {
@@ -293,5 +334,169 @@ describe('commission on the referred player’s first win', () => {
     await playPooled(bob, carol, '1', bob);
 
     expect(await db().ledgerEntry.count({ where: { type: 'referral' } })).toBe(0);
+  });
+});
+
+/**
+ * Doc 09's first open question, closed: a referral only PAYS once the invited
+ * player has put real money at risk. Attribution is untouched — binding stays
+ * instant, and a referral that fails the gate stays `pending` rather than being
+ * voided, so an honest slow starter loses nothing.
+ */
+describe('anti-Sybil payout gate', () => {
+  beforeEach(() => {
+    env.REFERRAL_MIN_DEPOSIT_SOL = 0.05;
+    env.REFERRAL_MIN_WAGERED_SOL = 0.1;
+  });
+
+  it('withholds the commission from a friend who never deposited', async () => {
+    const alice = await makeUser();
+    const bob = await makeUser('2'); // balance, but no deposit ever arrived
+    const carol = await makeUser('2');
+    await bindReferral(bob.id, alice.referralCode!);
+
+    await playPooled(bob, carol, '1', bob); // a genuine win
+
+    expect(await availableOf(alice.id)).toBe(sol('0'));
+    const row = await db().referral.findUniqueOrThrow({ where: { referredUserId: bob.id } });
+    // Withheld, NOT voided — this is the whole point.
+    expect(row.status).toBe('pending');
+  });
+
+  it('pays on a later win once the friend finally qualifies', async () => {
+    const alice = await makeUser();
+    const bob = await makeUser('2');
+    const carol = await makeUser('2');
+    await bindReferral(bob.id, alice.referralCode!);
+
+    await playPooled(bob, carol, '1', bob);
+    expect(await availableOf(alice.id)).toBe(sol('0'));
+
+    await deposit(bob.id, '0.05');
+    await playPooled(bob, carol, '1', bob);
+
+    expect(await availableOf(alice.id)).toBe(sol('0.045'));
+    const row = await db().referral.findUniqueOrThrow({ where: { referredUserId: bob.id } });
+    expect(row.status).toBe('earned');
+    expect(await db().ledgerEntry.count({ where: { userId: alice.id, type: 'referral' } })).toBe(1);
+  });
+
+  it('ignores deposits that are not confirmed', async () => {
+    const alice = await makeUser();
+    const bob = await makeUser('2');
+    const carol = await makeUser('2');
+    await bindReferral(bob.id, alice.referralCode!);
+    // The chain has not agreed on this one yet, and this one never arrived.
+    await deposit(bob.id, '5', 'pending');
+    await deposit(bob.id, '5', 'failed');
+
+    await playPooled(bob, carol, '1', bob);
+
+    expect(await availableOf(alice.id)).toBe(sol('0'));
+  });
+
+  it('withholds when the deposit cleared but the wagering has not', async () => {
+    const alice = await makeUser();
+    const bob = await makeUser('2');
+    const carol = await makeUser('2');
+    await deposit(bob.id, '1');
+    await bindReferral(bob.id, alice.referralCode!);
+
+    // Stakes 0.01 total — under the 0.1 wagering floor.
+    await playPooled(bob, carol, '0.01', bob);
+
+    expect(await availableOf(alice.id)).toBe(sol('0'));
+    const eligibility = await checkPayoutEligibility(db(), bob.id);
+    expect(eligibility.eligible).toBe(false);
+    expect(eligibility.requirements.filter((r) => !r.met).map((r) => r.key)).toEqual(['wagered']);
+  });
+
+  it('counts the stake of the very match being settled', async () => {
+    env.REFERRAL_MIN_DEPOSIT_SOL = 0;
+    env.REFERRAL_MIN_WAGERED_SOL = 1;
+
+    const alice = await makeUser();
+    const bob = await makeUser('2');
+    const carol = await makeUser('2');
+    await bindReferral(bob.id, alice.referralCode!);
+
+    // `lockBalance` increments totalWagered when the stake is locked, not at
+    // settlement, so this 1 SOL stake already counts and bob qualifies on his
+    // first match rather than the one after it.
+    await playPooled(bob, carol, '1', bob);
+
+    expect(await availableOf(alice.id)).toBe(sol('0.045'));
+  });
+
+  it('treats a threshold of zero as that half switched off', async () => {
+    env.REFERRAL_MIN_DEPOSIT_SOL = 0;
+    env.REFERRAL_MIN_WAGERED_SOL = 0;
+
+    const alice = await makeUser();
+    const bob = await makeUser('2');
+    const carol = await makeUser('2');
+    await bindReferral(bob.id, alice.referralCode!);
+
+    await playPooled(bob, carol, '1', bob); // no deposits at all
+
+    expect(await availableOf(alice.id)).toBe(sol('0.045'));
+  });
+
+  it('reports both requirements with exact amounts', async () => {
+    const bob = await makeUser('2');
+    await deposit(bob.id, '0.02');
+
+    const { eligible, requirements } = await checkPayoutEligibility(db(), bob.id);
+
+    expect(eligible).toBe(false);
+    expect(requirements).toEqual([
+      { key: 'deposit', required: sol('0.05'), actual: sol('0.02'), met: false },
+      { key: 'wagered', required: sol('0.1'), actual: sol('0'), met: false },
+    ]);
+  });
+
+  it('sums multiple deposits toward the threshold', async () => {
+    const bob = await makeUser('2');
+    await deposit(bob.id, '0.02');
+    await deposit(bob.id, '0.04');
+
+    const { requirements } = await checkPayoutEligibility(db(), bob.id);
+    const depositReq = requirements.find((r) => r.key === 'deposit')!;
+    expect(depositReq.actual).toBe(sol('0.06'));
+    expect(depositReq.met).toBe(true);
+  });
+
+  it('answers the same question for a batch in one pass', async () => {
+    const qualifies = await makeUser('2');
+    const noDeposit = await makeUser('2');
+    const noWager = await makeUser('2');
+
+    await deposit(qualifies.id, '1');
+    await deposit(noWager.id, '1');
+
+    const result = await qualifiedUserIds(db(), [
+      { id: qualifies.id, totalWagered: '5' },
+      { id: noDeposit.id, totalWagered: '5' },
+      { id: noWager.id, totalWagered: '0.01' },
+    ]);
+
+    expect(result.has(qualifies.id)).toBe(true);
+    expect(result.has(noDeposit.id)).toBe(false);
+    expect(result.has(noWager.id)).toBe(false);
+  });
+
+  it('does not touch the settlement it withheld a commission on', async () => {
+    const alice = await makeUser();
+    const bob = await makeUser('2');
+    const carol = await makeUser('2');
+    await bindReferral(bob.id, alice.referralCode!);
+
+    const matchId = await playPooled(bob, carol, '1', bob);
+
+    const match = await db().match.findUniqueOrThrow({ where: { id: matchId } });
+    expect(toAmountString(match.pot)).toBe(sol('2'));
+    expect(toAmountString(match.feeCollected)).toBe(sol('0.1'));
+    expect(await availableOf(bob.id)).toBe(sol('2.9'));
+    expect(await availableOf(carol.id)).toBe(sol('1'));
   });
 });
