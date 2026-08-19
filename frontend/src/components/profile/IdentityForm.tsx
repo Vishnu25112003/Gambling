@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Input, SectionHeading, Spinner } from '../shared/ui';
 import { Icon } from '../shared/icons';
-import { authApi, profileApi } from '../../api/endpoints';
+import { authApi } from '../../api/endpoints';
 import { useAuth } from '../../hooks/useAuth';
+import { useUsernameCheck } from '../../hooks/useUsernameCheck';
 
 /**
  * Doc 11 — the two editable identity fields.
@@ -23,9 +24,6 @@ export function IdentityForm({ onSaved }: { onSaved?: () => void }) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [check, setCheck] = useState<{ available: boolean; reason: string | null } | null>(null);
-  const [checking, setChecking] = useState(false);
-
   // Seed the inputs once the session has restored.
   useEffect(() => {
     if (!user) return;
@@ -33,45 +31,12 @@ export function IdentityForm({ onSaved }: { onSaved?: () => void }) {
     setDisplayName(user.displayName ?? '');
   }, [user?.username, user?.displayName]);
 
-  const normalised = username.trim().toLowerCase();
-  const unchangedName = normalised === (user?.username ?? '');
-
-  /**
-   * Debounced availability lookup.
-   *
-   * 400ms, and skipped entirely when the handle is unchanged — otherwise simply
-   * opening the page fires a request telling the player their own username is
-   * taken.
-   */
-  useEffect(() => {
-    if (!normalised || unchangedName) {
-      setCheck(null);
-      return;
-    }
-
-    let cancelled = false;
-    setChecking(true);
-
-    const timer = setTimeout(() => {
-      void profileApi
-        .checkUsername(normalised)
-        .then((res) => {
-          if (!cancelled) setCheck({ available: res.available, reason: res.reason });
-        })
-        .catch(() => {
-          // A failed check must not block a save — the server validates anyway.
-          if (!cancelled) setCheck(null);
-        })
-        .finally(() => {
-          if (!cancelled) setChecking(false);
-        });
-    }, 400);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [normalised, unchangedName]);
+  const {
+    normalised,
+    unchanged: unchangedName,
+    hint: nameHint,
+    blocked,
+  } = useUsernameCheck(username, user?.username ?? null);
 
   if (!user) return null;
 
@@ -114,17 +79,6 @@ export function IdentityForm({ onSaved }: { onSaved?: () => void }) {
       setSaving(false);
     }
   };
-
-  const nameHint = (() => {
-    if (!normalised || unchangedName) return null;
-    if (checking) return { text: 'Checking…', tone: 'text-faint' };
-    if (!check) return null;
-    return check.available
-      ? { text: `${normalised} is available.`, tone: 'text-green' }
-      : { text: check.reason ?? 'That username is not available.', tone: 'text-red' };
-  })();
-
-  const blocked = Boolean(normalised) && !unchangedName && check?.available === false;
 
   return (
     <Card radius={18} className="p-[22px]">

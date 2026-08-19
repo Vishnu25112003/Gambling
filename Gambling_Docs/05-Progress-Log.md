@@ -4,6 +4,184 @@ Dated changelog of decisions and milestones. Newest entry on top.
 
 ---
 
+## 2026-08-19 — Game docs given a numbering scheme; Coin Flip realigned to Rule 4
+
+The `Games/` folder had one file, `Game-CoinFlip.md`, written before Rule 4
+existed and linking to a doc that does not exist (`010-Game-Common-Rules.md`,
+three times). With more games coming, the folder needed a scheme before it
+needed more files.
+
+**Done:**
+- **Numbering scheme.** Game docs are now `Games/GNN-<Game-Name>.md`. Numbers
+  are assigned in `04-Games-Index.md` and nowhere else, never change, and are
+  never reused. The `G` prefix keeps them clear of the root doc numbers — `01`
+  is Auth, `G01` is Coin Flip.
+- **`Games/G00-Template.md`** — blank game doc with the fixed section order
+  (Identity → Summary → Overview → Status → Flow → Where This Lives → TODO →
+  Reference → Open Questions → Related Docs). Every new game is a copy of it.
+- **`Games/G01-Coin-Flip.md`** — renamed from `Game-CoinFlip.md` and rewritten
+  onto the template. The three broken rule links fixed. Match setup rewritten
+  against Rule 4: the "Random Play vs Friends Play mechanics unconfirmed" open
+  question is **closed**, replaced with the actual flows (public listing +
+  instant join, or room code + both players confirm) and an explicit note that
+  the game builds no lobby of its own. `Where This Lives` now matches the real
+  `backend/src/games/<id>/` convention instead of an invented one, and the two
+  exact `settleMatch` calls (outright win, tie) are spelled out.
+- **`04-Games-Index.md`** — Coin Flip registered as Game 01, master table given
+  No./Game ID/Doc columns, plus the naming scheme, a "next free number" marker,
+  and an add-a-game checklist.
+- Cross-references updated in `00-Overview.md`, `10-Game-Common-Rules.md`,
+  `backend/src/games/registry.ts` and `backend/src/games/README.md` — the last
+  two still claimed the index had no entries.
+
+**A verification pass afterwards caught one error and two knock-on gaps.**
+
+- **`forfeitPlayer()` does not end a match** — it confiscates the disconnected
+  player's stake into the pot and nothing more. The game must still call
+  `settleMatch([present player], [1])` to name the winner and release the pot.
+  Four places in `Games/G01-Coin-Flip.md` said or implied the forfeit was the
+  ending; a game following that text would have stranded the pot. Corrected,
+  and stated explicitly in the escrow tie-in so the next game does not repeat it.
+- **The reserved-stake decision broke two other docs.** `03-Escrow.md` opens by
+  describing the model as "two balance fields"; a reserve is a third, and
+  `lockBalance()`'s `amount <= availableBalance` check is wrong once reserves
+  exist. `02-Deposit-Withdraw.md` validates withdrawals against
+  `availableBalance` alone, so a player could withdraw the funds their own
+  pending match is holding — reintroducing exactly the failure the reserve was
+  added to prevent. Both docs now carry the requirement; `02` had said "no open
+  questions — this layer is locked", which is no longer true.
+
+**Then the audit's questions were worked through one at a time, and every
+game-owned one is now closed.** In order:
+
+| Question | Decision |
+|---|---|
+| Dead-rubber rounds | Match ends at the clinch threshold, `floor(N/2)+1`. A 5-round match won 3–0 stops at round 3. |
+| Disconnect mid-timer | Both clocks run. Action timers never pause; rounds are lost in real time and stand on reconnect. |
+| Reconnect state | Full live board **plus** a log of the rounds missed and why. Timers are never extended for a returning player. |
+| Round count | Odd only, preset 3–15. Odd counts cannot end level. |
+| Sudden death | Kept, flagged **DO NOT BUILD** — odd counts make it unreachable. Retained as spec if even counts ever return. |
+| Round 1 seat draw | Committed and revealed like a coin result. Nothing random in the game is unverifiable now. |
+| Seat symmetry | Spin timer 5s → **10s**. The old 5/10 split quietly penalised the previous round's winner. |
+| Fairness record | Permanent per-round record (commit, seed, result, call, cause, seats) + an in-app verifier. Seed written only at reveal. |
+| Result screen | Round-by-round breakdown with per-round verify links, not a "leaderboard" — a 1v1 match has nothing to rank. |
+
+**Three of the answers turned out not to belong to Coin Flip, and amended
+`10-Game-Common-Rules.md` instead:**
+
+- **Rule 4 gained a third discovery path: Rematch.** The result screen's rematch
+  button had nowhere to go — a rematch is a new match needing new locks, and
+  Rule 4 knew only "publish a listing" and "send a code to someone not here".
+  Rematch carries the settings over, both players confirm, new match id, and is
+  offered regardless of how the original match started (gating it on discovery
+  mode would be exactly the downstream branch Rule 4 forbids).
+- **Rule 3 gained a minimum stake for Free Bet 1v1.** Winner-take-all plus
+  free stakes means the *smaller* staker is +EV once the opponent stakes more
+  than ~1.11× theirs. A host-set floor bounds it. Recorded honestly as partial:
+  the asymmetry between floor and host stake survives, and an over-staking
+  joiner is still exposed with no protection at all.
+- **Rule 4 now reserves the stake at match creation.** Deferring the lock to the
+  confirm step created a failure mode — spend the balance meanwhile and
+  `lockBalance()` fails at the worst moment. Stakes are now fenced off
+  (unspendable, but not in escrow) from creation and convert to a lock on
+  confirmation. This needs a **third balance field** beside `availableBalance`
+  and `lockedBalance`, and makes confirm-step expiry mandatory: a reserve that
+  never expires is a fund leak.
+
+Coin Flip now has **no open questions of its own**. What blocks it is inherited:
+Rule 4 still has no schema, no lifecycle, and now no reserved-balance field.
+
+**Open Questions re-audited — the file briefly claimed "nothing is open here",
+which was wrong.** Eight game-level gaps are now recorded in
+`Games/G01-Coin-Flip.md`: whether dead-rubber rounds are played out once the
+score is unreachable; what happens when a player disconnects while a 5-sec or
+10-sec action timer is already running (two clocks, no stated winner); what the
+client is sent on reconnect; round count being unbounded; Round 1's spinner
+being the one uncommitted random draw in a provably-fair game; the 5-sec spinner
+vs 10-sec caller asymmetry always landing on the previous round's winner;
+where commit/reveal records are persisted for after-the-fact verification; and
+what a "match leaderboard" means for two players.
+
+**Two of them were not Coin Flip's, and moved to doc 10.** Free Bet Mode is
+exploitable in any 1v1 game — Rule 2 pays the winner the whole post-fee pot
+regardless of stake, so the smaller staker is +EV once the opponent stakes more
+than ~1.11× theirs, and Rule 4's instant no-approval join makes it reachable.
+And a Friends Play room code that sits unredeemed can have its host's balance
+spent underneath it, failing `lockBalance()` at the confirm step. Coin Flip is
+the first 1v1 game, which is why both surfaced now.
+
+**Sudden death, decided the same day.** Round counts stay unrestricted, and an
+even count that ends level now plays **one sudden-death round** instead of
+splitting the pot. It reuses the round engine untouched — same commit-reveal,
+same 5-sec and 10-sec timers, same forfeit-on-timeout — with the winner of the
+last scheduled round spinning, per the normal rule. No extra stake is locked;
+it is an extra round of the same match.
+
+One round is always enough: a Coin Flip round cannot be drawn (the caller
+matches or does not, and a timeout forfeits the round), so sudden death cannot
+itself end level. Coin Flip therefore has **no tied match outcome** and never
+calls Rule 2's tie-split — a tie used to cost both players the 5% fee for no
+result. If sudden death cannot be played because a player is gone past the
+escrow 15-second grace period, `forfeitPlayer()` decides it, not a split.
+
+## 2026-08-19 — Wallet connect was down: an unapplied migration, and a silent UI
+
+Connecting a wallet did not sign anyone in. The cause was not in the wallet
+layer at all: migration `20260818120000_add_user_profiles` (doc 11) existed on
+disk but had never been applied to the dev database. The generated Prisma client
+selects every column in `schema.prisma`, so `findOrCreateUser` — and therefore
+`POST /api/auth/verify` — returned a 500 reading
+`The column users.gamesWon does not exist in the current database`.
+`GET /api/leaderboard` was failing the same way.
+
+One missing migration therefore broke all three of the identity features at
+once: sign-in, profile restore on a later reconnect, and username uniqueness.
+None of them needed building — doc 11 had shipped them all.
+
+**Why it presented as "the wallet won't connect".** `isAuthenticated` is
+`Boolean(user)`, and `user` comes from our API, not from the adapter. A wallet
+that connected and signed perfectly still left every button reading "Connect
+Wallet". `AuthState.error` was populated and rendered by **nothing** — all 18
+`useAuth()` call sites were checked — so a 500 was indistinguishable from a dead
+click. The wallet modal itself was verified working the whole time.
+
+**Done:**
+- Applied the migration. Sign-in, leaderboard, profiles and username claims all
+  recovered with no code change.
+- **`connectDb()` now refuses to boot** when migrations on disk are missing from
+  `_prisma_migrations`, naming them and pointing at `npm run prisma:migrate`. A
+  backend that will 500 every auth request should not report itself as up. This
+  is the actual fix — the migration was a one-off, the silence was the bug.
+- **`AuthErrorBanner`**, mounted once above the routes. A sign-in can start from
+  four places (landing CTA, topbar, drawer footer, gated placeholder) and only
+  one has room for a message beside the button. It does not auto-dismiss.
+- **`onError` on `<WalletProvider>`.** The default handler `window.open`s the
+  wallet's download page on `WalletNotReadyError`, which popup blockers eat — so
+  a wallet that is not installed also looked like a dead button.
+- **`UsernamePrompt`** — asked once after a first sign-in, skippable, keyed on
+  `user.username` being null rather than on `isNewUser`, so accounts that
+  predate it are asked too. The availability lookup was extracted out of
+  `IdentityForm` into `useUsernameCheck` so the two cannot drift on debounce
+  timing or on what counts as blocked.
+- **Session length 7d → 30d.** Reconnecting resolves to the same UUID either
+  way; this only saves a returning player a signature prompt.
+- **Dropped `@solana/wallet-adapter-wallets`** for the two adapters actually
+  used. The barrel is 36 `export *` lines and Vite pre-bundled all of it — 1.8 MB
+  across ~300 files — dragging in the Keystone chain that hoisted **react-dom@16**
+  into the repo root beside react@19. `npm ls react-dom` reported it invalid;
+  it was masked only because `@vitejs/plugin-react` injects its own dedupe.
+  `resolve.dedupe` is now declared explicitly and root `overrides` pin
+  react/react-dom to 19.
+- `signOut` awaits `disconnect()`; `frontend/.env` created (the public devnet RPC
+  was being used unpinned).
+
+**Verified:** 100 tests pass; both workspaces typecheck and build. Sign-in was
+driven end-to-end with a real ed25519 keypair (same wallet twice → same UUID,
+`isNewUser` false the second time), and the username prompt, availability hints,
+409-on-taken and the error banner were all exercised in a real browser.
+
+---
+
 ## 2026-08-18 — User Profiles: Identity, Tier Badges & Deep Statistics
 
 New doc: `11-User-Profiles.md`. Every player now has a profile page — username,

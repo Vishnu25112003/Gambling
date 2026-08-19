@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { SolanaProvider } from './providers/SolanaProvider';
 import { AuthProvider } from './providers/AuthProvider';
 import { ThemeProvider } from './providers/ThemeProvider';
+import { AuthErrorBanner } from './components/shared/AuthErrorBanner';
 import { DashboardShell } from './components/dashboard/DashboardShell';
 import { Landing } from './pages/Landing';
 import { Overview } from './pages/dashboard/Overview';
@@ -31,6 +32,9 @@ export default function App() {
       <ThemeProvider>
         <SolanaProvider>
           <AuthProvider>
+            {/* Mounted above the routes: a sign-in can be started from the
+                landing CTA as well as from anywhere in the dashboard. */}
+            <AuthErrorBanner />
             <Routes>
               <Route path="/" element={<Landing />} />
 

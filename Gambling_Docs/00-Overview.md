@@ -19,13 +19,13 @@ This project hosts multiple gambling games (list TBD) inside one hub. Instead of
 2. **Adapter/interface pattern for money logic.** Games never touch the database or treasury wallet directly — they only call shared functions (`lockBalance`, `settleMatch`, `refundMatch`, `forfeitPlayer`). This means the deposit/withdraw method can be upgraded later (treasury model → real on-chain program) by changing one implementation, not every game.
 3. **Chain is touched rarely.** Betting, escrow, and settlement all happen off-chain in PostgreSQL/Socket.IO for speed. The blockchain is only touched at deposit and withdrawal.
 4. **Reusable frontend components** — shared UI (wallet balance display, bet slip, leaderboard row, etc.) built once, reused across every game's page.
-5. **One source of truth per rule.** Fees, payout splits, and betting modes are defined once in `10-Game-Common-Rules.md` and applied by the escrow layer. No game — and no other doc — restates a rate or a split; it links to doc 10 instead.
+5. **One source of truth per rule.** Fees, payout splits, betting modes and match discovery are defined once in `10-Game-Common-Rules.md` and applied by the escrow layer (discovery by the hub lobby, which runs before escrow). No game — and no other doc — restates a rate or a split; it links to doc 10 instead.
 
 ## Status
 - **Phase:** Foundation built (auth, wallet, escrow, referral, profiles, dashboard) on PostgreSQL. Blocked on Phase 2 — picking the games.
 - **Real money:** Not yet. Devnet/testnet SOL only for now.
 - **Games decided:** None yet — `04-Games-Index.md` is still empty, and this is the one thing holding up the next phase
-- **Common rules:** Locked — see `10-Game-Common-Rules.md` (fee, payout split, betting modes)
+- **Common rules:** Rules 1–2 locked; Rules 3–4 amended 2026-08-19 — see `10-Game-Common-Rules.md` (fee, payout split, betting modes, match discovery)
 
 ## High-Level Roadmap
 ```
@@ -47,11 +47,12 @@ Online real-money gambling (games of chance for stakes) is currently restricted 
 - `01-Auth-Wallet-Connect.md` — login/identity via wallet-connect
 - `02-Deposit-Withdraw.md` — treasury model, deposit detection, withdrawal flow
 - `03-Escrow.md` — bet locking, settlement, disconnect/crash rules — the *mechanism* that moves money
-- `10-Game-Common-Rules.md` — the *policy* escrow enforces: platform fee, payout splits, and betting modes. Single source of truth for every rate and split in the project.
+- `10-Game-Common-Rules.md` — the *policy* escrow enforces: platform fee, payout splits, betting modes, and (Rule 4) how two players find each other. Single source of truth for every rate and split in the project.
 
 **Games**
 - `04-Games-Index.md` — master list and status of all games
-- `Games/Game-*.md` — one self-contained file per game *(planned — no games chosen yet)*
+- `Games/GNN-<Game-Name>.md` — one self-contained file per game, numbered by `04-Games-Index.md` (`G01-Coin-Flip.md` is the first)
+- `Games/G00-Template.md` — the blank template every new game file is copied from
 
 **Product & features**
 - `06-Landing-Dashboard-Structure.md` — landing page + dashboard layout, sections, and gating rules
@@ -66,11 +67,12 @@ Online real-money gambling (games of chance for stakes) is currently restricted 
 ## How to Use This Vault (for teammates / any AI picking this up)
 Read this file first for the big picture. Then read `01`, `02`, `03`, and `10` — those four never change per-game and apply to every game automatically. `03` and `10` are a pair: `03` is how money moves, `10` is the rules that decide how much moves and to whom.
 
-After that: `06` covers the landing/dashboard UI structure and can be worked on independently of the backend files, and `07` covers local environment setup. Then open only the specific `Games/Game-X.md` file for the game you're working on; it's self-contained and doesn't require reading other game files.
+After that: `06` covers the landing/dashboard UI structure and can be worked on independently of the backend files, and `07` covers local environment setup. Then open only the specific `Games/GNN-<Game-Name>.md` file for the game you're working on; it's self-contained and doesn't require reading other game files.
 
 **If you are adding a game:** read `04-Games-Index.md` and `10-Game-Common-Rules.md`, then write only game-specific logic. Never put a fee, a payout split, or a balance update inside a game — call escrow and let doc 10's rules apply themselves.
 
 ## Last Updated
+2026-08-19 — Rule 4 (match discovery) propagated into the principles, status and doc list; three places still described doc 10 as covering only fee, payout and betting mode. Common-rules status is no longer a flat "Locked" — Rules 3 and 4 were amended by the Coin Flip spec pass.
 2026-08-18 — Added `11-User-Profiles.md` (profile pages, usernames, avatars, loyalty tiers, statistics). Two pre-existing forfeit double-counting bugs in the escrow layer were found and fixed during that work — see `05-Progress-Log.md`.
 2026-08-18 — Added `10-Game-Common-Rules.md` and linked it into the reading order; fee/payout policy moved there out of `03-Escrow.md`. Status, roadmap, and the stale MongoDB reference corrected.
 2026-08-17 — Added `09-Referral-Program.md` (Invite & Earn), built on top of the escrow layer.

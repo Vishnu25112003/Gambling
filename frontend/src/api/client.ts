@@ -1,11 +1,25 @@
 const BASE = import.meta.env.VITE_API_URL || '';
 
 const TOKEN_KEY = 'gambling-hub.token';
+const USERNAME_PROMPT_KEY = 'gambling-hub.usernamePrompted';
 
 export const tokenStore = {
   get: (): string | null => localStorage.getItem(TOKEN_KEY),
   set: (token: string): void => localStorage.setItem(TOKEN_KEY, token),
   clear: (): void => localStorage.removeItem(TOKEN_KEY),
+};
+
+/**
+ * Doc 11 — whether the one-time "claim a username" card has been dealt with.
+ *
+ * Deliberately NOT cleared by `signOut`: the point is to ask once per device,
+ * and a player who skipped it should not be asked again every time they
+ * reconnect. Claiming a handle makes it moot anyway, since the prompt keys off
+ * `user.username` being null.
+ */
+export const usernamePromptStore = {
+  get: (): boolean => localStorage.getItem(USERNAME_PROMPT_KEY) === '1',
+  dismiss: (): void => localStorage.setItem(USERNAME_PROMPT_KEY, '1'),
 };
 
 export class ApiError extends Error {

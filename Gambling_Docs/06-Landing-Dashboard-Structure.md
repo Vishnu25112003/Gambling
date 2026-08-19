@@ -87,7 +87,7 @@ The site has two layers. The **landing page** is public, static-feeling, and nee
 **Gated sections (require wallet connection to show real content):**
 - Profile — **built**, see `11-User-Profiles.md`. Note the *public* profile at `/dashboard/u/:handle` is deliberately UNGATED: another player's record is public data, so a shared link opens without a wallet.
 - Wallet Balance (+ Deposit/Withdraw panel)
-- Transaction/Game History
+- Transaction/Game History *(needs extending — see Open Questions: game matches now carry per-round records and a fairness verifier this section has no path to)*
 
 **Ungated sections (visible without connecting):**
 - Games List
@@ -97,8 +97,10 @@ The site has two layers. The **landing page** is public, static-feeling, and nee
 **Shared component:** `ConnectWalletPlaceholder` — one component, reused across all gated sections, rather than custom-building the "please connect" message three separate times.
 
 ## Open Questions
+- **Game History has no path into a match's rounds.** This doc was written before any game existed. `Games/G01-Coin-Flip.md` now persists a per-round record — commit hash, revealed seed, result, call, cause, seats — kept indefinitely, with a verifier that recomputes the hash in front of the player. A history row therefore needs to open a match, and a match needs to open a round, and neither navigation exists here. The provably-fair claim is only as good as the route a player takes to check it.
 - Visual/branding design (colors, layout details, styling) not yet decided — that's a separate design pass, not a structural one.
 
 ## Last Updated
+2026-08-19 — Flagged: the Transaction/Game History section predates games and has no route into per-match round records or the fairness verifier that `Games/G01-Coin-Flip.md` now specifies.
 2026-08-18 — Profile marked as built and linked to `11-User-Profiles.md`; noted that the public profile is ungated by design. Flagged the proposed `ProfilePanel.jsx` as not what shipped. The five sections described here are still stale against the ten in the shipped sidebar.
 2026-08-14 — Initial version, written after landing/dashboard flow discussion.

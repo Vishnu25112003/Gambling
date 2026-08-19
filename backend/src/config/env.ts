@@ -16,7 +16,7 @@ const schema = z.object({
 
   // --- doc 01: auth -------------------------------------------------------
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
-  JWT_EXPIRES_IN: z.string().default('7d'),
+  JWT_EXPIRES_IN: z.string().default('30d'),
   SIWS_DOMAIN: z.string().default('localhost:5173'),
   AUTH_NONCE_TTL_SECONDS: z.coerce.number().int().positive().default(300),
 

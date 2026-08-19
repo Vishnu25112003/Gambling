@@ -64,7 +64,7 @@ export function AccountMenu() {
               role="menuitem"
               onClick={() => {
                 close();
-                signOut();
+                void signOut();
                 navigate('/');
               }}
               className="flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] border-none bg-transparent px-2.5 py-2.5 text-left text-[13px] font-semibold text-red hover:bg-red/10"

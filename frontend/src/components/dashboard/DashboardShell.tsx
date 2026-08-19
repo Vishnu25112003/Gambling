@@ -17,6 +17,7 @@ import {
   SignOutIcon,
   SunIcon,
 } from '../shared/icons';
+import { UsernamePrompt } from '../profile/UsernamePrompt';
 import { AccountMenu } from './AccountMenu';
 import { NotificationsMenu } from './NotificationsMenu';
 import { NAV_ITEMS } from './nav';
@@ -116,7 +117,7 @@ function SessionButton({ onDone, bare = false }: { onDone?: () => void; bare?: b
       className={`${base} text-red`}
       onClick={() => {
         onDone?.();
-        signOut();
+        void signOut();
         navigate('/');
       }}
     >
@@ -414,6 +415,11 @@ export function DashboardShell() {
         <TopBar onOpenMenu={() => setMenuOpen(true)} />
         <Outlet />
       </div>
+
+      {/* Doc 11 — one-time, skippable, and renders nothing unless the signed-in
+          account still has no handle. Mounted here rather than per-page so it
+          appears from whichever dashboard section the sign-in happened on. */}
+      <UsernamePrompt />
     </div>
   );
 }

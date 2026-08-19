@@ -3,11 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Gambling Hub — shared wallet/auth/escrow layer with pluggable game modules (Solana Devnet)",
+  "description": "Gambling Hub \u2014 shared wallet/auth/escrow layer with pluggable game modules (Solana Devnet)",
   "workspaces": [
     "backend",
     "frontend"
   ],
+  "overrides": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
     "dev:backend": "npm run dev --workspace backend",
@@ -28,5 +32,12 @@
   },
   "engines": {
     "node": ">=20.11"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.9.1": true,
+    "prisma@7.9.1": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true,
+    "esbuild@0.25.12": true
   }
 }

@@ -11,7 +11,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import bs58 from 'bs58';
 import { authApi, walletApi } from '../api/endpoints';
-import { tokenStore } from '../api/client';
+import { tokenStore, usernamePromptStore } from '../api/client';
 import { captureReferralFromUrl, referralStore } from '../lib/referralCapture';
 import type { AppUser, Balance } from '../types';
 
@@ -24,9 +24,18 @@ export interface AuthState {
   /** True while the stored session is being restored on first paint. */
   isRestoring: boolean;
   error: string | null;
+  /** Dismisses the sign-in error banner. */
+  clearError: () => void;
+  /**
+   * Doc 11 — this account has no handle yet and has not skipped the prompt.
+   * Drives the one-time username card; see `UsernamePrompt`.
+   */
+  needsUsername: boolean;
+  /** Skips the username prompt for good on this device. */
+  dismissUsernamePrompt: () => void;
   /** Opens the wallet picker if needed, then runs the sign-in flow. */
   signIn: () => Promise<void>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   setUser: (user: AppUser) => void;
 }
@@ -42,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticating, setAuthenticating] = useState(false);
   const [isRestoring, setRestoring] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [promptDismissed, setPromptDismissed] = useState(() => usernamePromptStore.get());
 
   /** Set while a sign-in is in flight, so autoConnect can't start a second one. */
   const inFlight = useRef(false);
@@ -131,6 +141,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       const msg = (err as Error).message || 'Sign-in failed.';
       // Rejecting the signature prompt is a normal user action, not an error.
+      // Everything else IS one, and has to reach the screen — a silent failure
+      // here is indistinguishable from the wallet never having connected.
       setError(/user rejected|denied|declined/i.test(msg) ? null : msg);
       tokenStore.clear();
     } finally {
@@ -158,14 +170,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await runSignIn();
   }, [connected, setVisible, runSignIn]);
 
-  const signOut = useCallback(() => {
+  /**
+   * `disconnect` is awaited rather than fired and forgotten: `signIn` branches on
+   * `connected`, so a Disconnect immediately followed by a Connect would
+   * otherwise still see `connected === true`, skip the wallet picker entirely and
+   * run `runSignIn` against an adapter mid-teardown.
+   */
+  const signOut = useCallback(async () => {
     suppressAuto.current = true;
     tokenStore.clear();
     setUser(null);
     setBalance(null);
     setError(null);
-    void disconnect();
+    await disconnect();
   }, [disconnect]);
+
+  const clearError = useCallback(() => setError(null), []);
+
+  /**
+   * Doc 11 — a new account has no handle, and the profile page is three clicks
+   * away. Ask once, right after the first sign-in.
+   *
+   * Keyed on `user.username` being null rather than on the `isNewUser` flag from
+   * `/auth/verify`, so an older account that never claimed one still gets asked.
+   * The skip is persisted, otherwise every reload re-opens it.
+   */
+  const dismissUsernamePrompt = useCallback(() => {
+    usernamePromptStore.dismiss();
+    setPromptDismissed(true);
+  }, []);
+
+  const needsUsername = Boolean(user && !user.username && !promptDismissed);
 
   const value = useMemo<AuthState>(
     () => ({
@@ -175,12 +210,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticating,
       isRestoring,
       error,
+      clearError,
+      needsUsername,
+      dismissUsernamePrompt,
       signIn,
       signOut,
       refreshBalance,
       setUser,
     }),
-    [user, balance, isAuthenticating, isRestoring, error, signIn, signOut, refreshBalance],
+    [
+      user,
+      balance,
+      isAuthenticating,
+      isRestoring,
+      error,
+      clearError,
+      needsUsername,
+      dismissUsernamePrompt,
+      signIn,
+      signOut,
+      refreshBalance,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "00-Overview.md",
+                "file": "Games/G01-Coin-Flip.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "00-Overview"
+              "title": "G01-Coin-Flip"
             }
           }
         ]
@@ -188,8 +188,20 @@
       "bases:Create new base": false
     }
   },
-  "active": "52b373a90003ebc8",
+  "active": "97e9fcc09133c447",
   "lastOpenFiles": [
+    "Games/G00-Template.md",
+    "09-Referral-Program.md",
+    "Games/G01-Coin-Flip.md",
+    "10-Game-Common-Rules.md",
+    "11-User-Profiles.md",
+    "sedB66j3s",
+    "Games/Game-CoinFlip.md",
+    "Games",
+    "03-Escrow.md",
+    "02-Deposit-Withdraw.md",
+    "01-Auth-Wallet-Connect.md",
+    "00-Overview.md",
     "05-Progress-Log.md.tmp.22742.eb91370ca76e",
     "07-Local-Dev-Environment.md.tmp.22742.cfbd22e443d6",
     "07-Local-Dev-Environment.md.tmp.22742.3c344a9f087f",
@@ -200,10 +212,6 @@
     "05-Progress-Log.md.tmp.22742.e08ef9d35b71",
     "06-Landing-Dashboard-Structure.md",
     "05-Progress-Log.md",
-    "04-Games-Index.md",
-    "03-Escrow.md",
-    "02-Deposit-Withdraw.md",
-    "01-Auth-Wallet-Connect.md",
-    "00-Overview.md"
+    "04-Games-Index.md"
   ]
 }
