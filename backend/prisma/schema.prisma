@@ -222,8 +222,9 @@ model Match {
   createdAt DateTime  @default(now())
   settledAt DateTime?
 
-  participants  MatchParticipant[]
-  ledgerEntries LedgerEntry[]
+  participants      MatchParticipant[]
+  ledgerEntries     LedgerEntry[]
+  coinFlipRounds    CoinFlipRound[]
 
   @@index([gameType, status])
   @@index([status])
@@ -315,4 +316,43 @@ model Referral {
   @@index([referrerId, createdAt(sort: Desc)])
   @@index([status])
   @@map("referrals")
+}
+
+// ---------------------------------------------------------------------------
+// Game 01: Coin Flip — per-round records
+// ---------------------------------------------------------------------------
+
+/// Permanent per-round record for coin-flip matches.
+///
+/// One row per round, kept indefinitely. Serves three purposes:
+///   1. Reconnect catch-up — what happened while a player was away
+///   2. Result screen — round-by-round breakdown
+///   3. Fairness verification — commit hash + revealed seed
+///
+/// See Gambling_Docs/Games/G01-Coin-Flip.md "The Round Record".
+model CoinFlipRound {
+  id          String @id @default(uuid()) @db.Uuid
+  matchId     String @db.Uuid
+  match       Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  roundNumber Int
+
+  /// sha256(seed || value) published before the round's action.
+  commitHash String
+  /// Revealed only after the round completes — must never be readable while live.
+  seed       String?
+  /// The coin result: 'heads' or 'tails'. Null for the Round 1 seat draw record.
+  result     String?
+  /// What the caller called, or null on timeout.
+  call       String?
+  /// How the round resolved: correct_call, wrong_call, no_spin, no_call.
+  cause      String?
+  /// Who spun and who called.
+  spinnerId  String @db.Uuid
+  callerId   String @db.Uuid
+
+  createdAt DateTime @default(now())
+
+  @@unique([matchId, roundNumber])
+  @@index([matchId])
+  @@map("coin_flip_rounds")
 }

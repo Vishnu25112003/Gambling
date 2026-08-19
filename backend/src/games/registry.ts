@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Namespace, Socket } from 'socket.io';
 import { createLogger } from '../lib/logger.js';
 import type { GameManifest, GameModule } from './types.js';
+import coinFlipGame from './coin-flip/index.js';
 
 const log = createLogger('games');
 
@@ -30,7 +31,7 @@ const log = createLogger('games');
  * ===========================================================================
  */
 const modules: GameModule[] = [
-  // e.g. coinFlip, dice, mines — added in the games pass
+  coinFlipGame,
 ];
 
 const byId = new Map<string, GameModule>();
