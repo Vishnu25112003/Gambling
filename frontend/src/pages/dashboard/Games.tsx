@@ -38,7 +38,7 @@ export function Games() {
           <Spinner />
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,190px),1fr))] gap-[18px]">
+        <div className="grid grid-cols-2 gap-[18px] sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {games.map((game) => (
             <GameTile
               key={game.id}

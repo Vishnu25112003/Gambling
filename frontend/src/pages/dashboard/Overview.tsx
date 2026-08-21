@@ -213,7 +213,7 @@ export function Overview() {
               <Spinner />
             </div>
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,150px),1fr))] gap-3.5">
+            <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 xl:grid-cols-4">
               {games.map((g) => (
                 <GameTile key={g.id} game={g} />
               ))}
