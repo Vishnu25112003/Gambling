@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { GameTile } from '../../components/dashboard/GameTile';
 import { PageTitle, Spinner } from '../../components/shared/ui';
 import { useAuth } from '../../hooks/useAuth';
@@ -11,14 +12,14 @@ import type { GameManifest } from '../../types';
 export function Games() {
   const { games, loading, isPlaceholder } = useGames();
   const { isAuthenticated, signIn } = useAuth();
+  const navigate = useNavigate();
 
   const handlePlay = (game: GameManifest) => {
     if (!isAuthenticated) {
       void signIn();
       return;
     }
-    // Once games exist this routes to /dashboard/play/<id>.
-    console.info(`play ${game.id}`);
+    navigate(`/dashboard/play/${game.id}`);
   };
 
   return (
@@ -37,7 +38,7 @@ export function Games() {
           <Spinner />
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,190px),1fr))] gap-[18px]">
+        <div className="grid grid-cols-2 gap-[18px] sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {games.map((game) => (
             <GameTile
               key={game.id}

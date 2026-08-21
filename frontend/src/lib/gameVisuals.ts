@@ -7,6 +7,8 @@ export interface GameVisual {
   tint: string;
   /** Icon colour. */
   tone: string;
+  /** Commissioned card art in `public/games/`, when it exists. */
+  art?: string;
 }
 
 /**
@@ -15,7 +17,12 @@ export interface GameVisual {
  * `backend/src/games/registry.ts`, while the name is what the design labels.
  */
 const BY_NAME: Record<string, GameVisual> = {
-  'coin flip': { icon: 'coin', tint: 'rgba(234,179,8,0.14)', tone: 'var(--gold)' },
+  'coin flip': {
+    icon: 'coin',
+    tint: 'rgba(234,179,8,0.14)',
+    tone: 'var(--gold)',
+    art: '/games/Coin_Flip.png',
+  },
   dice: { icon: 'dice', tint: 'rgba(34,197,94,0.14)', tone: 'var(--green)' },
   mines: { icon: 'bomb', tint: 'rgba(248,113,113,0.13)', tone: 'var(--red)' },
   roulette: { icon: 'roulette', tint: 'rgba(168,85,247,0.14)', tone: '#a855f7' },
