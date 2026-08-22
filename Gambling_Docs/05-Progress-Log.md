@@ -4,6 +4,35 @@ Dated changelog of decisions and milestones. Newest entry on top.
 
 ---
 
+## 2026-08-22 — `displayName` and `username` merged into a single name field
+
+Profile settings showed two separate editable fields — `username` (the unique,
+URL-safe handle) and `displayName` (a free-form, non-unique label) — with a
+`displayName ?? username ?? shortAddress(wallet)` fallback repeated ad hoc
+across the leaderboard, account menu, referral flows and coin-flip in-game
+labels. Confusing to edit and easy to let drift.
+
+**Done:**
+- **`User.displayName` column dropped** (migration
+  `20260822120000_drop_display_name`). `username` is now the one name field:
+  still unique, lowercase, 3–20 of `[a-z0-9_]`, still the `:handle` in
+  `/dashboard/u/:handle` — it now also carries what `displayName` used to.
+- **`PATCH /api/auth/me`** takes `{ username: string | null }` only, no longer
+  two independently-optional fields.
+- **`backend/src/lib/user.ts`** — `userLabel()`, `publicUser()` and
+  `publicProfile()` simplified to the one field; every call site that had its
+  own `displayName ?? username ?? shortAddress(...)` fallback (leaderboard,
+  `AccountMenu`, `DashboardShell`, referral routes, coin-flip socket handlers)
+  collapsed to `username ?? shortAddress(...)`.
+- **`IdentityForm`** (settings) now renders one "Name" input instead of two.
+- No backfill needed: the one dev row with a `displayName` already had a
+  matching `username` set.
+
+See `01-Auth-Wallet-Connect.md` and `11-User-Profiles.md` for the updated
+schema and endpoint contract.
+
+---
+
 ## 2026-08-19 — Game docs given a numbering scheme; Coin Flip realigned to Rule 4
 
 The `Games/` folder had one file, `Game-CoinFlip.md`, written before Rule 4

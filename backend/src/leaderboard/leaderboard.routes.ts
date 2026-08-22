@@ -28,7 +28,6 @@ leaderboardRouter.get(
       select: {
         id: true,
         walletAddress: true,
-        displayName: true,
         username: true,
         avatarUrl: true,
         netProfit: true,

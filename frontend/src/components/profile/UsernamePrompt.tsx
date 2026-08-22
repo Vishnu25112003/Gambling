@@ -36,7 +36,7 @@ export function UsernamePrompt() {
     setError(null);
     try {
       const res = await authApi.updateProfile({ username: normalised });
-      setUser({ ...user, username: res.user.username, displayName: res.user.displayName });
+      setUser({ ...user, username: res.user.username });
       // No dismiss() call: `needsUsername` keys off `user.username`, which is now
       // set, so the card closes on its own and stays closed on every device.
     } catch (err) {

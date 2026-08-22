@@ -41,19 +41,12 @@ export const authApi = {
 
   me: () => api<{ user: AppUser }>('/auth/me'),
 
-  /**
-   * Doc 11 — both identity fields, both optional.
-   *
-   * An OMITTED key means "leave it alone"; an explicit `null` means "clear it".
-   * That distinction is why this takes an object rather than positional
-   * arguments — saving a username must not blank the display name as a side
-   * effect.
-   */
-  updateProfile: (patch: { displayName?: string | null; username?: string | null }) =>
-    api<{ user: { id: string; displayName: string | null; username: string | null } }>(
-      '/auth/me',
-      { method: 'PATCH', body: patch },
-    ),
+  /** Doc 11 — the single identity field. `null` clears it. */
+  updateProfile: (patch: { username: string | null }) =>
+    api<{ user: { id: string; username: string | null } }>('/auth/me', {
+      method: 'PATCH',
+      body: patch,
+    }),
 
   /** Doc 11 — multipart upload. `client.ts` omits the JSON Content-Type for FormData. */
   uploadAvatar: (file: File) => {

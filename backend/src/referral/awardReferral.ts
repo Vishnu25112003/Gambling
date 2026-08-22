@@ -111,9 +111,9 @@ export async function awardReferralOnWin(
 
   const referred = await tx.user.findUniqueOrThrow({
     where: { id: userId },
-    select: { walletAddress: true, displayName: true },
+    select: { walletAddress: true, username: true },
   });
-  const friend = referred.displayName ?? shortAddress(referred.walletAddress);
+  const friend = referred.username ?? shortAddress(referred.walletAddress);
 
   await tx.ledgerEntry.create({
     data: {

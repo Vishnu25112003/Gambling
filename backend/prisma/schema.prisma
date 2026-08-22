@@ -38,10 +38,9 @@ model User {
   lockedBalance    Decimal @default(0) @db.Decimal(20, 9)
 
   // ADDED — doc 06's profile and leaderboard sections need these.
-  displayName  String?  @db.VarChar(32)
-  totalWagered Decimal  @default(0) @db.Decimal(20, 9)
-  netProfit    Decimal  @default(0) @db.Decimal(20, 9)
-  gamesPlayed  Int      @default(0)
+  totalWagered Decimal @default(0) @db.Decimal(20, 9)
+  netProfit    Decimal @default(0) @db.Decimal(20, 9)
+  gamesPlayed  Int     @default(0)
 
   /// Doc 11 — matches this player finished in profit.
   ///
@@ -51,13 +50,15 @@ model User {
   /// `gamesPlayed`, so the pair can never describe an impossible record.
   gamesWon Int @default(0)
 
-  /// Doc 11 — the public profile handle: the `:handle` in /dashboard/u/:handle.
+  /// Doc 11 — the single name field: shown everywhere a player's name appears
+  /// (profile, leaderboard, in-game labels) and doubles as the public profile
+  /// handle, the `:handle` in /dashboard/u/:handle.
   ///
   /// Nullable-unique for exactly the reason `referralCode` is: Postgres treats
   /// NULLs as distinct in a unique index, so accounts that predate this column
   /// need no backfill. Stored already lowercased (`profile/username.ts`), which is
   /// what makes this single unique index case-insensitive; a database CHECK pins
-  /// the shape, because a username is a URL segment.
+  /// the shape, because it also has to be a valid URL segment.
   username String? @unique @db.VarChar(20)
 
   /// Doc 11 — root-relative path to an uploaded avatar, carrying a cache-busting

@@ -118,42 +118,24 @@ authRouter.get(
   }),
 );
 
-/**
- * Doc 11 — both mutable identity fields, both OPTIONAL.
- *
- * Optional is the important part. When `displayName` was required, every caller
- * had to send it, which was fine while it was the only field — but a username-only
- * save would then post `{username}` alone and blank the display name as a side
- * effect. Absent now means "leave alone"; explicit `null` means "clear".
- */
+/** Doc 11 — the single mutable identity field. `null` clears it. */
 const profileBody = z.object({
-  displayName: z.string().trim().min(2).max(32).nullable().optional(),
-  username: z.string().trim().min(3).max(20).nullable().optional(),
+  username: z.string().trim().min(3).max(20).nullable(),
 });
 
-/** PATCH /api/auth/me — display name and public handle. */
+/** PATCH /api/auth/me — the player's name / public handle. */
 authRouter.patch(
   '/me',
   requireAuth,
   asyncHandler(async (req, res) => {
     const parsed = profileBody.safeParse(req.body);
     if (!parsed.success) {
-      throw badRequest(
-        'displayName must be 2-32 characters and username 3-20; send null to clear either.',
-      );
+      throw badRequest('username must be 3-20 characters, or null to clear it.');
     }
 
-    const { displayName, username } = parsed.data;
-    if (displayName === undefined && username === undefined) {
-      throw badRequest('Nothing to update.');
-    }
-
-    // Built key by key, so an absent field is genuinely untouched rather than
-    // overwritten with undefined.
-    const data: { displayName?: string | null; username?: string | null } = {};
-    if (displayName !== undefined) data.displayName = displayName;
+    const { username } = parsed.data;
     // parseUsername normalises to lowercase and rejects reserved handles.
-    if (username !== undefined) data.username = username === null ? null : parseUsername(username);
+    const data = { username: username === null ? null : parseUsername(username) };
 
     let user;
     try {
@@ -171,9 +153,7 @@ authRouter.patch(
       throw err;
     }
 
-    res.json({
-      user: { id: user.id, displayName: user.displayName, username: user.username },
-    });
+    res.json({ user: { id: user.id, username: user.username } });
   }),
 );
 

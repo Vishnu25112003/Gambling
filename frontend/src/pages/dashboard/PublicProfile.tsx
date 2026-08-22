@@ -27,7 +27,7 @@ export function PublicProfile() {
   const history = useMatchHistory(handle || null, page);
 
   const title = data
-    ? (data.identity.displayName ?? data.identity.label ?? `@${data.identity.username ?? handle}`)
+    ? (data.identity.username ?? data.identity.label ?? handle)
     : 'Player profile';
 
   if (loading && !data) {

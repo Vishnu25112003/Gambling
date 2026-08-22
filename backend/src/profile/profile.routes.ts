@@ -23,7 +23,6 @@ const CURVE_DAYS = 30;
 const PROFILE_SELECT = {
   id: true,
   walletAddress: true,
-  displayName: true,
   username: true,
   avatarUrl: true,
   totalWagered: true,
@@ -96,7 +95,6 @@ profileRouter.get(
       identity: {
         handle: userHandle(user),
         username: user.username,
-        displayName: user.displayName,
         avatarUrl: user.avatarUrl,
         /** Own profile only — the full address is the player's own to see. */
         walletAddress: user.walletAddress,

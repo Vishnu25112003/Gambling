@@ -10,8 +10,7 @@
 export interface AppUser {
   id: string;
   walletAddress: string;
-  displayName: string | null;
-  /** Doc 11 — the public handle, lowercase. Null until the player claims one. */
+  /** Doc 11 — the player's name and public handle, lowercase. Null until claimed. */
   username: string | null;
   /** Doc 11 — root-relative, with a `?v=` cache-buster. Null = generated gradient. */
   avatarUrl: string | null;
@@ -226,7 +225,6 @@ export interface DailyNet {
 export interface ProfileIdentity {
   handle: string;
   username: string | null;
-  displayName: string | null;
   avatarUrl: string | null;
   /** Own profile only — a public profile carries `walletShort` instead. */
   walletAddress?: string;

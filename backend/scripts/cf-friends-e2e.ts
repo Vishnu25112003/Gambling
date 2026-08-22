@@ -27,8 +27,10 @@ function waitFor<T>(s: Socket, event: string, ms = 8000): Promise<T> {
 
 async function seedUser(tag: string) {
   const walletAddress = `E2E_${tag}_${process.pid}`;
+  // username must satisfy the DB shape CHECK: lowercase letters/digits/underscore, <=20 chars.
+  const username = `e2e_${tag}_${process.pid}`.toLowerCase().slice(0, 20);
   const user = await prisma.user.create({
-    data: { walletAddress, displayName: `E2E ${tag}`, availableBalance: 5 },
+    data: { walletAddress, username, availableBalance: 5 },
     select: { id: true, walletAddress: true },
   });
   return { ...user, token: issueToken(user.id, user.walletAddress) };
