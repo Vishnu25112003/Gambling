@@ -59,6 +59,23 @@ async function main(): Promise<void> {
 
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
+
+  /**
+   * Last line of defence.
+   *
+   * Node's default for an unhandled rejection is to kill the process. Most of
+   * this server's work happens in socket handlers and timers, which are exactly
+   * the places nobody is awaiting — so a single bad round in a single match
+   * could otherwise take every player's session, and the REST API, down with it.
+   * Modules own their own error handling; this only stops one escaping bug from
+   * becoming an outage.
+   */
+  process.on('unhandledRejection', (reason) => {
+    log.error('unhandled promise rejection — staying up', reason);
+  });
+  process.on('uncaughtException', (err) => {
+    log.error('uncaught exception — staying up', err);
+  });
 }
 
 main().catch((err) => {

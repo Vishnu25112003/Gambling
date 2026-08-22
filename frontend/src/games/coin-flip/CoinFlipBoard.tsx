@@ -61,8 +61,8 @@ interface ListedMatch {
 interface RoundResult {
   roundNumber: number;
   winnerId: string | null;
-  coinResult: 'heads' | 'tails' | null;
-  callerCall: 'heads' | 'tails' | null;
+  result: 'heads' | 'tails' | null;
+  call: 'heads' | 'tails' | null;
   cause: string;
   scores: Record<string, number>;
 }
@@ -74,7 +74,7 @@ interface MatchResult {
   roundsPlayed: number;
   pot: string;
   feeCollected: string;
-  payouts: { userId: string; amount: string }[];
+  payouts: { userId: string; payout: string }[];
 }
 
 export function CoinFlipBoard() {
@@ -586,6 +586,37 @@ export function CoinFlipBoard() {
     );
   }
 
+  // --- Waiting (Friends Play) — show the room code ---
+  if (page === 'waiting_friends') {
+    return (
+      <>
+        <PageTitle title="Friends Play" subtitle="Share this code with your friend." />
+        <Card className="mx-auto max-w-md px-6 py-10 text-center">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Room Code</p>
+          <p className="mb-1 text-4xl font-extrabold tracking-[0.35em] text-green">{roomCode}</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-4"
+            onClick={() => { if (roomCode) void navigator.clipboard?.writeText(roomCode); }}
+          >
+            Copy Code
+          </Button>
+
+          <div className="mt-8 flex flex-col items-center">
+            <Spinner className="mb-3 size-5" />
+            <p className="text-sm text-muted">Waiting for your friend to join…</p>
+          </div>
+
+          <p className="mt-4 text-xs text-faint">
+            {formatSol(stake)} SOL · {rounds} rounds · {betMode === 'fixed' ? 'Fixed' : 'Free'} bet
+          </p>
+          <Button variant="ghost" size="sm" className="mt-6" onClick={goHome}>Cancel</Button>
+        </Card>
+      </>
+    );
+  }
+
   // --- Waiting (Random) ---
   if (page === 'waiting') {
     return (
@@ -653,7 +684,7 @@ export function CoinFlipBoard() {
             {iWon && myPayout && (
               <div className="mt-1 flex justify-between text-xs">
                 <span className="text-green">Your payout</span>
-                <span className="font-bold text-green">{formatSol(myPayout.amount)} SOL</span>
+                <span className="font-bold text-green">{formatSol(myPayout.payout)} SOL</span>
               </div>
             )}
             {Number(matchResult.feeCollected) > 0 && (
@@ -726,13 +757,13 @@ export function CoinFlipBoard() {
 
           {lastResult && (
             <>
-              <span className="mb-2 text-5xl">{lastResult.coinResult === 'heads' ? '👑' : '🌙'}</span>
+              <span className="mb-2 text-5xl">{lastResult.result === 'heads' ? '👑' : '🌙'}</span>
               <p className="mb-1 text-sm font-bold">
-                It was <span className="text-gold uppercase">{lastResult.coinResult}</span>!
+                It was <span className="text-gold uppercase">{lastResult.result}</span>!
               </p>
               <p className="mb-3 text-xs text-muted">
-                {lastResult.cause === 'correct_call' ? `${lastResult.callerCall} — correct call!`
-                  : lastResult.cause === 'wrong_call' ? `${lastResult.callerCall} — wrong call.`
+                {lastResult.cause === 'correct_call' ? `${lastResult.call} — correct call!`
+                  : lastResult.cause === 'wrong_call' ? `${lastResult.call} — wrong call.`
                   : lastResult.cause === 'no_call' ? 'Caller timed out.'
                   : 'Spinner timed out.'}
               </p>

@@ -83,6 +83,8 @@ interface PublicMatch {
   betMode: 'fixed' | 'free';
   minBet: number | null;
   createdAt: number;
+  /** Friends Play: tracked here for the host's socket id, but never listed. */
+  private: boolean;
 }
 
 /** matchId → public match listing. */
@@ -130,6 +132,31 @@ function getIoRef(): Namespace | null {
   return ioRef;
 }
 
+/**
+ * Error boundary for fire-and-forget async work.
+ *
+ * Socket handlers, timer callbacks and `void`-ed promises all run outside any
+ * request/response cycle, so a rejection there is an UNHANDLED rejection — and
+ * Node kills the process on those. One player's match hitting a missing row or
+ * a momentary DB error would otherwise take the whole server down for everybody.
+ *
+ * Nothing here is recoverable in-band, so the contract is: log it, keep serving.
+ */
+function guard(label: string, work: Promise<unknown>, context?: Record<string, unknown>): void {
+  void work.catch((err) => {
+    log.error(`${label} failed`, { ...context, err });
+  });
+}
+
+/** Same boundary for synchronous timer callbacks. */
+function guardSync(label: string, work: () => void, context?: Record<string, unknown>): void {
+  try {
+    work();
+  } catch (err) {
+    log.error(`${label} failed`, { ...context, err });
+  }
+}
+
 function clearTimeouts(match: ActiveMatch): void {
   if (match.timers.spin) {
     clearTimeout(match.timers.spin);
@@ -144,7 +171,7 @@ function clearTimeouts(match: ActiveMatch): void {
 // --- Timer management -------------------------------------------------------
 
 function startSpinTimer(match: ActiveMatch, spinnerId: string): void {
-  match.timers.spin = setTimeout(() => {
+  match.timers.spin = setTimeout(() => guardSync('spin timeout', () => {
     // Spinner timed out — auto-forfeit round to caller
     log.info('spin timeout', { matchId: match.matchId, spinnerId });
     const callerId = getOtherPlayer(match, spinnerId);
@@ -170,12 +197,12 @@ function startSpinTimer(match: ActiveMatch, spinnerId: string): void {
       scores: match.state.scores,
     });
 
-    void handleRoundEnd(match, callerId);
-  }, SPIN_TIMEOUT_MS);
+    guard('round end', handleRoundEnd(match, callerId), { matchId: match.matchId });
+  }, { matchId: match.matchId }), SPIN_TIMEOUT_MS);
 }
 
 function startCallTimer(match: ActiveMatch, callerId: string): void {
-  match.timers.call = setTimeout(() => {
+  match.timers.call = setTimeout(() => guardSync('call timeout', () => {
     // Caller timed out — auto-forfeit round to spinner
     log.info('call timeout', { matchId: match.matchId, callerId });
     const spinnerId = getOtherPlayer(match, callerId);
@@ -201,8 +228,8 @@ function startCallTimer(match: ActiveMatch, callerId: string): void {
       scores: match.state.scores,
     });
 
-    void handleRoundEnd(match, spinnerId);
-  }, CALL_TIMEOUT_MS);
+    guard('round end', handleRoundEnd(match, spinnerId), { matchId: match.matchId });
+  }, { matchId: match.matchId }), CALL_TIMEOUT_MS);
 }
 
 // --- Round end / match end --------------------------------------------------
@@ -335,9 +362,15 @@ async function writeRoundRecord(
 export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): void {
   const userId = socket.data.userId as string;
 
+  // Every emit in this module goes through `broadcastToMatch`, which needs the
+  // namespace to address a socket by id. Without this line `ioRef` stays null
+  // and every server → client event is silently dropped.
+  ioRef = namespace;
+
   // --- LIST_MATCHES: return public Random Play matches ---
   socket.on(CF_EVENTS.LIST_MATCHES, async (data: { gameType?: string }) => {
     const listed = [...publicMatches.values()]
+      .filter((m) => !m.private)              // Friends Play is code-only
       .filter((m) => m.hostUserId !== userId) // don't show your own
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 20)
@@ -405,6 +438,7 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
           betMode: mode,
           minBet: data.minBet ?? null,
           createdAt: Date.now(),
+          private: false,
         });
 
         socket.emit(CF_EVENTS.MATCH_CREATED, { matchId });
@@ -426,6 +460,7 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
           betMode: mode,
           minBet: data.minBet ?? null,
           createdAt: Date.now(),
+          private: true,
         });
 
         socket.emit(CF_EVENTS.MATCH_CREATED, { matchId, roomCode: code });
@@ -441,16 +476,19 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
   socket.on(CF_EVENTS.JOIN_MATCH, async (data: { matchId?: string; roomCode?: string }) => {
     try {
       let matchId: string | undefined;
+      let usedRoomCode: string | undefined;
 
       // --- Resolve the matchId from either source ---
       if (data.roomCode) {
-        // Friends Play: look up room code
-        matchId = roomCodes.get(data.roomCode.toUpperCase());
+        // Friends Play: look up room code. The code is only retired once the
+        // join actually succeeds — retiring it here would make a rejected join
+        // (full match, own match, bad stake) permanently unrecoverable.
+        usedRoomCode = data.roomCode.toUpperCase();
+        matchId = roomCodes.get(usedRoomCode);
         if (!matchId) {
           socket.emit(CF_EVENTS.ERROR, { message: 'Invalid room code' });
           return;
         }
-        roomCodes.delete(data.roomCode.toUpperCase());
       } else if (data.matchId) {
         matchId = data.matchId;
       }
@@ -536,8 +574,15 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
         playerIds.reverse();
       }
 
-      // Remove from public list
+      // Grab the host's socket id BEFORE dropping the listing — this map is the
+      // only place it lives, so reading it after the delete always yields
+      // undefined and the host never gets wired into the match.
+      const hostSocketId = publicMatches.get(matchId)?.hostSocketId;
+
+      // Remove from public list, and retire the room code now that the match
+      // has a second player.
       publicMatches.delete(matchId);
+      if (usedRoomCode) roomCodes.delete(usedRoomCode);
 
       // Remove joiner from any waiting queue
       for (const [key, waiting] of waitingQueue) {
@@ -566,7 +611,6 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
       };
 
       // Register sockets
-      const hostSocketId = publicMatches.get(matchId)?.hostSocketId;
       if (hostSocketId) newActiveMatch.socketIds[playerIds[0]] = hostSocketId;
       newActiveMatch.socketIds[userId] = socket.id;
       socketToMatch.set(socket.id, matchId);
@@ -772,7 +816,7 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
       });
 
       // Small delay before reveal for visual effect
-      setTimeout(() => {
+      setTimeout(() => guardSync('reveal', () => {
         broadcastToMatch(match, CF_EVENTS.REVEAL, {
           roundNumber: record.roundNumber,
           result,
@@ -789,8 +833,12 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
           scores: match.state.scores,
         });
 
-        void handleRoundEnd(match, record.cause === 'correct_call' ? userId : spinnerId);
-      }, 2000); // 2 second reveal animation
+        guard(
+          'round end',
+          handleRoundEnd(match, record.cause === 'correct_call' ? userId : spinnerId),
+          { matchId: match.matchId },
+        );
+      }, { matchId: match.matchId }), 2000); // 2 second reveal animation
     } catch (err) {
       log.error('call error', { userId, err });
       socket.emit(CF_EVENTS.ERROR, { message: 'Failed to call' });
@@ -798,50 +846,58 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
   });
 
   socket.on('disconnect', async () => {
-    // Clean up waiting queue
-    for (const [key, waiting] of waitingQueue) {
-      if (waiting.userId === userId || waiting.socketId === socket.id) {
-        waitingQueue.delete(key);
-      }
-    }
-
-    // Clean up public match listings owned by this user
-    for (const [matchId, listing] of publicMatches) {
-      if (listing.hostUserId === userId || listing.hostSocketId === socket.id) {
-        publicMatches.delete(matchId);
-        // Also clean up room code if any
-        for (const [code, mid] of roomCodes) {
-          if (mid === matchId) roomCodes.delete(code);
+    // Nobody awaits a socket 'disconnect' handler, so anything thrown in here is
+    // an unhandled rejection — and that kills the process. The player is already
+    // gone; there is nothing to tell them and no reason to take the server down
+    // with them.
+    try {
+      // Clean up waiting queue
+      for (const [key, waiting] of waitingQueue) {
+        if (waiting.userId === userId || waiting.socketId === socket.id) {
+          waitingQueue.delete(key);
         }
       }
-    }
 
-    const matchId = socketToMatch.get(socket.id);
-    if (!matchId) return;
+      // Clean up public match listings owned by this user
+      for (const [matchId, listing] of publicMatches) {
+        if (listing.hostUserId === userId || listing.hostSocketId === socket.id) {
+          publicMatches.delete(matchId);
+          // Also clean up room code if any
+          for (const [code, mid] of roomCodes) {
+            if (mid === matchId) roomCodes.delete(code);
+          }
+        }
+      }
 
-    const match = matches.get(matchId);
-    if (!match) return;
+      const matchId = socketToMatch.get(socket.id);
+      if (!matchId) return;
 
-    // Remove this socket
-    delete match.socketIds[userId];
-    socketToMatch.delete(socket.id);
+      const match = matches.get(matchId);
+      if (!match) return;
 
-    // Mark as disconnected
-    if (!match.state.disconnectedPlayers.includes(userId)) {
-      match.state.disconnectedPlayers.push(userId);
-    }
+      // Remove this socket
+      delete match.socketIds[userId];
+      socketToMatch.delete(socket.id);
 
-    broadcastToMatch(match, CF_EVENTS.OPPONENT_DISCONNECTED, { userId });
+      // Mark as disconnected
+      if (!match.state.disconnectedPlayers.includes(userId)) {
+        match.state.disconnectedPlayers.push(userId);
+      }
 
-    // Start the forfeit grace period via escrow
-    const forfeitResult = await escrow.forfeitPlayer(matchId, userId);
+      broadcastToMatch(match, CF_EVENTS.OPPONENT_DISCONNECTED, { userId });
 
-    if (forfeitResult.outcome === 'forfeited') {
-      // Player was forfeited — settle with the remaining player
-      const winnerId = getOtherPlayer(match, userId);
-      await settleMatch(match, winnerId);
-    } else if (forfeitResult.outcome === 'reconnected') {
-      // They reconnected — cancel forfeit (handled in JOIN_MATCH)
+      // Start the forfeit grace period via escrow
+      const forfeitResult = await escrow.forfeitPlayer(matchId, userId);
+
+      if (forfeitResult.outcome === 'forfeited') {
+        // Player was forfeited — settle with the remaining player
+        const winnerId = getOtherPlayer(match, userId);
+        await settleMatch(match, winnerId);
+      } else if (forfeitResult.outcome === 'reconnected') {
+        // They reconnected — cancel forfeit (handled in JOIN_MATCH)
+      }
+    } catch (err) {
+      log.error('disconnect cleanup failed', { userId, socketId: socket.id, err });
     }
   });
 }
