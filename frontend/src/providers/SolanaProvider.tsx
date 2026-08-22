@@ -2,8 +2,6 @@ import { useCallback, useMemo, type ReactNode } from 'react';
 import type { WalletError } from '@solana/wallet-adapter-base';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
-import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
-import { SolflareWalletAdapter } from '@solana/wallet-adapter-solflare';
 import { clusterApiUrl } from '@solana/web3.js';
 
 /**
@@ -12,11 +10,14 @@ import { clusterApiUrl } from '@solana/web3.js';
  * The wallet extension holds the private key and does all signing in the
  * user's browser — nothing secret ever reaches our frontend or backend.
  *
- * The two adapters are imported from their own packages rather than from the
- * `@solana/wallet-adapter-wallets` barrel. That barrel is 36 `export *` lines,
- * and Vite's dep optimiser has to pre-bundle all of it: ~1.8 MB across 300
- * files, dragging in WalletConnect, Torus and the Keystone chain that hoists
- * react-dom@16 into the repo root. Nothing here uses those 34 other wallets.
+ * No adapters are instantiated here on purpose. Current Phantom and Solflare
+ * extensions self-register as Wallet Standard wallets, and `WalletProvider`
+ * auto-detects those. Also instantiating the legacy `PhantomWalletAdapter` /
+ * `SolflareWalletAdapter` on top of that registers each wallet twice and
+ * makes the legacy adapter try to talk to the extension over a message
+ * channel it no longer answers the same way on — that's the source of the
+ * "Could not establish connection. Receiving end does not exist." errors and
+ * a Connect button that silently never resolves.
  */
 export function SolanaProvider({ children }: { children: ReactNode }) {
   const cluster = (import.meta.env.VITE_SOLANA_CLUSTER || 'devnet') as
@@ -29,7 +30,7 @@ export function SolanaProvider({ children }: { children: ReactNode }) {
     [cluster],
   );
 
-  const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()], []);
+  const wallets = useMemo(() => [], []);
 
   /**
    * Without an `onError`, wallet-adapter's default handler runs instead: it

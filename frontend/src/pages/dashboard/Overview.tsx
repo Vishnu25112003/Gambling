@@ -80,7 +80,7 @@ function WelcomeCard() {
           <>
             Welcome back,
             <br />
-            {user.displayName || shortAddress(user.walletAddress)}
+            {user.username || shortAddress(user.walletAddress)}
           </>
         ) : (
           <>

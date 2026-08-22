@@ -54,7 +54,7 @@ referralRouter.get(
           createdAt: true,
           earnedAt: true,
           gameType: true,
-          referred: { select: { displayName: true, walletAddress: true } },
+          referred: { select: { username: true, walletAddress: true } },
         },
       }),
       prisma.referral.findUnique({
@@ -62,7 +62,7 @@ referralRouter.get(
         select: {
           status: true,
           createdAt: true,
-          referrer: { select: { displayName: true, walletAddress: true } },
+          referrer: { select: { username: true, walletAddress: true } },
         },
       }),
     ]);
@@ -93,7 +93,7 @@ referralRouter.get(
         : null,
       friends: friends.map((f) => ({
         id: f.id,
-        name: f.referred.displayName ?? shortAddress(f.referred.walletAddress),
+        name: f.referred.username ?? shortAddress(f.referred.walletAddress),
         status: f.status,
         earned: toAmountString(f.earnedAmount),
         joinedAt: f.createdAt,
@@ -140,7 +140,7 @@ referralRouter.get(
 
     const referrer = await prisma.user.findUnique({
       where: { referralCode: code },
-      select: { displayName: true, walletAddress: true },
+      select: { username: true, walletAddress: true },
     });
 
     res.json({

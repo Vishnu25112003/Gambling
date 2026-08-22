@@ -23,7 +23,7 @@ export function AccountMenu() {
 
   if (!user) return null;
 
-  const label = user.displayName || shortAddress(user.walletAddress);
+  const label = user.username || shortAddress(user.walletAddress);
 
   return (
     <div ref={ref} className="relative">
@@ -36,7 +36,7 @@ export function AccountMenu() {
           open ? 'border-green-solid/40' : 'border-line hover:border-green-solid/25'
         }`}
       >
-        <Avatar src={user.avatarUrl} address={user.walletAddress} name={user.displayName ?? undefined} />
+        <Avatar src={user.avatarUrl} address={user.walletAddress} name={user.username ?? undefined} />
         <span className="max-w-[130px] truncate font-mono text-[12.5px] font-medium">{label}</span>
         <ChevronDown
           size={14}
@@ -105,12 +105,12 @@ function AccountHeader({ user, balance }: { user: AppUser; balance: Balance | nu
         <Avatar
           src={user.avatarUrl}
           address={user.walletAddress}
-          name={user.displayName ?? undefined}
+          name={user.username ?? undefined}
           size={38}
         />
         <div className="min-w-0">
           <div className="truncate text-[14px] font-bold">
-            {user.displayName || 'Unnamed player'}
+            {user.username || 'Unnamed player'}
           </div>
           <div className="text-[11.5px] text-muted">{user.gamesPlayed} games played</div>
         </div>

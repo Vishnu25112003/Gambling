@@ -301,13 +301,13 @@ function DrawerAccount({ onNavigate }: { onNavigate: () => void }) {
       <Avatar
         src={user.avatarUrl}
         address={user.walletAddress}
-        name={user.displayName ?? undefined}
+        name={user.username ?? undefined}
         size={32}
         radiusRatio={0.28}
       />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-mono text-[12px] font-semibold">
-          {user.displayName || shortAddress(user.walletAddress, 5)}
+          {user.username || shortAddress(user.walletAddress, 5)}
         </span>
         <span className="block text-[11px] text-green">
           {formatSol(balance?.availableBalance ?? '0')} SOL

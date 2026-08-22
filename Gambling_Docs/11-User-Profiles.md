@@ -132,9 +132,9 @@ frontend/src/lib/gameLabel.ts
 | `GET /api/profile/username/check?u=` | required | Advisory availability for the form |
 | `POST /api/auth/me/avatar` | required | `multipart/form-data`, one file in an `avatar` field |
 | `DELETE /api/auth/me/avatar` | required | Revert to the generated gradient |
-| `PATCH /api/auth/me` | required | `{ displayName?, username? }` — both optional |
+| `PATCH /api/auth/me` | required | `{ username: string \| null }` |
 
-`PATCH /api/auth/me` was previously `displayName`-only and **required**. Both fields are now optional: an omitted key means "leave alone", an explicit `null` means "clear". Without that change, saving a username would have blanked the display name as a side effect.
+`PATCH /api/auth/me` was previously `{ displayName?, username? }`, two independently-optional fields. 2026-08-22: `displayName` was dropped in favor of a single name field — `username` now doubles as both the free-form name shown across the hub and the URL handle, so there is nothing left to keep in sync. `username: null` clears it.
 
 `GET /api/leaderboard` entries gained `handle`, `tier`, `avatarUrl` and `gamesWon`.
 

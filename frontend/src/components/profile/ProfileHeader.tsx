@@ -24,9 +24,8 @@ export function ProfileHeader({
   onAvatarChanged?: () => void;
 }) {
   const name =
-    identity.displayName ??
-    identity.label ??
     identity.username ??
+    identity.label ??
     (identity.walletAddress ? shortAddress(identity.walletAddress) : identity.walletShort) ??
     'Player';
 
@@ -57,11 +56,7 @@ export function ProfileHeader({
         </div>
 
         <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12.5px] text-muted sm:justify-start">
-          {identity.username ? (
-            <span className="font-mono">@{identity.username}</span>
-          ) : (
-            isYou && <span className="text-faint">No username set yet</span>
-          )}
+          {!identity.username && isYou && <span className="text-faint">No name set yet</span>}
           <span>Joined {formatDate(identity.joinedAt)}</span>
         </div>
 

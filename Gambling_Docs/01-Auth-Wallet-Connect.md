@@ -75,7 +75,7 @@ There's no traditional signup form here. A user proves who they are by connectin
 
 **User Model (PostgreSQL via Prisma)**
 
-*(As shipped. This table originally listed only the six identity/balance columns; the rest were added during later builds and are recorded here so this doc matches the actual schema — a gap flagged in `05-Progress-Log.md` on 2026-08-15.)*
+*(As shipped. This table originally listed only the six identity/balance columns; the rest were added during later builds and are recorded here so this doc matches the actual schema — a gap flagged in `05-Progress-Log.md` on 2026-08-15. `displayName` was dropped 2026-08-22: `username` is now the single name field, see `05-Progress-Log.md`.)*
 
 | Field | Type | Notes |
 |---|---|---|
@@ -83,12 +83,11 @@ There's no traditional signup form here. A user proves who they are by connectin
 | `walletAddress` | String | Unique, indexed — the user's Solana public address |
 | `availableBalance` | Decimal | `NUMERIC` type — no float rounding errors on SOL amounts. Defined fully in `02-Deposit-Withdraw.md` / `03-Escrow.md` |
 | `lockedBalance` | Decimal | `NUMERIC` type. Defined fully in `03-Escrow.md` |
-| `displayName` | String? | Free-form label, max 32 chars. Shown on the leaderboard in place of a shortened address |
 | `totalWagered` | Decimal | Lifetime volume. Written by `lockBalance`, unwound by `refundMatch`. Drives the loyalty tier — see `11-User-Profiles.md` |
 | `netProfit` | Decimal | Lifetime profit/loss. The leaderboard's sort key |
 | `gamesPlayed` | Int | Settled matches. Also gates referral eligibility (`09-Referral-Program.md`) |
 | `gamesWon` | Int | Matches finished in profit. Added by `11-User-Profiles.md`; CHECK-constrained to `<= gamesPlayed` |
-| `username` | String? | Unique, lowercase, 3–20 of `[a-z0-9_]`. The public profile handle — `11-User-Profiles.md` |
+| `username` | String? | Unique, lowercase, 3–20 of `[a-z0-9_]`. The single name shown across the hub, and the public profile handle — `11-User-Profiles.md` |
 | `avatarUrl` | String? | Uploaded profile image path with a cache-busting `?v=`. Null means the generated gradient |
 | `referralCode` | String? | Unique 8-char invite code — `09-Referral-Program.md` |
 | `createdAt` | DateTime | |
@@ -102,11 +101,10 @@ model User {
   availableBalance Decimal  @default(0) @db.Decimal(20, 9)
   lockedBalance    Decimal  @default(0) @db.Decimal(20, 9)
 
-  displayName  String?  @db.VarChar(32)
-  totalWagered Decimal  @default(0) @db.Decimal(20, 9)
-  netProfit    Decimal  @default(0) @db.Decimal(20, 9)
-  gamesPlayed  Int      @default(0)
-  gamesWon     Int      @default(0)
+  totalWagered Decimal @default(0) @db.Decimal(20, 9)
+  netProfit    Decimal @default(0) @db.Decimal(20, 9)
+  gamesPlayed  Int     @default(0)
+  gamesWon     Int     @default(0)
 
   username  String? @unique @db.VarChar(20)
   avatarUrl String? @db.VarChar(255)

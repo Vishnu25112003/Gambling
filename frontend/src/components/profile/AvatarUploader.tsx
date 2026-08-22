@@ -95,7 +95,7 @@ export function AvatarUploader({
         <Avatar
           src={preview ?? user.avatarUrl}
           address={user.walletAddress}
-          name={user.displayName ?? user.username ?? 'You'}
+          name={user.username ?? 'You'}
           size={size}
           radiusRatio={0.28}
         />

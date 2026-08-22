@@ -423,8 +423,8 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
       });
 
       // Get host display name
-      const hostUser = await prisma.user.findUnique({ where: { id: userId }, select: { displayName: true, username: true } });
-      const hostName = hostUser?.displayName ?? hostUser?.username ?? 'Player';
+      const hostUser = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } });
+      const hostName = hostUser?.username ?? 'Player';
 
       if (discovery === 'random') {
         // List publicly
@@ -592,9 +592,9 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
       // Get player names
       const players = await prisma.user.findMany({
         where: { id: { in: playerIds } },
-        select: { id: true, displayName: true, username: true },
+        select: { id: true, username: true },
       });
-      const nameMap = new Map(players.map((p) => [p.id, p.displayName ?? p.username ?? 'Player']));
+      const nameMap = new Map(players.map((p) => [p.id, p.username ?? 'Player']));
 
       // Initialize game state
       const state = createInitialState(roundCount, playerIds);

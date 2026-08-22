@@ -29,7 +29,7 @@ export async function bindReferral(referredUserId: string, rawCode: string): Pro
 
   const referrer = await prisma.user.findUnique({
     where: { referralCode: code },
-    select: { id: true, displayName: true, walletAddress: true },
+    select: { id: true, username: true, walletAddress: true },
   });
   if (!referrer) throw notFound('That invite code does not exist.');
 
@@ -83,10 +83,10 @@ export async function bindReferral(referredUserId: string, rawCode: string): Pro
 /**
  * How a referrer is shown to the person they invited, and vice versa.
  *
- * A chosen display name if there is one, otherwise the abbreviated wallet. The
- * full address never leaves the server for this purpose — knowing who invited
- * you should not hand you their complete on-chain history.
+ * A chosen name if there is one, otherwise the abbreviated wallet. The full
+ * address never leaves the server for this purpose — knowing who invited you
+ * should not hand you their complete on-chain history.
  */
-export function referrerLabel(user: { displayName: string | null; walletAddress: string }): string {
-  return user.displayName ?? shortAddress(user.walletAddress);
+export function referrerLabel(user: { username: string | null; walletAddress: string }): string {
+  return user.username ?? shortAddress(user.walletAddress);
 }

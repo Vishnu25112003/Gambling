@@ -19,7 +19,6 @@ export function publicUser(user: User) {
   return {
     id: user.id,
     walletAddress: user.walletAddress,
-    displayName: user.displayName,
     username: user.username,
     avatarUrl: user.avatarUrl,
     availableBalance: toAmountString(user.availableBalance),
@@ -34,8 +33,8 @@ export function publicUser(user: User) {
 }
 
 /** The label to show for a user in public: their name, else a shortened wallet. */
-export function userLabel(user: Pick<User, 'displayName' | 'username' | 'walletAddress'>): string {
-  return user.displayName ?? user.username ?? shortAddress(user.walletAddress);
+export function userLabel(user: Pick<User, 'username' | 'walletAddress'>): string {
+  return user.username ?? shortAddress(user.walletAddress);
 }
 
 /**
@@ -65,7 +64,6 @@ export function publicProfile(
     User,
     | 'id'
     | 'walletAddress'
-    | 'displayName'
     | 'username'
     | 'avatarUrl'
     | 'totalWagered'
@@ -78,7 +76,6 @@ export function publicProfile(
   return {
     handle: userHandle(user),
     username: user.username,
-    displayName: user.displayName,
     avatarUrl: user.avatarUrl,
     /** Shortened, never the full address. */
     walletShort: shortAddress(user.walletAddress),
