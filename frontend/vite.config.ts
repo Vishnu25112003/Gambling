@@ -33,6 +33,11 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Other projects on this machine also default to 5173/5174 — without this,
+    // Vite silently falls back to a free port instead, which then no longer
+    // matches CORS_ORIGIN/SIWS_DOMAIN on the backend and breaks sign-in with a
+    // CORS error that looks exactly like "the wallet won't connect".
+    strictPort: true,
     proxy: {
       '/api': { target: 'http://localhost:4000', changeOrigin: true },
       '/socket.io': { target: 'http://localhost:4000', ws: true },

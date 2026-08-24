@@ -1,7 +1,9 @@
-@import 'tailwindcss';
-
-/* Wallet-adapter ships its own modal styles; we override the palette below. */
+/* Must precede @import 'tailwindcss' — its expanded output would otherwise
+   push this file's own leading @import (a Google Fonts URL) past real CSS
+   rules in the bundled output, which is invalid per spec. */
 @import '@solana/wallet-adapter-react-ui/styles.css';
+
+@import 'tailwindcss';
 
 /*
  * The design's two palettes, verbatim from GamblingHub.dc.html. Dark is the

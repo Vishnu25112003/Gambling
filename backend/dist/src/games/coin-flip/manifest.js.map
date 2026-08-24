@@ -1,0 +1,1 @@
+{"version":3,"file":"manifest.js","sourceRoot":"","sources":["../../../../src/games/coin-flip/manifest.ts"],"names":[],"mappings":"AAEA,MAAM,CAAC,MAAM,gBAAgB,GAAiB;IAC5C,EAAE,EAAE,WAAW;IACf,IAAI,EAAE,WAAW;IACjB,OAAO,EAAE,6CAA6C;IACtD,WAAW,EACT,4MAA4M;IAC9M,IAAI,EAAE,QAAQ;IACd,UAAU,EAAE,CAAC;IACb,UAAU,EAAE,CAAC;IACb,MAAM,EAAE,MAAM;IACd,IAAI,EAAE,IAAI;CACX,CAAC"}
