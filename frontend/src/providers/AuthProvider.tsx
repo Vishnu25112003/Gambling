@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { io, type Socket } from 'socket.io-client';
 import bs58 from 'bs58';
 import { authApi, walletApi } from '../api/endpoints';
 import { tokenStore, usernamePromptStore } from '../api/client';
@@ -18,6 +19,13 @@ import type { AppUser, Balance } from '../types';
 export interface AuthState {
   user: AppUser | null;
   balance: Balance | null;
+  /**
+   * One Socket.IO connection for the whole signed-in session, shared by every
+   * consumer (the notification bell, the deposit flow, ...) rather than each
+   * opening its own — null until a session exists, and while the handshake is
+   * still in flight.
+   */
+  socket: Socket | null;
   /** True once a wallet is connected AND the signature has been verified. */
   isAuthenticated: boolean;
   isAuthenticating: boolean;
@@ -48,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [user, setUser] = useState<AppUser | null>(null);
   const [balance, setBalance] = useState<Balance | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [isAuthenticating, setAuthenticating] = useState(false);
   const [isRestoring, setRestoring] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +114,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (user) void refreshBalance();
   }, [user, refreshBalance]);
+
+  /**
+   * One socket per signed-in session, connected the moment there's a user and
+   * torn down on sign-out. It carries the same JWT as the REST API — an
+   * unauthenticated socket is rejected at the handshake, so there is nothing
+   * to connect before sign-in.
+   *
+   * Keyed on `Boolean(user)` rather than `user` itself: `setUser` also fires
+   * from a session restore and from callers updating the cached profile (e.g.
+   * a new username), neither of which should tear down and reconnect the
+   * socket.
+   */
+  const isAuthenticated = Boolean(user);
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setSocket(null);
+      return;
+    }
+    const token = tokenStore.get();
+    if (!token) return;
+
+    const s = io(import.meta.env.VITE_API_URL || '/', {
+      auth: { token },
+      transports: ['websocket'],
+    });
+    setSocket(s);
+
+    return () => {
+      s.disconnect();
+      setSocket(null);
+    };
+  }, [isAuthenticated]);
+
+  // A deposit lands on-chain and the backend credits it before the frontend
+  // could ever poll for it — refresh the balance the instant that happens,
+  // wherever in the dashboard the user currently is.
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('wallet:deposit', refreshBalance);
+    return () => {
+      socket.off('wallet:deposit', refreshBalance);
+    };
+  }, [socket, refreshBalance]);
 
   /**
    * Doc 01's flow, steps 3-7: request a challenge, sign it in the wallet, send
@@ -206,7 +258,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       balance,
-      isAuthenticated: Boolean(user),
+      socket,
+      isAuthenticated,
       isAuthenticating,
       isRestoring,
       error,
@@ -221,6 +274,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [
       user,
       balance,
+      socket,
+      isAuthenticated,
       isAuthenticating,
       isRestoring,
       error,

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { walletApi } from '../api/endpoints';
+import { useAuth } from './useAuth';
 import { formatSol } from '../lib/format';
 import type { IconName } from '../components/shared/icons';
 import type { LedgerRow } from '../types';
@@ -134,6 +135,7 @@ export function useNotifications(enabled: boolean): {
   markAllRead: () => void;
   reload: () => void;
 } {
+  const { socket } = useAuth();
   const [rows, setRows] = useState<LedgerRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [nonce, setNonce] = useState(0);
@@ -146,11 +148,14 @@ export function useNotifications(enabled: boolean): {
   const [seen] = useState(seenAt);
 
   /**
-   * The badge, tracked separately from `seen`. Opening the panel silences the
-   * count immediately — it has been looked at — while the rows behind it keep
-   * their "new" tint until the next page load.
+   * The badge's own watermark, separate from `seen`. Opening the panel
+   * silences the count immediately by advancing this forward — while `seen`
+   * stays frozen, so the rows behind it keep their "new" tint until the next
+   * page load. Unlike `seen`, this one only ever needs to move forward within
+   * the same session: a live push after the panel was read must be able to
+   * light the badge back up.
    */
-  const [badgeCleared, setBadgeCleared] = useState(false);
+  const [badgeWatermark, setBadgeWatermark] = useState(seenAt);
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
@@ -180,6 +185,22 @@ export function useNotifications(enabled: boolean): {
     };
   }, [enabled, nonce]);
 
+  // The instant path: a ledger row pushed the moment it's written, so a
+  // credited deposit or a settled match shows up without waiting for the
+  // panel's next poll.
+  useEffect(() => {
+    if (!enabled || !socket) return;
+
+    const onLedgerEntry = (row: LedgerRow) => {
+      setRows((prev) => (prev.some((r) => r.id === row.id) ? prev : [row, ...prev]));
+    };
+
+    socket.on('ledger:new', onLedgerEntry);
+    return () => {
+      socket.off('ledger:new', onLedgerEntry);
+    };
+  }, [enabled, socket]);
+
   const notifications = useMemo(
     () =>
       rows
@@ -201,12 +222,17 @@ export function useNotifications(enabled: boolean): {
     } catch {
       // Private browsing. The badge simply reappears next session.
     }
-    setBadgeCleared(true);
+    setBadgeWatermark(stamp);
   }, [notifications]);
+
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => new Date(n.timestamp).getTime() > badgeWatermark).length,
+    [notifications, badgeWatermark],
+  );
 
   return {
     notifications,
-    unreadCount: badgeCleared ? 0 : notifications.filter((n) => n.unread).length,
+    unreadCount,
     loading,
     markAllRead,
     reload,

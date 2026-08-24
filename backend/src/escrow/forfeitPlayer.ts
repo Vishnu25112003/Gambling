@@ -2,6 +2,7 @@ import { prisma } from '../config/db.js';
 import { notFound } from '../lib/errors.js';
 import { Decimal, toDecimal } from '../lib/money.js';
 import { createLogger } from '../lib/logger.js';
+import { emitLedgerEntryCreated } from '../lib/ledgerEvents.js';
 import type { Id, ForfeitResult } from './types.js';
 
 const log = createLogger('escrow:forfeit');
@@ -97,7 +98,7 @@ export async function cancelForfeit(matchId: Id, userId: Id): Promise<boolean> {
   });
 
   // Doc 03: log the event either way — reconnected or forfeited.
-  await prisma.ledgerEntry.create({
+  const ledgerEntry = await prisma.ledgerEntry.create({
     data: {
       userId,
       type: 'forfeit',
@@ -107,6 +108,7 @@ export async function cancelForfeit(matchId: Id, userId: Id): Promise<boolean> {
       note: 'Reconnected within grace period — no forfeit',
     },
   });
+  emitLedgerEntryCreated(ledgerEntry);
 
   log.info('reconnected within grace period', { matchId, userId });
 
@@ -137,7 +139,9 @@ async function markDisconnected(matchId: Id, userId: Id): Promise<void> {
  * doesn't try to unlock the same stake a second time.
  */
 async function applyForfeit(matchId: Id, userId: Id): Promise<ForfeitResult> {
-  return prisma.$transaction(async (tx) => {
+  let pushedEntry: Awaited<ReturnType<typeof prisma.ledgerEntry.create>> | null = null;
+
+  const result = await prisma.$transaction(async (tx) => {
     const match = await tx.match.findUnique({ where: { id: matchId } });
     if (!match) throw notFound('Match not found.');
 
@@ -176,7 +180,7 @@ async function applyForfeit(matchId: Id, userId: Id): Promise<ForfeitResult> {
       },
     });
 
-    await tx.ledgerEntry.create({
+    pushedEntry = await tx.ledgerEntry.create({
       data: {
         userId,
         type: 'forfeit',
@@ -194,6 +198,10 @@ async function applyForfeit(matchId: Id, userId: Id): Promise<ForfeitResult> {
 
     return { matchId, userId, outcome: 'forfeited' as const, forfeitedAmount: amount };
   });
+
+  if (pushedEntry) emitLedgerEntryCreated(pushedEntry);
+
+  return result;
 }
 
 /** True if this player is currently inside a grace window. */

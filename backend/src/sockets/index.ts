@@ -4,6 +4,8 @@ import { corsOrigins } from '../config/env.js';
 import { socketAuth } from '../auth/authMiddleware.js';
 import { registerGameSockets } from '../games/registry.js';
 import { onDepositCredited } from '../wallet/depositListener.js';
+import { onLedgerEntryCreated } from '../lib/ledgerEvents.js';
+import { toLedgerRow } from '../lib/ledgerRow.js';
 import { createLogger } from '../lib/logger.js';
 
 const log = createLogger('socket');
@@ -52,6 +54,15 @@ export function createSocketServer(httpServer: HttpServer): SocketServer {
       txSignature: event.txSignature,
       availableBalance: event.availableBalance,
     });
+  });
+
+  // Push every notification-worthy ledger row (deposit, withdrawal, a settled
+  // match, a refund, a referral bonus, ...) to its owner the instant it's
+  // written, in the exact shape `GET /api/wallet/history` already returns —
+  // the notification bell renders this without waiting on its next poll.
+  onLedgerEntryCreated((entry) => {
+    if (!entry.userId) return; // house rows (fee, unmatched deposits) have no owner
+    io?.to(userRoom(entry.userId)).emit('ledger:new', toLedgerRow(entry));
   });
 
   log.info('socket.io ready');
