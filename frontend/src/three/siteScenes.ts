@@ -357,10 +357,21 @@ function makeStage(canvas: HTMLCanvasElement, camPos: Vec3, camTarget: Vec3, fit
     destroy: () => {
       observer.disconnect();
       disposeScene(scene);
+      // dispose() releases every GPU-side resource this renderer holds —
+      // programs, buffers, textures, render targets — which is the actual
+      // memory this teardown exists to free. It deliberately stops short of
+      // renderer.forceContextLoss(): that call doesn't just release memory,
+      // it fires a real `webglcontextlost` event, which browsers report to
+      // the console as a hard "WebGL context was lost" notice — on every
+      // single ordinary navigation past this page, since this destroy() runs
+      // on every unmount. At most two of these scenes are ever alive at once
+      // (Landing's hero + strip), nowhere near a browser's live-context cap,
+      // so there was nothing here forceContextLoss was actually protecting
+      // against — only a scary, misleading message it was guaranteed to
+      // produce. The underlying WebGLRenderingContext is still reclaimed
+      // normally once the canvas element and this renderer are garbage
+      // collected after React removes them from the DOM.
       renderer.dispose();
-      // Drop the WebGL context outright — browsers cap how many can be live at
-      // once, and SPA navigation would otherwise exhaust that budget.
-      renderer.forceContextLoss();
     },
   };
 

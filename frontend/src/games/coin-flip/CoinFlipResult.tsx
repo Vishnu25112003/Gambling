@@ -90,7 +90,7 @@ export function CoinFlipResult({
 
       {onPlayAgain && (
         <Button variant="primary" className="w-full" onClick={onPlayAgain}>
-          Play Again
+          Rematch
         </Button>
       )}
     </Card>

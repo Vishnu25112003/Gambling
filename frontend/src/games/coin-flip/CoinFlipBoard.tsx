@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '../../hooks/useAuth';
 import { tokenStore } from '../../api/client';
-import { walletApi } from '../../api/endpoints';
 import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
 import { formatSol } from '../../lib/format';
@@ -16,6 +15,7 @@ const CF = {
   LIST_MATCHES: 'cf:list',
   SPIN: 'cf:spin',
   CALL: 'cf:call',
+  REMATCH_REQUEST: 'cf:rematch:request',
   MATCH_STATE: 'cf:state',
   MATCH_CREATED: 'cf:created',
   MATCHES_LIST: 'cf:matches',
@@ -25,6 +25,8 @@ const CF = {
   CALL_MADE: 'cf:call:made',
   ROUND_RESULT: 'cf:round:result',
   MATCH_RESULT: 'cf:match:result',
+  REMATCH_WAITING: 'cf:rematch:waiting',
+  REMATCH_OFFERED: 'cf:rematch:offered',
   OPPONENT_DISCONNECTED: 'cf:opponent:disconnect',
   OPPONENT_RECONNECTED: 'cf:opponent:reconnect',
   ERROR: 'cf:error',
@@ -82,6 +84,7 @@ interface RoundResult {
 }
 
 interface MatchResult {
+  matchId: string;
   winnerId: string;
   scores: Record<string, number>;
   totalRounds: number;
@@ -100,18 +103,28 @@ export function CoinFlipBoard() {
 }
 
 function CoinFlipBoardInner() {
-  const { user } = useAuth();
+  // `balance` here is the one shared, socket-kept-fresh copy from AuthProvider
+  // — every ledger-moving event (deposit, settled match, refund, referral
+  // bonus) refreshes it there. This game must not keep its own separate
+  // REST-fetched-once copy: that was the actual bug — stake checks here used
+  // to run against the pre-match balance until a full page refresh.
+  const { user, balance: authBalance, refreshBalance } = useAuth();
+  const balance = authBalance?.availableBalance ?? null;
 
   // --- Socket ---
   const socketRef = useRef<Socket | null>(null);
   const [connected, setConnected] = useState(false);
 
-  // --- Balance ---
-  const [balance, setBalance] = useState<string | null>(null);
-  const fetchedBalance = useRef(false);
-
   // --- Page navigation ---
   const [page, setPage] = useState<Page>('lobby');
+  // Mirrors `page` for the socket-event effect below, which registers its
+  // handlers once and would otherwise close over `page`'s initial value —
+  // reading state directly there is always stale, since that effect doesn't
+  // re-run when `page` changes.
+  const pageRef = useRef<Page>('lobby');
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
 
   // --- Lobby ---
   const [matches, setMatches] = useState<ListedMatch[]>([]);
@@ -139,6 +152,10 @@ function CoinFlipBoardInner() {
   const [lastResult, setLastResult] = useState<RoundResult | null>(null);
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // --- Rematch (Rule 4's third discovery path — same opponent, same
+  // settings, both confirm) ---
+  const [rematchStatus, setRematchStatus] = useState<'idle' | 'waiting' | 'offered'>('idle');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -217,6 +234,14 @@ function CoinFlipBoardInner() {
       setRoundPhase('pre_spin');
       setLastResult(null);
       setPage('live');
+      if (data.roundNumber === 1) {
+        // A brand-new match — including a rematch's fresh matchId — starts
+        // here. Clear the previous match's tally and result so they don't
+        // flash stale before the first ROUND_RESULT of this one arrives.
+        setScores({});
+        setMatchResult(null);
+        setRematchStatus('idle');
+      }
       // The spinner has SPIN_TIMEOUT_MS to act — both seats see it count down.
       startTimer(SPIN_TIMEOUT_MS);
     });
@@ -248,12 +273,28 @@ function CoinFlipBoardInner() {
       setMatchResult(data);
       setScores(data.scores);
       setPage('match_result');
+      // Belt-and-suspenders: settleMatch's `ledger:new` reaches the shared
+      // AuthProvider socket independently and refreshes balance the same
+      // way, but this game runs its own separate socket connection — don't
+      // depend on event ordering across the two when the result is already
+      // known right here.
+      void refreshBalance();
     });
 
     s.on(CF.OPPONENT_DISCONNECTED, () => {});
     s.on(CF.OPPONENT_RECONNECTED, () => {});
 
+    s.on(CF.REMATCH_WAITING, () => setRematchStatus('waiting'));
+    s.on(CF.REMATCH_OFFERED, () => setRematchStatus('offered'));
+
     s.on(CF.ERROR, (data: { message: string }) => {
+      // A failed rematch request (offer expired, stake no longer covers it)
+      // shouldn't blow away the result screen the player is still looking
+      // at — just drop back to plain "Rematch" so they can retry or leave.
+      if (pageRef.current === 'match_result') {
+        setRematchStatus('idle');
+        return;
+      }
       setError(data.message);
       setPage('error');
     });
@@ -269,13 +310,6 @@ function CoinFlipBoardInner() {
       socketRef.current = null;
     };
   }, [user, clearTimer, startTimer]);
-
-  // --- Fetch balance ---
-  useEffect(() => {
-    if (fetchedBalance.current || !user) return;
-    fetchedBalance.current = true;
-    void walletApi.balance().then((b) => setBalance(b.availableBalance)).catch(() => {});
-  }, [user]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -319,6 +353,12 @@ function CoinFlipBoardInner() {
   const handleSpin = () => emit(CF.SPIN);
   const handleCall = (call: 'heads' | 'tails') => emit(CF.CALL, { call });
 
+  const handleRematch = () => {
+    if (!matchResult) return;
+    emit(CF.REMATCH_REQUEST, { matchId: matchResult.matchId });
+    setRematchStatus('waiting');
+  };
+
   const goHome = () => {
     clearTimer();
     socketRef.current?.disconnect();
@@ -333,6 +373,7 @@ function CoinFlipBoardInner() {
     setOpponentName(null);
     setRoomCode(null);
     setError(null);
+    setRematchStatus('idle');
     // Reconnect
     const token = tokenStore.get();
     if (!token || !user) return;
@@ -739,7 +780,27 @@ function CoinFlipBoardInner() {
               </div>
             )}
           </div>
-          <Button variant="primary" className="w-full" onClick={goHome}>Play Again</Button>
+          <Button
+            variant="primary"
+            className="w-full"
+            onClick={handleRematch}
+            disabled={rematchStatus === 'waiting'}
+          >
+            {rematchStatus === 'offered'
+              ? 'Accept Rematch'
+              : rematchStatus === 'waiting'
+                ? 'Waiting for opponent…'
+                : 'Rematch'}
+          </Button>
+          {rematchStatus === 'waiting' && (
+            <p className="mt-2 text-xs text-faint">Ask your opponent to click Rematch too.</p>
+          )}
+          {rematchStatus === 'offered' && (
+            <p className="mt-2 text-xs text-green">Your opponent wants a rematch!</p>
+          )}
+          <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={goHome}>
+            Back to Lobby
+          </Button>
         </Card>
       </>
     );

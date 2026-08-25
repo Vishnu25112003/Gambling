@@ -150,11 +150,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // A deposit lands on-chain and the backend credits it before the frontend
   // could ever poll for it — refresh the balance the instant that happens,
   // wherever in the dashboard the user currently is.
+  //
+  // `ledger:new` fires for every balance-moving row the backend ever writes —
+  // a settled match, a refund, a forfeit payout, a referral bonus, the same
+  // deposit above — see `backend/src/sockets/index.ts`'s onLedgerEntryCreated.
+  // Without this, a game result only updated the balance shown *inside* the
+  // game (wherever it happened to keep its own copy); everywhere else in the
+  // dashboard stayed on the pre-match number until a manual page refresh.
+  // Refetching on the event rather than trusting a pushed number keeps one
+  // source of truth — the same reason `wallet:deposit` ignores its own payload.
   useEffect(() => {
     if (!socket) return;
     socket.on('wallet:deposit', refreshBalance);
+    socket.on('ledger:new', refreshBalance);
     return () => {
       socket.off('wallet:deposit', refreshBalance);
+      socket.off('ledger:new', refreshBalance);
     };
   }, [socket, refreshBalance]);
 

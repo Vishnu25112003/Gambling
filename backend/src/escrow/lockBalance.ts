@@ -2,6 +2,7 @@ import { prisma } from '../config/db.js';
 import { badRequest, conflict, insufficientFunds, notFound } from '../lib/errors.js';
 import { Decimal, isValidAmount, toDecimal, type MoneyInput } from '../lib/money.js';
 import { createLogger } from '../lib/logger.js';
+import { emitLedgerEntryCreated } from '../lib/ledgerEvents.js';
 import type { Id, LockResult } from './types.js';
 
 const log = createLogger('escrow:lock');
@@ -36,7 +37,12 @@ export async function lockBalance(
   }
   const stake = toDecimal(amount);
 
-  return prisma.$transaction(async (tx) => {
+  // Populated inside the transaction, broadcast only after it commits —
+  // the same pattern settleMatch/refundMatch/forfeitPlayer use, so a stake
+  // lock never gets announced to the client before it's actually durable.
+  let pushedEntry: Awaited<ReturnType<typeof prisma.ledgerEntry.create>> | null = null;
+
+  const result = await prisma.$transaction(async (tx) => {
     const match = await tx.match.findUnique({ where: { id: matchId } });
     if (!match) throw notFound('Match not found.');
     if (match.status !== 'open') {
@@ -82,7 +88,7 @@ export async function lockBalance(
       data: { pot: { increment: stake } },
     });
 
-    await tx.ledgerEntry.create({
+    pushedEntry = await tx.ledgerEntry.create({
       data: {
         userId,
         type: 'lock',
@@ -106,4 +112,8 @@ export async function lockBalance(
       lockedBalance: user.lockedBalance as unknown as Decimal,
     };
   });
+
+  if (pushedEntry) emitLedgerEntryCreated(pushedEntry);
+
+  return result;
 }
