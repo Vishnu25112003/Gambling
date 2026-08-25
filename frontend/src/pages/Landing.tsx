@@ -108,7 +108,7 @@ export function Landing() {
               <LogoMark size={18} />
             </div>
             <span className="text-[clamp(16px,4vw,19px)] font-bold whitespace-nowrap">
-              Gambling<span className="text-green">Hub</span>
+              Infinit <span className="text-green">Respawn</span>
             </span>
           </div>
 
@@ -237,7 +237,7 @@ export function Landing() {
 
           <footer className="relative px-6 pb-[70px] text-center">
             <p className="text-[13px] text-faint">
-              Gambling Hub · Devnet build · Not for real-money play pending legal review.
+              Infinit Respawn · Devnet build · Not for real-money play pending legal review.
             </p>
           </footer>
         </section>

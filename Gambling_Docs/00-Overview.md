@@ -1,4 +1,4 @@
-# Gambling Hub — Project Overview
+# Infinit Respawn — Project Overview
 
 ## One-Line Summary
 A standalone hub of gambling-style games — separate project from Trumpcard Hub — with a shared wallet, auth, and escrow layer underneath every game, all governed by one common set of game rules.

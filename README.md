@@ -1,4 +1,4 @@
-# Gambling Hub
+# Infinit Respawn
 
 A hub of gambling games on Solana, built on one shared wallet / auth / escrow
 layer that every game plugs into.

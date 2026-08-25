@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../hooks/useTheme';
@@ -40,7 +40,7 @@ const navRowClass = (active: boolean, fill = false) =>
 function Wordmark({ size = 19 }: { size?: number }) {
   return (
     <span className="font-bold tracking-[-0.01em]" style={{ fontSize: size }}>
-      Gambling<span className="text-green">Hub</span>
+      Infinit <span className="text-green">Respawn</span>
     </span>
   );
 }
@@ -178,10 +178,10 @@ function InviteCard() {
 function Sidebar() {
   return (
     <aside className="sticky top-0 flex h-screen max-h-screen w-[264px] shrink-0 flex-col gap-5 self-start overflow-y-auto border-r border-line2 bg-bg2 px-4 pt-[18px] pb-5">
-      <div className="flex shrink-0 items-center gap-[11px]">
+      <Link to="/" className="flex shrink-0 items-center gap-[11px] no-underline">
         <LogoBadge box={38} glyph={20} />
         <Wordmark />
-      </div>
+      </Link>
 
       <nav
         className="flex min-h-0 flex-1 flex-col gap-[3px] overflow-x-hidden overflow-y-auto pb-2"
@@ -207,7 +207,7 @@ function Sidebar() {
         <InviteCard />
         <ThemeRow />
         <p className="text-[11.5px] leading-[1.5] text-faint">
-          © 2026 GamblingHub
+          © 2026 Infinit Respawn
           <br />
           All rights reserved.
         </p>
@@ -248,10 +248,10 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
       */}
       <div className="fixed top-0 bottom-0 left-0 z-[100] flex h-[100dvh] w-[min(78vw,272px)] flex-col overflow-hidden border-r border-line bg-bg2 px-3.5 py-3.5">
         <div className="flex shrink-0 items-center justify-between">
-          <div className="flex items-center gap-2.5">
+          <Link to="/" onClick={onClose} className="flex items-center gap-2.5 no-underline">
             <LogoBadge box={32} glyph={17} />
             <Wordmark size={15.5} />
-          </div>
+          </Link>
           <button
             onClick={onClose}
             aria-label="Close menu"

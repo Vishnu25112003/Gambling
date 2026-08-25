@@ -292,6 +292,49 @@ export function resolveCall(
 }
 
 /**
+ * Resolve a round where the spinner never initiated the spin in time.
+ *
+ * This is NOT the same shape as resolveCall's `call === null` case — that one
+ * means the caller failed to call *after a real spin*, and the spinner wins.
+ * Here the spinner never acted at all, so the round always goes to the
+ * caller instead. A previous version of this handler reused resolveCall for
+ * both timeouts, which silently credited the win to the spinner every time —
+ * the outward-facing broadcast said the caller won, but match.state.scores
+ * (the only thing checkClinch actually reads) kept crediting the spinner, so
+ * the match could later end for a player who never reached the real clinch
+ * threshold.
+ */
+export function resolveSpinTimeout(
+  state: CoinFlipState,
+  spinnerId: string,
+  callerId: string,
+): { state: CoinFlipState; record: CoinFlipRoundRecord } {
+  const roundRecord: CoinFlipRoundRecord = {
+    roundNumber: state.currentRound,
+    commitHash: state.currentCommitHash!,
+    seed: state.currentSeed,
+    result: state.currentResult,
+    call: null,
+    cause: 'no_spin',
+    spinnerId,
+    callerId,
+  };
+
+  const { scores: newScores, winner } = updateScores(state.scores, callerId, state.clinchThreshold);
+  const nextPhase: MatchPhase = winner ? 'match_over' : 'round_over';
+
+  return {
+    state: {
+      ...state,
+      scores: newScores,
+      phase: nextPhase,
+      currentCall: null,
+    },
+    record: roundRecord,
+  };
+}
+
+/**
  * Advance to the next round after round_over.
  */
 export function advanceRound(

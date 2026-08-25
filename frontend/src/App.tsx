@@ -63,10 +63,17 @@ export default function App() {
                   path="history"
                   element={<Navigate to="/dashboard/transactions" replace />}
                 />
-
-                {/* Game routes */}
-                <Route path="play/coin-flip" element={<CoinFlipBoard />} />
               </Route>
+
+              {/*
+                Game routes are deliberately siblings of /dashboard, not
+                children of it — a game gets its own full-screen themed page,
+                not the dashboard shell's sidebar/topbar wrapped around it.
+                The URL keeps the /dashboard/play/... prefix so existing
+                links and the Games page's navigate() call don't need to
+                change; only the rendered layout does.
+              */}
+              <Route path="/dashboard/play/coin-flip" element={<CoinFlipBoard />} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>
