@@ -4,6 +4,39 @@ Dated changelog of decisions and milestones. Newest entry on top.
 
 ---
 
+## 2026-08-25 — Trumpcard and Hand Cricket restructured onto the game doc template
+
+`game_ideas/Game-Trumpcard.md` and `game_ideas/Game-HandCricket.md` were early,
+unstructured drafts — no Identity table, no numbering, ad hoc section order.
+Rewritten onto `Games/G00-Template.md` and filed as `Games/G04-Trumpcard.md`
+and `Games/G05-Hand-Cricket.md`, registered in `04-Games-Index.md`. The
+original draft files are removed; their content lives on in the two doc
+files.
+
+**Done:**
+- **Trumpcard (Game 04)** needed the same two things Ludo's spec pass already
+  won upstream — a Rule 2 exception for seat-count-scaled payout, and Rule 4's
+  multiplayer lobby-fill extension. Both already existed with the identical
+  split table, so no new shared-rule text was needed; `10-Game-Common-Rules.md`'s
+  Rule 2 Exceptions entry was extended to name Trumpcard alongside Ludo.
+  Trumpcard's own lives system (stat-choice skip + disconnect, combined,
+  matching Mine Catcher's pattern) is documented as a per-game override, same
+  as Mine Catcher's.
+- **Hand Cricket (Game 05)** is strictly 1v1 and needed nothing new upstream —
+  it reuses Rule 3's Free Bet 1v1 minimum stake and overrides disconnect
+  handling with its own 3-lives anti-stall system, the same override pattern
+  Mine Catcher established. Its dual-unreachable edge case reuses Mine
+  Catcher's still-undecided settlement mechanism rather than inventing a
+  second one.
+- No game logic changed — this was a documentation pass. Neither game is
+  registered in `backend/src/games/registry.ts`; both stay at 0%, designed
+  only, matching the other three games' status before they were coded.
+
+See `04-Games-Index.md` for the updated master table and
+`10-Game-Common-Rules.md`'s Rule 2 Exceptions for the extended entry.
+
+---
+
 ## 2026-08-24 — Ludo's Rule 2 and Rule 4 amendments applied to the shared rules
 
 `Games/G02-Ludo.md` proposed two amendments to `10-Game-Common-Rules.md` as paste-ready text; both are now applied for real.

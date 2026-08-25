@@ -395,12 +395,29 @@ function CoinFlipBoardInner() {
   if (page === 'lobby') {
     return (
       <>
-        <div className="mb-6 flex items-center justify-between">
-          <PageTitle title="Coin Flip" subtitle="Join a match or create your own." />
-          <Button variant="primary" size="sm" onClick={handleCreateGame} disabled={!connected}>
-            + Create Game
-          </Button>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <PageTitle title="Coin Flip" subtitle="Two ways to play — jump into a random match, or join a friend." />
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setPage('join_code')} disabled={!connected}>
+              👥 Join with Code
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleCreateGame} disabled={!connected}>
+              + Create Game
+            </Button>
+          </div>
         </div>
+
+        {/*
+          Random Play (a public, auto-populated list) and Friends Play (a
+          private code you enter) are two distinct discovery modes — see Rule
+          4. They used to share one screen, with "Join with Code" tucked
+          inside/above the random list as if it were a variant of it. Giving
+          each its own header-level action keeps them structurally separate:
+          this section is Random Play only, and always is.
+        */}
+        <h2 className="mb-3 text-xs font-bold tracking-wide text-muted uppercase">
+          🎲 Random Play — Open Matches
+        </h2>
 
         {!connected ? (
           <Card className="px-6 py-12 text-center">
@@ -410,39 +427,31 @@ function CoinFlipBoardInner() {
         ) : matches.length === 0 ? (
           <Card className="px-6 py-12 text-center">
             <span className="mb-3 block text-3xl">🪙</span>
-            <p className="mb-1 text-sm font-bold">No open matches</p>
-            <p className="text-xs text-muted">Create one or join with a room code.</p>
-            <Button variant="secondary" size="sm" className="mt-4" onClick={() => setPage('join_code')}>
-              Join with Code
-            </Button>
+            <p className="mb-1 text-sm font-bold">No open random matches right now</p>
+            <p className="text-xs text-muted">
+              Create one, or use "Join with Code" above if a friend sent you one.
+            </p>
           </Card>
         ) : (
-          <>
-            <div className="mb-3 flex justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setPage('join_code')}>
-                Join with Code
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {matches.map((m) => (
-                <Card key={m.matchId} className="flex items-center justify-between px-5 py-3">
-                  <div>
-                    <p className="text-sm font-bold">{m.hostName}</p>
-                    <p className="text-xs text-muted">
-                      {m.rounds} rounds · {m.betMode === 'fixed' ? 'Fixed' : 'Free'} bet
-                      {m.betMode === 'free' && m.minBet ? ` · min ${formatSol(m.minBet)}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-green">{formatSol(m.stake)} SOL</span>
-                    <Button variant="solid" size="sm" onClick={() => handleJoinRandom(m.matchId)}>
-                      Join
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </>
+          <div className="space-y-2">
+            {matches.map((m) => (
+              <Card key={m.matchId} className="flex items-center justify-between px-5 py-3">
+                <div>
+                  <p className="text-sm font-bold">{m.hostName}</p>
+                  <p className="text-xs text-muted">
+                    {m.rounds} rounds · {m.betMode === 'fixed' ? 'Fixed' : 'Free'} bet
+                    {m.betMode === 'free' && m.minBet ? ` · min ${formatSol(m.minBet)}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-green">{formatSol(m.stake)} SOL</span>
+                  <Button variant="solid" size="sm" onClick={() => handleJoinRandom(m.matchId)}>
+                    Join
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
         )}
       </>
     );
