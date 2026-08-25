@@ -3,6 +3,7 @@ import type { Namespace, Socket } from 'socket.io';
 import { createLogger } from '../lib/logger.js';
 import type { GameManifest, GameModule } from './types.js';
 import coinFlipGame from './coin-flip/index.js';
+import ludoGame from './ludo/index.js';
 
 const log = createLogger('games');
 
@@ -32,6 +33,7 @@ const log = createLogger('games');
  */
 const modules: GameModule[] = [
   coinFlipGame,
+  ludoGame,
 ];
 
 const byId = new Map<string, GameModule>();
