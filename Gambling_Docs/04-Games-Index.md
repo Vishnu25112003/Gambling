@@ -25,6 +25,8 @@ The `G` prefix keeps game numbers from being confused with the root doc numbers 
 | 01 | Coin Flip | `coin-flip` | Pooled | 1v1 | Planning | 0% | Off-chain only | `Games/G01-Coin-Flip.md` | 2026-08-19 |
 | 02 | Ludo | `ludo` | Pooled | Multiplayer (2-4, overrides Rule 2's fixed top-2 — see doc) | Planning | 0% | Off-chain only | `Games/G02-Ludo.md` | 2026-08-24 |
 | 03 | Mine Catcher | `mine-catcher` | Pooled | 1v1 | Planning | 0% | Off-chain only | `Games/G03-Mine-Catcher.md` | 2026-08-24 |
+| 04 | Trumpcard | `trumpcard` | Pooled | Multiplayer (2-4, overrides Rule 2's fixed top-2 — see doc) | Planning | 0% | Off-chain only | `Games/G04-Trumpcard.md` | 2026-08-25 |
+| 05 | Hand Cricket | `hand-cricket` | Pooled | 1v1 | Planning | 0% | Off-chain only | `Games/G05-Hand-Cricket.md` | 2026-08-25 |
 
 **Game 01 is fully specified.** Its own open questions are all closed; what remains is inherited — Rule 4 needs a schema and a reserved-balance field before it can be built. See its *Inherited* section.
 
@@ -32,7 +34,11 @@ The `G` prefix keeps game numbers from being confused with the root doc numbers 
 
 **Game 03 (Mine Catcher) is fully specified.** Its one dependency on the shared rules — a Free Bet 1v1 minimum stake — was already adopted into Rule 3 upstream on 2026-08-19. Its remaining open questions (the dual-unreachable settlement mechanism, and whether it makes a provably-fair claim) are game-owned, not inherited.
 
-**Next free number: 04.**
+**Game 04 (Trumpcard) is fully specified.** Both of its upstream dependencies — a Rule 2 payout exception and a Rule 4 multiplayer lobby-fill gate — already existed from Ludo's spec pass; Rule 2's Exceptions entry was extended on 2026-08-25 to name Trumpcard alongside Ludo, since the split table is identical. What remains is the same inherited schema debt Ludo already flags, plus two game-owned open questions (a provably-fair claim, and the exact `forfeitPlayer()` call point at 0-lives elimination).
+
+**Game 05 (Hand Cricket) is fully specified.** Strictly 1v1, so no new shared-rule dependency — it reuses Rule 3's Free Bet 1v1 minimum stake and overrides disconnect handling with its own 3-lives system, the same pattern Mine Catcher established. Two assumptions flagged in the original draft (disconnect merging into the lives pool, and the dual-unreachable platform-keeps-the-pot behavior) carry forward as open questions rather than being resolved.
+
+**Next free number: 06.**
 
 **Status values:** `Not Started` → `Planning` → `In Progress` → `Testing` → `Complete`
 
@@ -66,6 +72,7 @@ Note that **Rule 4 (Random Play / Friends Play) currently covers 1v1 games only.
 - `00-Overview.md` — project overview and reading order
 
 ## Last Updated
+2026-08-25 — Games 04 (Trumpcard) and 05 (Hand Cricket) added, restructured from unstructured drafts in `game_ideas/` onto the standard template. Trumpcard reuses Ludo's Rule 2 exception (now naming both games) and Rule 4 multiplayer extension unchanged; Hand Cricket reuses Mine Catcher's combined lives-system override pattern and its dual-unreachable open question. Neither game needed new shared-rule text. The original draft files are removed; their content lives on in the two doc files.
 2026-08-24 — **Ludo's two upstream amendments applied to `10-Game-Common-Rules.md`**: Rule 2 gained a documented exception for Ludo's seat-count-scaled payout, and Rule 4 gained a multiplayer full-lobby-fill extension (generalised beyond Ludo, for any future 3+ seat game). Game 02 is now fully specified; `Games/G02-Ludo.md` updated to link to the live rules instead of quoting proposed text.
 2026-08-24 — Games 02 (Ludo) and 03 (Mine Catcher) added, restructured from unstructured drafts in `game_ideas/` onto the standard template. Mine Catcher's one shared-rule dependency was already resolved upstream; Ludo still needs a Rule 2 override and a Rule 4 multiplayer extension, both written as paste-ready text in its doc.
 2026-08-19 — Game 01 spec completed: every game-owned open question closed. Three amendments pushed up into `10-Game-Common-Rules.md` along the way — Rematch as a third Rule 4 discovery path, a minimum stake for Free Bet 1v1 under Rule 3, and stake reservation before the escrow lock.

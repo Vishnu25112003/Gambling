@@ -65,7 +65,7 @@ Weights are **relative** for pooled games (escrow normalises them against the po
 
 The fixed top-2/70-30 split above is the default for every multiplayer game. A game may override it **only** via a documented exception listed here — never silently in its own doc — so this file stays the one place a reader checks to know how any game actually pays out.
 
-**Exception — Ludo:** Unlike other multiplayer games, Ludo's number of paid places scales with actual seated player count instead of staying fixed at top 2:
+**Exception — Ludo, Trumpcard:** Unlike other multiplayer games, these games' number of paid places scales with actual seated player count instead of staying fixed at top 2:
 
 | Seated players | Paid places | Split |
 |---|---|---|
@@ -73,7 +73,7 @@ The fixed top-2/70-30 split above is the default for every multiplayer game. A g
 | 3 | 2 | 70% / 30% |
 | 4 | 3 | 50% / 30% / 20% |
 
-This is a documented per-game override of Rule 2's fixed-top-2 rule, added because Ludo's seat count is chosen by the host per match (2, 3, or 4) rather than fixed at design time like other multiplayer games — see `Games/G02-Ludo.md`.
+This is a documented per-game override of Rule 2's fixed-top-2 rule, added because both games' seat count is chosen by the host per match (2, 3, or 4) rather than fixed at design time like other multiplayer games — see `Games/G02-Ludo.md` (which first surfaced it) and `Games/G04-Trumpcard.md` (which reuses the identical table, added 2026-08-25).
 
 ---
 
@@ -187,7 +187,7 @@ The third path, and the only one that starts from a *finished* match rather than
 | 2 | Multiplayer payout | Top 2 only — 70/30, fixed at any lobby size | `settleMatch` weights |
 | 2 | Tie for a paid place | That place's share split evenly | `settleMatch` weights |
 | 2 | Payout mode | Locked at match start by game type, never by live lobby size | game module |
-| 2 | Exceptions | Documented per-game overrides only — e.g. Ludo's seat-count-scaled split | Rule 2's Exceptions |
+| 2 | Exceptions | Documented per-game overrides only — e.g. Ludo/Trumpcard's seat-count-scaled split | Rule 2's Exceptions |
 | 3 | Bet mode | Fixed or Free, host's choice per match | `lockBalance` validation |
 | 3 | Max bet | The player's own `availableBalance`, both modes | `lockBalance` |
 | 3 | Min bet | Free Bet 1v1 only — host-set floor every joiner must meet | `lockBalance` |
@@ -230,6 +230,7 @@ The third path, and the only one that starts from a *finished* match rather than
 - `00-Overview.md` — project overview and reading order
 
 ## Last Updated
+2026-08-25 — **Rule 2's Ludo exception extended to also name Trumpcard.** Trumpcard's spec pass (`Games/G04-Trumpcard.md`) reuses the identical seat-count-scaled split Ludo already documented, so the Exceptions entry now covers both games instead of a second entry duplicating the same table. No new shared-rule text was needed — Rule 4's multiplayer extension already generalised past Ludo and covers Trumpcard's lobby-fill gate as-is.
 2026-08-24 — **Rule 2 gained a documented exception path**, with Ludo's seat-count-scaled payout (1/2/3 paid places for 2/3/4 seats) as its first and only entry. A game may now override the fixed top-2/70-30 split only by being listed here — never silently in its own doc.
 2026-08-24 — **Rule 4 gained a multiplayer extension**: Random Play and Friends Play now require every chosen seat filled before a 3+ player match can start, in addition to the existing 1v1 behavior. Generalised beyond the game that surfaced it (Ludo), since any future multiplayer game hits the same gap. Left open: what a partially-filled lobby looks like while it waits.
 2026-08-19 — **Rule 4 amended: stakes are reserved at match creation**, not left free until confirm — so the confirm-time lock can no longer fail. Needs a third balance state in `03-Escrow.md`, and makes confirm-step expiry mandatory rather than optional.
