@@ -23,7 +23,7 @@ The `G` prefix keeps game numbers from being confused with the root doc numbers 
 | No. | Game | Game ID | Fee Mode (Pooled / Solo-vs-House) | Players (1v1 / Multiplayer) | Status | % Done | Contract Status | Doc | Last Updated |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 | Coin Flip | `coin-flip` | Pooled | 1v1 | Planning | 0% | Off-chain only | `Games/G01-Coin-Flip.md` | 2026-08-19 |
-| 02 | Ludo | `ludo` | Pooled | Multiplayer (2-4, overrides Rule 2's fixed top-2 — see doc) | Planning | 0% | Off-chain only | `Games/G02-Ludo.md` | 2026-08-24 |
+| 02 | Ludo | `ludo` | Pooled | Multiplayer (2-4, overrides Rule 2's fixed top-2 — see doc) | In Progress | 100% | Off-chain only | `Games/G02-Ludo.md` | 2026-08-25 |
 | 03 | Mine Catcher | `mine-catcher` | Pooled | 1v1 | Planning | 0% | Off-chain only | `Games/G03-Mine-Catcher.md` | 2026-08-24 |
 
 **Game 01 is fully specified.** Its own open questions are all closed; what remains is inherited — Rule 4 needs a schema and a reserved-balance field before it can be built. See its *Inherited* section.

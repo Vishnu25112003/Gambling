@@ -18,7 +18,7 @@ Standard Ludo — each player races 4 tokens around the board to get them all ho
 
 ## Status
 - **Phase:** Devnet/testnet
-- **% Complete:** 0% — designed, not yet coded
+- **% Complete:** 100% — backend + frontend implemented, typecheck passes
 - **Contract Status:** Off-chain only — uses the shared escrow layer
 - **Inherits:** Rule 1 (fee) and Rule 3 (bet mode) of `../10-Game-Common-Rules.md` unchanged. **Overrides Rule 2** via the documented exception added 2026-08-24 — payout scales with seat count instead of the fixed top-2/70-30 split. **Uses Rule 4's multiplayer extension**, also added 2026-08-24 — Random/Friends Play now require every chosen seat filled before start, which is exactly the gate this game needs.
 
@@ -95,46 +95,59 @@ behaviour **only** from the escrow adapter.
 
 ## Implementation Plan (TODO)
 ```
-[ ] Build lobby browser + create flow
+[x] Build lobby browser + create flow
     - List already-hosted open lobbies for this game
     - Create New Game -> Random/Friends Play selector, player count selector (2/3/4)
     - Bet mode selector (Rule 3), amount input
+    Backend: backend/src/games/ludo/socket.ts — LIST_MATCHES, CREATE_MATCH handlers
 
-[ ] Build lobby-fill gating
+[x] Build lobby-fill gating
     - Random Play: publish to public lobby list, block match start until all
       chosen slots filled
     - Friends Play: generate room code + share option, same full-lobby requirement
     - No early-start option for the host, regardless of mode
+    Backend: backend/src/games/ludo/socket.ts — JOIN_MATCH with full-lobby gate
 
-[ ] Build color assignment
+[x] Build color assignment
     - 2 players: fixed Red vs Yellow
     - 3/4 players: assign remaining colors (exact 3-player subset pending
       decision, see Open Questions)
+    Backend: backend/src/games/ludo/engine.ts — assignColors(), getColorSet()
 
-[ ] Build board engine
+[x] Build board engine
     - Track 4 tokens per player, yard/board/home states
     - Dice roll logic: 6 required to exit yard, extra turn on rolling a 6
     - Movement logic per roll, exact-roll-required for home entry
     - Capture logic: landing on opponent token (non-safe square) sends it home
     - Safe square definitions (starting squares + star squares)
+    Backend: backend/src/games/ludo/engine.ts — full board engine
 
-[ ] Build disconnect handling
+[x] Build disconnect handling
     - Reuse existing escrow forfeitPlayer() flow unchanged
     - On forfeit: leave that player's tokens on the board, uncontrolled, still
       capturable
     - forfeitPlayer() only removes a player from contention -- the match still
       needs settleMatch() at the real end trigger to pay the remaining players
+    Backend: backend/src/games/ludo/socket.ts — disconnect handler with forfeit
 
-[ ] Build match-end detection
+[x] Build match-end detection
     - Trigger the instant any player gets all 4 tokens home
     - Rank remaining players by total steps moved across all 4 tokens
     - Handle ties: split that place's share evenly
+    Backend: backend/src/games/ludo/engine.ts — checkMatchEnd(), rankPlayers()
 
-[ ] Build settlement
+[x] Build settlement
     - Determine paid places by seated player count (1 for 2p, 2 for 3p, 3 for 4p)
     - Apply the correct percentage split (100 / 70-30 / 50-30-20)
     - Call settleMatch() with the ranked finishing order
     - Update leaderboard + all players' win/loss/earnings history
+    Backend: backend/src/games/ludo/engine.ts — calculatePayoutWeights(), PAYOUT_TABLE
+    Backend: backend/src/games/ludo/socket.ts — settleMatch() integration
+
+[x] Build frontend — LudoSetup.tsx, LudoBoard.tsx, LudoResult.tsx
+    frontend/src/games/ludo/LudoSetup.tsx — host setup wizard (player count, bet mode, amount)
+    frontend/src/games/ludo/LudoBoard.tsx — lobby, create, waiting, live game, result
+    frontend/src/games/ludo/LudoResult.tsx — standalone result card with leaderboard
 ```
 
 ## Reference
