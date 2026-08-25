@@ -17,6 +17,7 @@ import { InviteEarn } from './pages/dashboard/InviteEarn';
 import { Placeholder } from './pages/dashboard/Placeholder';
 import { NotFound } from './pages/NotFound';
 import { CoinFlipBoard } from './games/coin-flip/CoinFlipBoard';
+import { LudoBoard } from './games/ludo/LudoBoard';
 
 /**
  * Doc 06's two layers: a public landing page and a dashboard you can enter
@@ -74,6 +75,7 @@ export default function App() {
                 change; only the rendered layout does.
               */}
               <Route path="/dashboard/play/coin-flip" element={<CoinFlipBoard />} />
+              <Route path="/dashboard/play/ludo" element={<LudoBoard />} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>
