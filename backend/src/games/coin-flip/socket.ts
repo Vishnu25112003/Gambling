@@ -119,6 +119,23 @@ interface PublicMatch {
 /** matchId → public match listing. */
 const publicMatches = new Map<string, PublicMatch>();
 
+/**
+ * How long a listing survives its host's socket disconnecting before it's
+ * actually torn down. A host waiting for Random Play or a Friends Play code
+ * to be redeemed can sit for minutes — sharing a code inherently means
+ * switching away from the tab — and any ordinary reconnect during that wait
+ * (a network blip, a backgrounded tab's ping timing out) is invisible to the
+ * player: nothing on the waiting screen shows connection state, so they have
+ * no reason to think anything happened. Purging the listing the instant that
+ * socket drops, with no grace period, silently invalidates their own room
+ * code and stops them from ever being reachable when a friend actually joins
+ * — see the connection-handler note below for the other half of this fix.
+ */
+const LISTING_GRACE_MS = 20_000;
+
+/** matchId → pending teardown timer, while its host's socket is disconnected. */
+const listingGraceTimers = new Map<string, NodeJS.Timeout>();
+
 // --- Room codes (Friends Play) -----------------------------------------------
 
 const CODE_LENGTH = 6;
@@ -538,6 +555,25 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
   // and every server → client event is silently dropped.
   ioRef = namespace;
 
+  /**
+   * If this user is hosting a not-yet-started listing (Random Play still
+   * waiting for an opponent, or a Friends Play code not yet redeemed), this
+   * connection is how we reach them from now on — refresh it, and cancel any
+   * pending teardown from their previous socket dropping. Runs on every
+   * connection, including the very first; a brand-new player simply owns no
+   * listings yet, so the loop is a no-op for them.
+   */
+  for (const listing of publicMatches.values()) {
+    if (listing.hostUserId === userId) {
+      listing.hostSocketId = socket.id;
+      const graceTimer = listingGraceTimers.get(listing.matchId);
+      if (graceTimer) {
+        clearTimeout(graceTimer);
+        listingGraceTimers.delete(listing.matchId);
+      }
+    }
+  }
+
   // --- LIST_MATCHES: return public Random Play matches ---
   socket.on(CF_EVENTS.LIST_MATCHES, async (data: { gameType?: string }) => {
     const listed = [...publicMatches.values()]
@@ -754,6 +790,11 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
       // has a second player.
       publicMatches.delete(matchId);
       if (usedRoomCode) roomCodes.delete(usedRoomCode);
+      const graceTimer = listingGraceTimers.get(matchId);
+      if (graceTimer) {
+        clearTimeout(graceTimer);
+        listingGraceTimers.delete(matchId);
+      }
 
       // Remove joiner from any waiting queue
       for (const [key, waiting] of waitingQueue) {
@@ -1008,14 +1049,32 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
         }
       }
 
-      // Clean up public match listings owned by this user
+      /**
+       * Give a disconnected host's listing a grace period rather than tearing
+       * it down on the spot. Matched on THIS socket id specifically, not
+       * `hostUserId` — the host may already have reconnected on a different
+       * socket (which re-owns the listing on connect, above) before this
+       * disconnect for their old one even arrives; deleting on userId alone
+       * would tear down a listing that was already successfully reclaimed.
+       *
+       * Nothing is locked yet at this stage (no opponent has joined), so
+       * there is no stake to protect by acting immediately — only a room
+       * code / listing to keep alive long enough for an ordinary reconnect.
+       */
       for (const [matchId, listing] of publicMatches) {
-        if (listing.hostUserId === userId || listing.hostSocketId === socket.id) {
-          publicMatches.delete(matchId);
-          // Also clean up room code if any
-          for (const [code, mid] of roomCodes) {
-            if (mid === matchId) roomCodes.delete(code);
-          }
+        if (listing.hostSocketId === socket.id && !listingGraceTimers.has(matchId)) {
+          const timer = setTimeout(() => {
+            listingGraceTimers.delete(matchId);
+            const current = publicMatches.get(matchId);
+            // Only delete if nobody reclaimed it in the meantime.
+            if (current && current.hostSocketId === socket.id) {
+              publicMatches.delete(matchId);
+              for (const [code, mid] of roomCodes) {
+                if (mid === matchId) roomCodes.delete(code);
+              }
+            }
+          }, LISTING_GRACE_MS);
+          listingGraceTimers.set(matchId, timer);
         }
       }
 
