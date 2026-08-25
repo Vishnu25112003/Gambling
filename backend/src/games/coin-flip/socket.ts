@@ -39,6 +39,15 @@ const log = createLogger('game:coin-flip');
 
 // --- In-memory match state --------------------------------------------------
 
+/** The settings a match was created with — carried over unchanged into a Rematch. */
+interface MatchSettings {
+  rounds: number;
+  betMode: string;
+  minBet: number | null;
+  /** Both players lock the same amount today — see JOIN_MATCH. */
+  stake: number;
+}
+
 interface ActiveMatch {
   matchId: string;
   playerIds: [string, string];
@@ -54,10 +63,29 @@ interface ActiveMatch {
     spin: NodeJS.Timeout | null;
     call: NodeJS.Timeout | null;
   };
+  settings: MatchSettings;
 }
 
 /** matchId → active match. */
 const matches = new Map<string, ActiveMatch>();
+
+// --- Rematch (Rule 4's third discovery path) --------------------------------
+
+/** How long a finished match's rematch offer stays open before it expires. */
+const REMATCH_WINDOW_MS = 2 * 60 * 1000;
+
+interface PendingRematch {
+  playerIds: [string, string];
+  settings: MatchSettings;
+  /** userIds who have clicked Rematch so far — starts empty. */
+  confirmed: Set<string>;
+  /** Refreshed every time a player acts, so a stale tab doesn't strand the other. */
+  socketIds: Record<string, string>;
+  expiry: NodeJS.Timeout;
+}
+
+/** Keyed by the match that just finished — not the (not yet created) next one. */
+const pendingRematches = new Map<string, PendingRematch>();
 
 // --- Matchmaking queue ------------------------------------------------------
 
@@ -287,7 +315,11 @@ async function handleRoundEnd(match: ActiveMatch, roundWinnerId: string): Promis
   }
 }
 
-async function settleMatch(match: ActiveMatch, winnerId: string): Promise<void> {
+async function settleMatch(
+  match: ActiveMatch,
+  winnerId: string,
+  opts: { forfeited?: boolean } = {},
+): Promise<void> {
   clearTimeouts(match);
 
   // Write the final round record
@@ -312,6 +344,7 @@ async function settleMatch(match: ActiveMatch, winnerId: string): Promise<void> 
   );
 
   broadcastToMatch(match, CF_EVENTS.MATCH_RESULT, {
+    matchId: match.matchId,
     winnerId,
     scores: match.state.scores,
     totalRounds: match.state.totalRounds,
@@ -324,6 +357,26 @@ async function settleMatch(match: ActiveMatch, winnerId: string): Promise<void> 
     })),
   });
 
+  /**
+   * Rule 4's Rematch path: offered on every match, "however it started" —
+   * except one that ended by forfeit, since the opponent is gone and there is
+   * nobody left to confirm. Keyed by the match that just finished; consumed
+   * (or left to expire) the moment both sides have confirmed — see
+   * REMATCH_REQUEST below.
+   */
+  if (!opts.forfeited) {
+    const expiry = setTimeout(() => {
+      pendingRematches.delete(match.matchId);
+    }, REMATCH_WINDOW_MS);
+    pendingRematches.set(match.matchId, {
+      playerIds: match.playerIds,
+      settings: match.settings,
+      confirmed: new Set(),
+      socketIds: { ...match.socketIds },
+      expiry,
+    });
+  }
+
   // Clean up
   for (const socketId of Object.values(match.socketIds)) {
     socketToMatch.delete(socketId);
@@ -334,6 +387,7 @@ async function settleMatch(match: ActiveMatch, winnerId: string): Promise<void> 
     matchId: match.matchId,
     winnerId,
     roundsPlayed: match.state.currentRound,
+    rematchOffered: !opts.forfeited,
   });
 }
 
@@ -349,6 +403,129 @@ async function writeRoundRecord(
   } catch (err) {
     log.error('failed to write round record', { matchId, roundNumber: record.roundNumber, err });
   }
+}
+
+/**
+ * Everything that happens once two players and their stakes are already
+ * settled on a matchId: seat draw, Round 1's commit, and the first
+ * ROUND_START. Shared by JOIN_MATCH (a fresh Random/Friends Play match) and
+ * the Rematch path below — both start a match the exact same way once they
+ * know who's playing and what they staked.
+ */
+async function beginMatch(
+  matchId: string,
+  playerIds: [string, string],
+  settings: MatchSettings,
+  socketIds: Record<string, string>,
+): Promise<void> {
+  const players = await prisma.user.findMany({
+    where: { id: { in: playerIds } },
+    select: { id: true, username: true },
+  });
+  const nameMap = new Map(players.map((p) => [p.id, p.username ?? 'Player']));
+
+  const state = createInitialState(settings.rounds, playerIds);
+  const seatDraw = generateSeatDraw(playerIds);
+
+  const newActiveMatch: ActiveMatch = {
+    matchId,
+    playerIds,
+    state,
+    seatDraw,
+    roundRecords: [],
+    socketIds: { ...socketIds },
+    timers: { spin: null, call: null },
+    settings,
+  };
+
+  for (const sid of Object.values(newActiveMatch.socketIds)) {
+    socketToMatch.set(sid, matchId);
+  }
+  matches.set(matchId, newActiveMatch);
+
+  // Notify both players
+  for (const sid of Object.values(newActiveMatch.socketIds)) {
+    const io = getIoRef();
+    if (io) io.to(sid).emit(CF_EVENTS.MATCH_STATE, {
+      matchId,
+      players: playerIds.map((id) => ({ id, displayName: nameMap.get(id) })),
+      totalRounds: settings.rounds,
+      stake: settings.stake,
+    });
+  }
+
+  // Commit the seat draw
+  broadcastToMatch(newActiveMatch, CF_EVENTS.COMMIT_HASH, {
+    roundNumber: 0,
+    commitHash: newActiveMatch.seatDraw.commitHash,
+    type: 'seat_draw',
+  });
+
+  // Reveal the seat draw
+  newActiveMatch.state = revealSeatDraw(
+    newActiveMatch.state,
+    newActiveMatch.seatDraw.seed,
+    newActiveMatch.seatDraw.assignment,
+    playerIds,
+  );
+
+  // Write the seat draw record
+  const seatRecord: CoinFlipRoundRecord = {
+    roundNumber: 0,
+    commitHash: newActiveMatch.seatDraw.commitHash,
+    seed: newActiveMatch.seatDraw.seed,
+    result: null,
+    call: null,
+    cause: null,
+    spinnerId: playerIds[newActiveMatch.seatDraw.assignment === 'ab' ? 0 : 1],
+    callerId: playerIds[newActiveMatch.seatDraw.assignment === 'ab' ? 1 : 0],
+  };
+  newActiveMatch.roundRecords.push(seatRecord);
+  await writeRoundRecord(matchId, seatRecord);
+
+  // Generate coin result for Round 1
+  const { result, seed, commitHash } = generateCoinResult();
+  newActiveMatch.state.currentResult = result;
+  newActiveMatch.state.currentSeed = seed;
+  newActiveMatch.state.currentCommitHash = commitHash;
+
+  // Update gameState in DB
+  await prisma.match.update({
+    where: { id: matchId },
+    data: { gameState: newActiveMatch.state as unknown as never },
+  });
+
+  // Send commit hash
+  broadcastToMatch(newActiveMatch, CF_EVENTS.COMMIT_HASH, {
+    roundNumber: 1,
+    commitHash,
+  });
+
+  // Start Round 1
+  const spinnerId = Object.entries(newActiveMatch.state.seats).find(
+    ([, seat]) => seat === 'spinner',
+  )?.[0];
+  const callerId = Object.entries(newActiveMatch.state.seats).find(
+    ([, seat]) => seat === 'caller',
+  )?.[0];
+
+  if (spinnerId && callerId) {
+    newActiveMatch.state.phase = 'waiting_spin';
+    newActiveMatch.state.spinStartedAt = Date.now();
+
+    broadcastToMatch(newActiveMatch, CF_EVENTS.ROUND_START, {
+      roundNumber: 1,
+      totalRounds: newActiveMatch.state.totalRounds,
+      spinnerId,
+      callerId,
+      scores: newActiveMatch.state.scores,
+      seats: newActiveMatch.state.seats,
+    });
+
+    startSpinTimer(newActiveMatch, spinnerId);
+  }
+
+  log.info('match started', { matchId, playerIds, stake: settings.stake });
 }
 
 // --- Socket event handlers --------------------------------------------------
@@ -583,121 +760,100 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
         if (waiting.userId === userId) waitingQueue.delete(key);
       }
 
-      // Get player names
-      const players = await prisma.user.findMany({
-        where: { id: { in: playerIds } },
-        select: { id: true, username: true },
-      });
-      const nameMap = new Map(players.map((p) => [p.id, p.username ?? 'Player']));
+      // Register sockets
+      const socketIds: Record<string, string> = {};
+      if (hostSocketId) socketIds[playerIds[0]] = hostSocketId;
+      socketIds[userId] = socket.id;
 
-      // Initialize game state
-      const state = createInitialState(roundCount, playerIds);
-      const seatDraw = generateSeatDraw(playerIds);
-
-      const newActiveMatch: ActiveMatch = {
+      await beginMatch(
         matchId,
         playerIds,
-        state,
-        seatDraw,
-        roundRecords: [],
-        socketIds: {},
-        timers: { spin: null, call: null },
-      };
-
-      // Register sockets
-      if (hostSocketId) newActiveMatch.socketIds[playerIds[0]] = hostSocketId;
-      newActiveMatch.socketIds[userId] = socket.id;
-      socketToMatch.set(socket.id, matchId);
-      if (hostSocketId) socketToMatch.set(hostSocketId, matchId);
-
-      matches.set(matchId, newActiveMatch);
-
-      // Notify both players
-      for (const sid of Object.values(newActiveMatch.socketIds)) {
-        const io = getIoRef();
-        if (io) io.to(sid).emit(CF_EVENTS.MATCH_STATE, {
-          matchId,
-          players: playerIds.map((id) => ({ id, displayName: nameMap.get(id) })),
-          totalRounds: roundCount,
-          stake: stakeAmount,
-        });
-      }
-
-      // Commit the seat draw
-      broadcastToMatch(newActiveMatch, CF_EVENTS.COMMIT_HASH, {
-        roundNumber: 0,
-        commitHash: newActiveMatch.seatDraw.commitHash,
-        type: 'seat_draw',
-      });
-
-      // Reveal the seat draw
-      newActiveMatch.state = revealSeatDraw(
-        newActiveMatch.state,
-        newActiveMatch.seatDraw.seed,
-        newActiveMatch.seatDraw.assignment,
-        playerIds,
+        { rounds: roundCount, betMode, minBet: gs.minBet ?? null, stake: stakeAmount },
+        socketIds,
       );
-
-      // Write the seat draw record
-      const seatRecord: CoinFlipRoundRecord = {
-        roundNumber: 0,
-        commitHash: newActiveMatch.seatDraw.commitHash,
-        seed: newActiveMatch.seatDraw.seed,
-        result: null,
-        call: null,
-        cause: null,
-        spinnerId: playerIds[newActiveMatch.seatDraw.assignment === 'ab' ? 0 : 1],
-        callerId: playerIds[newActiveMatch.seatDraw.assignment === 'ab' ? 1 : 0],
-      };
-      newActiveMatch.roundRecords.push(seatRecord);
-      await writeRoundRecord(matchId, seatRecord);
-
-      // Generate coin result for Round 1
-      const { result, seed, commitHash } = generateCoinResult();
-      newActiveMatch.state.currentResult = result;
-      newActiveMatch.state.currentSeed = seed;
-      newActiveMatch.state.currentCommitHash = commitHash;
-
-      // Update gameState in DB
-      await prisma.match.update({
-        where: { id: matchId },
-        data: { gameState: newActiveMatch.state as unknown as never },
-      });
-
-      // Send commit hash
-      broadcastToMatch(newActiveMatch, CF_EVENTS.COMMIT_HASH, {
-        roundNumber: 1,
-        commitHash,
-      });
-
-      // Start Round 1
-      const spinnerId = Object.entries(newActiveMatch.state.seats).find(
-        ([, seat]) => seat === 'spinner',
-      )?.[0];
-      const callerId = Object.entries(newActiveMatch.state.seats).find(
-        ([, seat]) => seat === 'caller',
-      )?.[0];
-
-      if (spinnerId && callerId) {
-        newActiveMatch.state.phase = 'waiting_spin';
-        newActiveMatch.state.spinStartedAt = Date.now();
-
-        broadcastToMatch(newActiveMatch, CF_EVENTS.ROUND_START, {
-          roundNumber: 1,
-          totalRounds: newActiveMatch.state.totalRounds,
-          spinnerId,
-          callerId,
-          scores: newActiveMatch.state.scores,
-          seats: newActiveMatch.state.seats,
-        });
-
-        startSpinTimer(newActiveMatch, spinnerId);
-      }
 
       log.info('match joined', { matchId, playerIds, stake: stakeAmount });
     } catch (err) {
       log.error('join_match error', { userId, err });
       socket.emit(CF_EVENTS.ERROR, { message: 'Failed to join match' });
+    }
+  });
+
+  // --- REMATCH_REQUEST: Rule 4's third discovery path — same two players,
+  // settings carried over unchanged, both must confirm, new match id ---
+  socket.on(CF_EVENTS.REMATCH_REQUEST, async (data: { matchId?: string }) => {
+    try {
+      const matchId = data.matchId;
+      if (!matchId) {
+        socket.emit(CF_EVENTS.ERROR, { message: 'No match specified' });
+        return;
+      }
+
+      const pending = pendingRematches.get(matchId);
+      if (!pending || !pending.playerIds.includes(userId)) {
+        socket.emit(CF_EVENTS.ERROR, { message: 'Rematch is no longer available.' });
+        return;
+      }
+
+      // Refresh this player's socket (they may be reconnected, or on a
+      // different tab, since the result screen), then record their confirm.
+      pending.socketIds[userId] = socket.id;
+      pending.confirmed.add(userId);
+
+      const otherId = pending.playerIds.find((id) => id !== userId)!;
+
+      if (pending.confirmed.size < 2) {
+        socket.emit(CF_EVENTS.REMATCH_WAITING, { matchId });
+        const otherSocketId = pending.socketIds[otherId];
+        if (otherSocketId) {
+          getIoRef()?.to(otherSocketId).emit(CF_EVENTS.REMATCH_OFFERED, { matchId });
+        }
+        return;
+      }
+
+      // Both confirmed — start it. Consume the offer immediately so a
+      // duplicate request (double click, a slow retry) can't start it twice.
+      clearTimeout(pending.expiry);
+      pendingRematches.delete(matchId);
+
+      const newMatchId = await escrow.createMatch({
+        gameType: 'coin-flip',
+        mode: 'pooled',
+        gameState: {
+          totalRounds: pending.settings.rounds,
+          betMode: pending.settings.betMode,
+          minBet: pending.settings.minBet,
+        },
+      });
+
+      try {
+        const stakeDecimal = new (await import('../../lib/money.js')).Decimal(pending.settings.stake);
+        for (const uid of pending.playerIds) {
+          await escrow.lockBalance(uid, stakeDecimal, newMatchId);
+        }
+      } catch (lockErr) {
+        // One side can no longer cover the stake (they just lost it, most
+        // likely). Unwind whatever DID lock rather than leave it stranded —
+        // refundMatch is a no-op for a participant that never locked.
+        log.error('rematch stake lock failed', { previousMatchId: matchId, newMatchId, err: lockErr });
+        await escrow.refundMatch(newMatchId, 'Rematch could not be started').catch(() => {});
+        for (const uid of pending.playerIds) {
+          const sid = pending.socketIds[uid];
+          if (sid) {
+            getIoRef()?.to(sid).emit(CF_EVENTS.ERROR, {
+              message: 'Rematch failed — one of you no longer has enough balance for this stake.',
+            });
+          }
+        }
+        return;
+      }
+
+      await beginMatch(newMatchId, pending.playerIds, pending.settings, pending.socketIds);
+
+      log.info('rematch started', { previousMatchId: matchId, newMatchId, playerIds: pending.playerIds });
+    } catch (err) {
+      log.error('rematch error', { userId, err });
+      socket.emit(CF_EVENTS.ERROR, { message: 'Failed to start rematch' });
     }
   });
 
@@ -884,9 +1040,11 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
       const forfeitResult = await escrow.forfeitPlayer(matchId, userId);
 
       if (forfeitResult.outcome === 'forfeited') {
-        // Player was forfeited — settle with the remaining player
+        // Player was forfeited — settle with the remaining player. No
+        // rematch is offered: the opponent is gone, so there is nobody left
+        // to confirm one (Rule 4's Rematch path).
         const winnerId = getOtherPlayer(match, userId);
-        await settleMatch(match, winnerId);
+        await settleMatch(match, winnerId, { forfeited: true });
       } else if (forfeitResult.outcome === 'reconnected') {
         // They reconnected — cancel forfeit (handled in JOIN_MATCH)
       }
