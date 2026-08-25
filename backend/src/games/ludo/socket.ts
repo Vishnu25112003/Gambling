@@ -270,7 +270,6 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
   socket.on(LUDO_EVENTS.LIST_MATCHES, () => {
     const listed = [...lobbyInfo.values()]
       .filter((m) => m.discovery === 'random')
-      .filter((m) => m.hostUserId !== userId)
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 20)
       .map((m) => ({
@@ -341,6 +340,21 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
         socket.emit(LUDO_EVENTS.MATCH_CREATED, { matchId });
         log.info('random match created', {
           matchId, host: userId, stake: stakeAmount, seatCount,
+        });
+
+        // Broadcast to all connected sockets so they see the new match immediately
+        namespace.emit(LUDO_EVENTS.MATCHES_LIST, {
+          matches: [...lobbyInfo.values()]
+            .filter((m) => m.discovery === 'random')
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, 20)
+            .map((m) => ({
+              matchId: m.matchId,
+              hostName: m.hostName,
+              seatCount: m.seatCount,
+              stake: String(m.stake),
+              betMode: m.betMode,
+            })),
         });
       } else {
         // Friends Play — generate room code
