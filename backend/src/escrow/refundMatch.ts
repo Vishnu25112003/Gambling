@@ -2,6 +2,8 @@ import { prisma } from '../config/db.js';
 import { conflict, notFound } from '../lib/errors.js';
 import { Decimal, toDecimal } from '../lib/money.js';
 import { createLogger } from '../lib/logger.js';
+import { emitLedgerEntryCreated } from '../lib/ledgerEvents.js';
+import type { LedgerEntryLike } from '../lib/ledgerRow.js';
 import type { Id, RefundResult } from './types.js';
 
 const log = createLogger('escrow:refund');
@@ -15,7 +17,9 @@ const log = createLogger('escrow:refund');
  * — the rule is not configurable by a caller.
  */
 export async function refundMatch(matchId: Id, reason = 'Match refunded'): Promise<RefundResult> {
-  return prisma.$transaction(async (tx) => {
+  const pushedEntries: LedgerEntryLike[] = [];
+
+  const result = await prisma.$transaction(async (tx) => {
     // Claim atomically so a crash-handler and a manual cancel racing each other
     // cannot both refund the same stakes.
     const claimed = await tx.$executeRaw`
@@ -90,19 +94,21 @@ export async function refundMatch(matchId: Id, reason = 'Match refunded'): Promi
       refunded.push({ userId: participant.userId, amount });
       total = total.plus(amount);
 
-      await tx.ledgerEntry.create({
-        data: {
-          userId: participant.userId,
-          type: 'refund',
-          status: 'confirmed',
-          amount,
-          balanceAfterAvailable: user.availableBalance,
-          balanceAfterLocked: user.lockedBalance,
-          matchId,
-          gameType: match.gameType,
-          note: reason,
-        },
-      });
+      pushedEntries.push(
+        await tx.ledgerEntry.create({
+          data: {
+            userId: participant.userId,
+            type: 'refund',
+            status: 'confirmed',
+            amount,
+            balanceAfterAvailable: user.availableBalance,
+            balanceAfterLocked: user.lockedBalance,
+            matchId,
+            gameType: match.gameType,
+            note: reason,
+          },
+        }),
+      );
     }
 
     await tx.match.update({ where: { id: matchId }, data: { feeCollected: 0 } });
@@ -111,4 +117,8 @@ export async function refundMatch(matchId: Id, reason = 'Match refunded'): Promi
 
     return { matchId, refunded, total };
   });
+
+  pushedEntries.forEach(emitLedgerEntryCreated);
+
+  return result;
 }

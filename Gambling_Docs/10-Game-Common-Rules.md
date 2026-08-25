@@ -12,8 +12,8 @@ Every game inherits all four rules automatically. A game's own `Games/GNN-<Game-
 
 ## Status
 - **Phase:** Devnet/testnet
-- **Rules 1–2:** Locked — unchanged since they were written
-- **Rules 3–4:** Locked, but **amended 2026-08-19** by the first 1v1 game's spec pass — Rule 3 gained a minimum stake for Free Bet 1v1; Rule 4 gained a third discovery path (Rematch) and stake reservation before the lock. Locked means no game may redefine them, not that they are finished.
+- **Rules 1–2:** Locked, but **Rule 2 amended 2026-08-24** by Ludo's spec pass — a documented per-game exception path now exists for the fixed top-2/70-30 split (see Rule 2's Exceptions). Rule 1 remains unchanged since it was written.
+- **Rules 3–4:** Locked, but **amended 2026-08-19** by the first 1v1 game's spec pass — Rule 3 gained a minimum stake for Free Bet 1v1; Rule 4 gained a third discovery path (Rematch) and stake reservation before the lock. **Rule 4 amended again 2026-08-24** by Ludo's spec pass — gained a multiplayer lobby-fill extension. Locked means no game may redefine them outside a documented exception like the ones above, not that they are finished.
 - **Enforced by:** `03-Escrow.md` (`settleMatch` for Rules 1–2, `lockBalance` for Rule 3). Rule 4 runs *before* escrow and has no enforcement point yet — see Open Questions.
 - **Depends on:** `03-Escrow.md` (the functions that apply these rules)
 
@@ -61,6 +61,20 @@ Every game inherits all four rules automatically. A game's own `Games/GNN-<Game-
 
 Weights are **relative** for pooled games (escrow normalises them against the post-fee pot). For solo-vs-house games they are **absolute SOL payouts** straight from the odds table — see Rule 1.
 
+### Exceptions
+
+The fixed top-2/70-30 split above is the default for every multiplayer game. A game may override it **only** via a documented exception listed here — never silently in its own doc — so this file stays the one place a reader checks to know how any game actually pays out.
+
+**Exception — Ludo:** Unlike other multiplayer games, Ludo's number of paid places scales with actual seated player count instead of staying fixed at top 2:
+
+| Seated players | Paid places | Split |
+|---|---|---|
+| 2 | 1 (winner only) | 100% |
+| 3 | 2 | 70% / 30% |
+| 4 | 3 | 50% / 30% / 20% |
+
+This is a documented per-game override of Rule 2's fixed-top-2 rule, added because Ludo's seat count is chosen by the host per match (2, 3, or 4) rather than fixed at design time like other multiplayer games — see `Games/G02-Ludo.md`.
+
 ---
 
 ## Rule 3: Betting Mode — Fixed Bet vs Free Bet
@@ -86,7 +100,7 @@ Weights are **relative** for pooled games (escrow normalises them against the po
 
 ## Rule 4: Match Discovery — Random Play vs Friends Play
 
-**Scope:** 1v1 games only, for now. Discovery for multiplayer (3+ player) lobbies is a separate problem — a lobby that fills gradually needs a waiting room, a start trigger and a minimum-player rule that none of the below describes — and is specified later, not here.
+**Scope:** 1v1 games, plus the multiplayer lobby-fill extension below for 3+ player games using Random Play or Friends Play. Everything else in this rule — reserved stakes, the confirm step, Rematch — is written for two players and does not yet describe a waiting room, a partial-lobby display, or a minimum-player rule for 3+ seats beyond "all chosen slots must fill." See *Multiplayer Extension* for exactly how far the coverage goes, and Open Questions for what it still leaves unanswered.
 
 **Chosen by:** The host, per match, at the moment the match is created. Every 1v1 match is created in exactly one of these **three** modes, and there is no way to convert one into another after creation. Random Play and Friends Play are the two ways to start from nothing; **Rematch** is the third, and it is the only one that does not need a host, because both players are already present.
 
@@ -146,6 +160,19 @@ The third path, and the only one that starts from a *finished* match rather than
 
 **Why both confirm, rather than the loser challenging.** The same reason Friends Play has a ready-up: nothing locks until both players have agreed to stake again. A player who is finished should be able to walk away without their funds being touched, and one tap from an opponent must never be able to commit them.
 
+### Multiplayer Extension
+
+**For multiplayer games (3+ players), both Random Play and Friends Play require ALL chosen player slots to be filled before the match can start — no early start with a partial lobby.** This applies in addition to the 1v1 behavior described above; it does not replace it.
+
+1. The host still picks Random Play or Friends Play, and still sets the seat count (however that game defines it — e.g. Ludo's 2/3/4) at creation, same as any other setting.
+2. A Random Play lobby is listed publicly the same way, but stays open and unstarted until every chosen seat is filled — there is no "start anyway" option for the host.
+3. A Friends Play room code works the same way, except the match does not begin once two people confirm — it waits for every seat to be confirmed.
+4. Locking still follows the reservation model above: each seated player's stake is reserved on joining and converts to an escrow lock via `lockBalance()` only once the lobby is full and the match actually starts.
+
+**Why a full-lobby gate instead of starting with whoever showed up.** A multiplayer game's payout math (Rule 2's 70/30, or a documented exception like Ludo's) is defined for a specific seat count. Starting short would either strand an empty seat mid-match or force a live renegotiation of the payout split — the gate avoids both by deciding the seat count once, at creation, and holding the match until it's met.
+
+**Added by Ludo's spec pass, generalised beyond it.** The extension is written game-agnostically because any future 3+ seat game hits the same gap; it is not Ludo-specific the way Rule 2's Exceptions entry is. See `Games/G02-Ludo.md` for the game that surfaced it.
+
 ---
 
 ## Reference
@@ -160,12 +187,14 @@ The third path, and the only one that starts from a *finished* match rather than
 | 2 | Multiplayer payout | Top 2 only — 70/30, fixed at any lobby size | `settleMatch` weights |
 | 2 | Tie for a paid place | That place's share split evenly | `settleMatch` weights |
 | 2 | Payout mode | Locked at match start by game type, never by live lobby size | game module |
+| 2 | Exceptions | Documented per-game overrides only — e.g. Ludo's seat-count-scaled split | Rule 2's Exceptions |
 | 3 | Bet mode | Fixed or Free, host's choice per match | `lockBalance` validation |
 | 3 | Max bet | The player's own `availableBalance`, both modes | `lockBalance` |
 | 3 | Min bet | Free Bet 1v1 only — host-set floor every joiner must meet | `lockBalance` |
 | 4 | Discovery mode | Random, Friends or Rematch — host's choice per match | not yet enforced |
 | 4 | Stake before lock | Reserved (unspendable, not in escrow) until both confirm | not yet enforced |
-| 4 | Scope | 1v1 games only; 3+ player discovery specified separately | — |
+| 4 | Scope | 1v1 games, plus the multiplayer full-lobby gate below | — |
+| 4 | Multiplayer extension | Random/Friends Play require every chosen seat filled before start | not yet enforced |
 | 4 | Random Play join | Public listing, instant, first-come-first-served, no host approval | not yet enforced |
 | 4 | Friends Play join | Room code, then **both** players confirm before anything locks | not yet enforced |
 | 4 | Rematch | Same two players, settings carried over, **both** confirm; new match id | not yet enforced |
@@ -173,7 +202,8 @@ The third path, and the only one that starts from a *finished* match rather than
 
 **Rules Locked**
 - Fee rate is defined **here and only here**. `03-Escrow.md` describes how the fee is applied, not what it is.
-- A game module never implements a fee or a payout split — it reports a finishing order and lets `settleMatch` apply these rules.
+- A game module never implements a fee or a payout split — it reports a finishing order and lets `settleMatch` apply these rules, **unless** it has a documented exception in Rule 2's Exceptions subsection. An exception still lives here, never as a second source of truth in the game's own doc — the game doc links to it instead of restating the numbers.
+- **Rule 2 permits documented exceptions; no other rule does yet.** Ludo's scaling payout is the only one on record. A future game proposing its own split must be added to Rule 2's Exceptions the same way, not carved out silently.
 - **Discovery mode never affects money.** Random Play, Friends Play and Rematch produce the same match: same fee, same payout split, same bet mode, same escrow calls. Nothing downstream of match start may branch on how the two players found each other, and no game may offer a discount, a different fee or a different split for one of them.
 - **Rematch is offered on every match, however it started.** Gating it on the original discovery mode would make the game branch on how two players met, which is the one thing this rule forbids downstream of match start.
 - **A game module never implements its own lobby.** Random Play's listing, Friends Play's room codes and the rematch handshake belong to the hub, for the same reason the fee does — one source of truth, and a player learns one way of starting a match rather than one per game.
@@ -182,7 +212,8 @@ The third path, and the only one that starts from a *finished* match rather than
 - **The Free Bet 1v1 minimum stake is only half a fix.** The host-set floor now blocks the worst case, but three things about it are undecided. **(a) Is it mandatory?** A host who leaves it at zero is exactly as exposed as before, so an optional floor protects only the careful. **(b) What is the default?** Anything below the host's own stake leaves a live asymmetry — a floor of 8 against a host stake of 10 still pays the joiner to stake 8. **(c) Nothing caps the other direction.** A joiner who stakes *more* than the host is the one being exploited, and a floor cannot help them; only a band around the host's stake, or matching the lower stake, closes both sides. Surfaced by `Games/G01-Coin-Flip.md`, the first 1v1 game.
 - **The reserved-stake state has no schema and no lifecycle.** The rule above closes the confirm-time lock failure, but nothing implements it. A third balance field is needed alongside `availableBalance` and `lockedBalance` in `03-Escrow.md`; `lockBalance()` must treat reserved funds as unavailable; withdrawals in `02-Deposit-Withdraw.md` must respect it; and — the sharp edge — **a reserve with no expiry is a fund leak**. A room code that is never redeemed, or a rematch offer nobody answers, would fence a player's money off indefinitely, which is a worse outcome than the failure it prevents. Reserve expiry is therefore the same question as the confirm-step timeout below, and neither can ship without the other. What the UI shows for reserved funds is also unspecified.
 - **Rule 3 has no schema behind it yet.** The shipped `Match` model has no `betMode` or `fixedBetAmount` column, so Fixed vs Free is currently unenforceable at the database level — every match behaves as Free Bet. Both fields need adding to `Match` (and the fixed amount validated inside `lockBalance`) before the first multiplayer game with a lobby ships. Tracked in `03-Escrow.md`'s implementation plan.
-- **Rule 2 has no schema behind it yet either.** Nothing on `Match` records whether a game is 1v1 or multiplayer, so "locked in at match start" is currently a convention the game module upholds rather than something the database enforces.
+- **Rule 2 has no schema behind it yet either.** Nothing on `Match` records whether a game is 1v1 or multiplayer, so "locked in at match start" is currently a convention the game module upholds rather than something the database enforces. Ludo's exception makes this sharper: nothing on `Match` records seat count either, so the scaled split (1/2/3 paid places for 2/3/4 seats) is also convention, not something `settleMatch` can validate against.
+- **The multiplayer lobby-fill extension says nothing about a partially-filled lobby's state.** What a Random Play listing shows while only 2 of 4 Ludo seats are taken, whether a seated player can leave before the lobby fills, and whether that early seat's reservation needs the same expiry treatment as the confirm-step and reserved-stake questions above, are all unanswered. The extension only says the match cannot *start* until full — it does not describe the waiting period itself.
 - **Rematch's schema is unresolved along with the rest of Rule 4.** A rematch links two matches — the finished one and its successor — and nothing on `Match` records that relationship, so a rematch chain cannot currently be reconstructed or displayed.
 - **Rule 4 has no schema and no lifecycle behind it at all.** The shipped `Match` model has no discovery mode, no room code, no host, and no record of who has confirmed; `MatchStatus` is only `open | settled | refunded`, with no state for "published and waiting for an opponent" or "code redeemed, awaiting both confirmations". A room code also needs a unique index, and — like `username` and `referralCode` — the nullable-unique trick, since a Random Play match has no code. All of this needs adding before the first 1v1 game ships.
 - **A waiting lobby collides with doc 03's crash rule.** `recoverOpenMatches()` refunds *any* match still `open` at boot, on the reasoning that it belonged to a process that died holding player funds. A Random Play listing or an unredeemed room code would be `open` too, so every backend restart would silently destroy every waiting lobby. Harmless for money — nothing is locked until both players are in, which is exactly why Rule 4 defers locking — but the lobby states must be distinguishable from `open` before that recovery pass can stay correct.
@@ -199,6 +230,8 @@ The third path, and the only one that starts from a *finished* match rather than
 - `00-Overview.md` — project overview and reading order
 
 ## Last Updated
+2026-08-24 — **Rule 2 gained a documented exception path**, with Ludo's seat-count-scaled payout (1/2/3 paid places for 2/3/4 seats) as its first and only entry. A game may now override the fixed top-2/70-30 split only by being listed here — never silently in its own doc.
+2026-08-24 — **Rule 4 gained a multiplayer extension**: Random Play and Friends Play now require every chosen seat filled before a 3+ player match can start, in addition to the existing 1v1 behavior. Generalised beyond the game that surfaced it (Ludo), since any future multiplayer game hits the same gap. Left open: what a partially-filled lobby looks like while it waits.
 2026-08-19 — **Rule 4 amended: stakes are reserved at match creation**, not left free until confirm — so the confirm-time lock can no longer fail. Needs a third balance state in `03-Escrow.md`, and makes confirm-step expiry mandatory rather than optional.
 2026-08-19 — **Rule 3 amended: minimum stake for Free Bet 1v1 matches**, host-set and enforced in `lockBalance`. Partial by design — it bounds the lowball exploit without making Free Bet 1v1 symmetric; the residual holes are tracked in Open Questions.
 2026-08-19 — **Rule 4 amended: Rematch added as a third discovery path.** Same two players, settings carried over, both confirm, new match id — offered from any match regardless of how it started. Surfaced by the Coin Flip result screen, which had nowhere to send a rematch button.

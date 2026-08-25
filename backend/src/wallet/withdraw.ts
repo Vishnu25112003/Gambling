@@ -19,6 +19,7 @@ import {
 } from '../lib/money.js';
 import { env } from '../config/env.js';
 import { createLogger } from '../lib/logger.js';
+import { emitLedgerEntryCreated } from '../lib/ledgerEvents.js';
 
 const log = createLogger('withdraw');
 
@@ -174,10 +175,11 @@ async function performWithdrawal(userId: string, amount: MoneyInput): Promise<Wi
       maxRetries: 3,
     });
 
-    await prisma.ledgerEntry.update({
+    const confirmedEntry = await prisma.ledgerEntry.update({
       where: { id: reservation.entryId },
       data: { txSignature: signature, status: 'confirmed', note: 'Withdrawal sent' },
     });
+    emitLedgerEntryCreated(confirmedEntry);
 
     log.info('withdrawal confirmed', {
       userId,
@@ -196,12 +198,12 @@ async function performWithdrawal(userId: string, amount: MoneyInput): Promise<Wi
   } catch (err) {
     // The transfer never confirmed — give the money back. Doc 02: "On failure,
     // do NOT debit balance."
-    await prisma.$transaction(async (tx) => {
+    const failedEntry = await prisma.$transaction(async (tx) => {
       const restored = await tx.user.update({
         where: { id: userId },
         data: { availableBalance: { increment: requested } },
       });
-      await tx.ledgerEntry.update({
+      return tx.ledgerEntry.update({
         where: { id: reservation.entryId },
         data: {
           status: 'failed',
@@ -211,6 +213,7 @@ async function performWithdrawal(userId: string, amount: MoneyInput): Promise<Wi
         },
       });
     });
+    emitLedgerEntryCreated(failedEntry);
 
     log.error('withdrawal failed and was reversed', { userId, error: (err as Error).message });
     throw badRequest(

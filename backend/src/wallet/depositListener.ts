@@ -10,6 +10,7 @@ import { getTreasuryPublicKey } from './treasury.js';
 import { createLogger } from '../lib/logger.js';
 import { env } from '../config/env.js';
 import { fromLamports, toAmountString, type Decimal } from '../lib/money.js';
+import { emitLedgerEntryCreated } from '../lib/ledgerEvents.js';
 
 const log = createLogger('deposits');
 
@@ -150,8 +151,9 @@ export async function processSignature(
    * and the whole transaction rolls back — the balance is never touched.
    */
   let updatedBalance: string;
+  let creditedEntry: Awaited<ReturnType<typeof prisma.ledgerEntry.update>>;
   try {
-    updatedBalance = await prisma.$transaction(async (tx2) => {
+    ({ balance: updatedBalance, entry: creditedEntry } = await prisma.$transaction(async (tx2) => {
       await tx2.ledgerEntry.create({
         data: {
           txSignature: signature,
@@ -169,7 +171,7 @@ export async function processSignature(
         data: { availableBalance: { increment: received } },
       });
 
-      await tx2.ledgerEntry.update({
+      const entry = await tx2.ledgerEntry.update({
         where: { txSignature: signature },
         data: {
           balanceAfterAvailable: credited.availableBalance,
@@ -177,8 +179,8 @@ export async function processSignature(
         },
       });
 
-      return toAmountString(credited.availableBalance);
-    });
+      return { balance: toAmountString(credited.availableBalance), entry };
+    }));
   } catch (err: unknown) {
     if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002') {
       return { credited: false, reason: 'already processed' };
@@ -187,6 +189,8 @@ export async function processSignature(
   }
 
   log.info('deposit credited', { signature, sender, amount: toAmountString(received) });
+
+  emitLedgerEntryCreated(creditedEntry);
 
   const event = {
     userId: user.id,

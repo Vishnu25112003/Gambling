@@ -4,6 +4,49 @@ Dated changelog of decisions and milestones. Newest entry on top.
 
 ---
 
+## 2026-08-24 — Ludo's Rule 2 and Rule 4 amendments applied to the shared rules
+
+`Games/G02-Ludo.md` proposed two amendments to `10-Game-Common-Rules.md` as paste-ready text; both are now applied for real.
+
+**Done:**
+- **Rule 2 gained an Exceptions subsection** — a documented per-game override path for the fixed top-2/70-30 split. Ludo is its first and only entry: 2 players = winner-take-all, 3 = 70/30, 4 = 50/30/20. Added a "Rules Locked" bullet making clear this is the only sanctioned way to deviate from Rule 2 — no game may carve out its own split silently.
+- **Rule 4 gained a Multiplayer Extension subsection** — Random Play and Friends Play now require every chosen seat filled before a 3+ player match can start, on top of the existing 1v1 behavior. Written game-agnostically (not Ludo-specific) since any future multiplayer game hits the same gap; Rule 4's Scope line updated to match.
+- Updated in step: the Status block, the "Rules at a glance" reference table, and the changelog at the bottom of `10-Game-Common-Rules.md`.
+- **New open question added:** the multiplayer extension says nothing about a partially-filled lobby's own state (what a listing shows mid-fill, whether a seated player can leave before it's full) — tracked there, not resolved by this amendment.
+- `Games/G02-Ludo.md` and `04-Games-Index.md` updated to link to the live rules instead of quoting proposed text; Game 02 is now fully specified except for schema debt inherited from Rule 4 having no lobby model yet.
+
+---
+
+## 2026-08-24 — Ludo and Mine Catcher restructured onto the game doc template
+
+`game_ideas/Game-Ludo.md` and `game_ideas/Game-MineCatcher.md` were early,
+unstructured drafts — no Identity table, no numbering, ad hoc section order.
+Rewritten onto `Games/G00-Template.md` and filed as `Games/G02-Ludo.md` and
+`Games/G03-Mine-Catcher.md`, registered in `04-Games-Index.md`. The original
+draft files are removed; their content lives on in the two doc files.
+
+**Done:**
+- **Mine Catcher (Game 03)** needed one thing from the shared rules — a Free
+  Bet 1v1 minimum stake — and that landed in Rule 3 back on 2026-08-19. Its doc
+  is now fully specified, same as Coin Flip; its remaining open questions (the
+  dual-unreachable settlement mechanism, whether it makes a provably-fair
+  claim) are game-owned, not inherited.
+- **Ludo (Game 02)** still needs two things Rule 2 and Rule 4 don't provide
+  yet: an override letting paid places scale with seat count, and a
+  multiplayer discovery flow (Rule 4 is 1v1-only today). Both are written as
+  paste-ready text in the doc's Reference section, not yet applied upstream.
+  Until Rule 4 gains that extension, the doc specifies Ludo's own lobby-fill
+  flow as a stopgap.
+- No game logic changed — this was a documentation pass. Neither game is
+  registered in `backend/src/games/registry.ts`; both stay at 0%, designed
+  only, matching Coin Flip's status before it was coded.
+
+See `04-Games-Index.md` for the updated master table and
+`10-Game-Common-Rules.md`'s Open Questions for where the two Ludo amendments
+are tracked.
+
+---
+
 ## 2026-08-22 — `displayName` and `username` merged into a single name field
 
 Profile settings showed two separate editable fields — `username` (the unique,

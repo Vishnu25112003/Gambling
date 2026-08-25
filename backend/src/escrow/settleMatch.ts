@@ -10,6 +10,8 @@ import {
 } from '../lib/money.js';
 import { createLogger } from '../lib/logger.js';
 import { awardReferralOnWin } from '../referral/awardReferral.js';
+import { emitLedgerEntryCreated } from '../lib/ledgerEvents.js';
+import type { LedgerEntryLike } from '../lib/ledgerRow.js';
 import type { Id, SettleResult, SettleMatchOptions, SettlementPayout } from './types.js';
 
 const log = createLogger('escrow:settle');
@@ -48,7 +50,11 @@ export async function settleMatch(
     throw badRequest('settleMatch requires one weight per winner.');
   }
 
-  return prisma.$transaction(async (tx) => {
+  // Collected inside the transaction and pushed over the socket only once it
+  // commits — a rolled-back settlement must never notify anyone.
+  const pushedEntries: LedgerEntryLike[] = [];
+
+  const result = await prisma.$transaction(async (tx) => {
     /**
      * Claim the match atomically.
      *
@@ -194,26 +200,28 @@ export async function settleMatch(
 
       payouts.push({ userId: uid, payout });
 
-      await tx.ledgerEntry.create({
-        data: {
-          userId: uid,
-          type: 'settlement',
-          status: 'confirmed',
-          amount: payout.minus(totalStake),
-          balanceAfterAvailable: user.availableBalance,
-          balanceAfterLocked: user.lockedBalance,
-          matchId,
-          gameType: match.gameType,
-          note: payout.greaterThan(0)
-            ? `Settled: won ${payout.toFixed(9)} SOL`
-            : 'Settled: lost stake',
-          meta: {
-            stake: totalStake.toFixed(9),
-            payout: payout.toFixed(9),
-            mode: match.mode,
+      pushedEntries.push(
+        await tx.ledgerEntry.create({
+          data: {
+            userId: uid,
+            type: 'settlement',
+            status: 'confirmed',
+            amount: payout.minus(totalStake),
+            balanceAfterAvailable: user.availableBalance,
+            balanceAfterLocked: user.lockedBalance,
+            matchId,
+            gameType: match.gameType,
+            note: payout.greaterThan(0)
+              ? `Settled: won ${payout.toFixed(9)} SOL`
+              : 'Settled: lost stake',
+            meta: {
+              stake: totalStake.toFixed(9),
+              payout: payout.toFixed(9),
+              mode: match.mode,
+            },
           },
-        },
-      });
+        }),
+      );
 
       /**
        * Doc 09 — if this player was invited by someone and just turned their
@@ -224,12 +232,13 @@ export async function settleMatch(
        * than the payout, takes nothing from the pot, and leaves `feeCollected`
        * alone — see the header of awardReferral.ts for why.
        */
-      await awardReferralOnWin(tx, {
+      const referral = await awardReferralOnWin(tx, {
         userId: uid,
         netWin: payout.minus(totalStake),
         matchId,
         gameType: match.gameType,
       });
+      if (referral) pushedEntries.push(referral.ledgerEntry);
     }
 
     if (feeCollected.greaterThan(0)) {
@@ -268,4 +277,8 @@ export async function settleMatch(
 
     return { matchId, pot, feeCollected, payouts };
   });
+
+  pushedEntries.forEach(emitLedgerEntryCreated);
+
+  return result;
 }

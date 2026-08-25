@@ -1,6 +1,7 @@
 import { Decimal, applyFeeBps, toDecimal, type MoneyInput } from '../lib/money.js';
 import { createLogger } from '../lib/logger.js';
 import { shortAddress } from '../lib/user.js';
+import type { LedgerEntryLike } from '../lib/ledgerRow.js';
 import type { Prisma } from '../generated/prisma/client.js';
 
 const log = createLogger('referral:award');
@@ -24,6 +25,8 @@ export interface AwardInput {
 export interface AwardResult {
   referrerId: string;
   commission: Decimal;
+  /** The ledger row just created, so the caller's transaction can push it live once it commits. */
+  ledgerEntry: LedgerEntryLike;
 }
 
 /**
@@ -115,7 +118,7 @@ export async function awardReferralOnWin(
   });
   const friend = referred.username ?? shortAddress(referred.walletAddress);
 
-  await tx.ledgerEntry.create({
+  const ledgerEntry = await tx.ledgerEntry.create({
     data: {
       userId: referral.referrerId,
       type: 'referral',
@@ -144,5 +147,5 @@ export async function awardReferralOnWin(
     commission: commission.toFixed(9),
   });
 
-  return { referrerId: referral.referrerId, commission };
+  return { referrerId: referral.referrerId, commission, ledgerEntry };
 }

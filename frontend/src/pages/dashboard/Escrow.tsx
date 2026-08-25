@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import { ConnectWalletPlaceholder } from '../../components/dashboard/ConnectWalletPlaceholder';
 import { Button, Card, Input, PageTitle, Spinner } from '../../components/shared/ui';
 import { useAuth } from '../../hooks/useAuth';
-import { useSocket } from '../../hooks/useSocket';
 import { walletApi } from '../../api/endpoints';
 import { formatSol, isPositiveAmount, shortAddress } from '../../lib/format';
 import type { WalletInfo } from '../../types';
@@ -40,6 +39,7 @@ function BalanceCard({
 function DepositCard({ onDone }: { onDone: () => Promise<void> }) {
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
+  const { socket } = useAuth();
   const [info, setInfo] = useState<WalletInfo | null>(null);
   const [amount, setAmount] = useState('0.1');
   const [busy, setBusy] = useState(false);
@@ -53,13 +53,21 @@ function DepositCard({ onDone }: { onDone: () => Promise<void> }) {
       .catch(() => setInfo(null));
   }, []);
 
-  // Live credit notification from the backend's deposit listener.
-  const handleDeposit = useCallback(() => {
-    setStatus('Deposit credited.');
-    setBusy(false);
-    void onDone();
-  }, [onDone]);
-  useSocket(handleDeposit);
+  // Live credit notification from the backend's deposit listener — the
+  // shared session socket owned by AuthProvider, not a page-local one, so it
+  // keeps working if this card unmounts mid-deposit.
+  useEffect(() => {
+    if (!socket) return;
+    const handleDeposit = () => {
+      setStatus('Deposit credited.');
+      setBusy(false);
+      void onDone();
+    };
+    socket.on('wallet:deposit', handleDeposit);
+    return () => {
+      socket.off('wallet:deposit', handleDeposit);
+    };
+  }, [socket, onDone]);
 
   const deposit = async () => {
     setError(null);

@@ -23,10 +23,16 @@ The `G` prefix keeps game numbers from being confused with the root doc numbers 
 | No. | Game | Game ID | Fee Mode (Pooled / Solo-vs-House) | Players (1v1 / Multiplayer) | Status | % Done | Contract Status | Doc | Last Updated |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 | Coin Flip | `coin-flip` | Pooled | 1v1 | Planning | 0% | Off-chain only | `Games/G01-Coin-Flip.md` | 2026-08-19 |
+| 02 | Ludo | `ludo` | Pooled | Multiplayer (2-4, overrides Rule 2's fixed top-2 — see doc) | Planning | 0% | Off-chain only | `Games/G02-Ludo.md` | 2026-08-24 |
+| 03 | Mine Catcher | `mine-catcher` | Pooled | 1v1 | Planning | 0% | Off-chain only | `Games/G03-Mine-Catcher.md` | 2026-08-24 |
 
 **Game 01 is fully specified.** Its own open questions are all closed; what remains is inherited — Rule 4 needs a schema and a reserved-balance field before it can be built. See its *Inherited* section.
 
-**Next free number: 02.**
+**Game 02 (Ludo) is now fully specified.** Its two upstream dependencies — a Rule 2 override for its scaling payout, and a Rule 4 multiplayer lobby-fill extension — were applied to `10-Game-Common-Rules.md` on 2026-08-24. What remains is inherited schema debt (Rule 4 has no lobby schema at all yet, and Rule 2 doesn't record seat count) — see its *Inherited* section.
+
+**Game 03 (Mine Catcher) is fully specified.** Its one dependency on the shared rules — a Free Bet 1v1 minimum stake — was already adopted into Rule 3 upstream on 2026-08-19. Its remaining open questions (the dual-unreachable settlement mechanism, and whether it makes a provably-fair claim) are game-owned, not inherited.
+
+**Next free number: 04.**
 
 **Status values:** `Not Started` → `Planning` → `In Progress` → `Testing` → `Complete`
 
@@ -60,5 +66,7 @@ Note that **Rule 4 (Random Play / Friends Play) currently covers 1v1 games only.
 - `00-Overview.md` — project overview and reading order
 
 ## Last Updated
+2026-08-24 — **Ludo's two upstream amendments applied to `10-Game-Common-Rules.md`**: Rule 2 gained a documented exception for Ludo's seat-count-scaled payout, and Rule 4 gained a multiplayer full-lobby-fill extension (generalised beyond Ludo, for any future 3+ seat game). Game 02 is now fully specified; `Games/G02-Ludo.md` updated to link to the live rules instead of quoting proposed text.
+2026-08-24 — Games 02 (Ludo) and 03 (Mine Catcher) added, restructured from unstructured drafts in `game_ideas/` onto the standard template. Mine Catcher's one shared-rule dependency was already resolved upstream; Ludo still needs a Rule 2 override and a Rule 4 multiplayer extension, both written as paste-ready text in its doc.
 2026-08-19 — Game 01 spec completed: every game-owned open question closed. Three amendments pushed up into `10-Game-Common-Rules.md` along the way — Rematch as a third Rule 4 discovery path, a minimum stake for Free Bet 1v1 under Rule 3, and stake reservation before the escrow lock.
 2026-08-19 — Numbering scheme introduced (`Games/GNN-<Game-Name>.md`); Coin Flip registered as Game 01; template and add-a-game checklist added.

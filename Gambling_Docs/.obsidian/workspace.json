@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Games/G01-Coin-Flip.md",
+                "file": "Games/G03-Mine-Catcher.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "G01-Coin-Flip"
+              "title": "G03-Mine-Catcher"
             }
           }
         ]
@@ -83,7 +83,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "right": {
     "id": "27602229f5206781",
@@ -190,10 +191,11 @@
   },
   "active": "97e9fcc09133c447",
   "lastOpenFiles": [
+    "Games/G02-Ludo.md",
+    "Games/G01-Coin-Flip.md",
+    "08-Solana-Setup-Guide.md",
     "10-Game-Common-Rules.md",
     "09-Referral-Program.md",
-    "08-Solana-Setup-Guide.md",
-    "Games/G01-Coin-Flip.md",
     "03-Escrow.md",
     "02-Deposit-Withdraw.md",
     "01-Auth-Wallet-Connect.md",
