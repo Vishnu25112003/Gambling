@@ -112,7 +112,7 @@ function InviteLinkCard({ link, code, rate }: { link: string; code: string; rate
   };
 
   const share = (url: string) => window.open(url, '_blank', 'noopener,noreferrer');
-  const pitch = `Play on GamblingHub with me — provably fair games on Solana.`;
+  const pitch = `Play on Infinit Respawn with me — provably fair games on Solana.`;
 
   return (
     <div className="rounded-[20px] border border-green-solid/[0.22] bg-[linear-gradient(135deg,rgba(34,197,94,0.14),transparent)] p-6">

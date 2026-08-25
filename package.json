@@ -1,9 +1,9 @@
 {
-  "name": "gambling-hub",
+  "name": "infinit-respawn",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Gambling Hub \u2014 shared wallet/auth/escrow layer with pluggable game modules (Solana Devnet)",
+  "description": "Infinit Respawn \u2014 shared wallet/auth/escrow layer with pluggable game modules (Solana Devnet)",
   "workspaces": [
     "backend",
     "frontend"

@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { tokenStore } from '../../api/client';
 import { walletApi } from '../../api/endpoints';
 import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
+import { GameShell } from '../../components/shared/GameShell';
 import { formatSol } from '../../lib/format';
 
 /**
@@ -30,6 +31,19 @@ const CF = {
 } as const;
 
 const ROUND_OPTIONS = [3, 5, 7, 9, 11, 13, 15] as const;
+
+// Mirrors backend/src/games/coin-flip/engine.ts SPIN_TIMEOUT_MS / CALL_TIMEOUT_MS —
+// the two 10s action timers are deliberately symmetric (see G01-Coin-Flip.md).
+const SPIN_TIMEOUT_MS = 10_000;
+const CALL_TIMEOUT_MS = 10_000;
+
+/**
+ * Round phase, driven by the same server events as the round record itself:
+ * ROUND_START -> pre_spin (spinner has SPIN_TIMEOUT_MS to act)
+ * SPIN_STARTED -> spinning (caller has CALL_TIMEOUT_MS to call)
+ * CALL_MADE -> revealing (server reveals ~2s later, no player action left)
+ */
+type RoundPhase = 'pre_spin' | 'spinning' | 'revealing';
 
 type Page =
   | 'lobby'
@@ -78,6 +92,14 @@ interface MatchResult {
 }
 
 export function CoinFlipBoard() {
+  return (
+    <GameShell title="Coin Flip">
+      <CoinFlipBoardInner />
+    </GameShell>
+  );
+}
+
+function CoinFlipBoardInner() {
   const { user } = useAuth();
 
   // --- Socket ---
@@ -107,10 +129,11 @@ export function CoinFlipBoard() {
 
   // --- Live game ---
   const [myId, setMyId] = useState<string | null>(user?.id ?? null);
-  const [opponentName] = useState<string | null>(null);
+  const [opponentName, setOpponentName] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<'spinner' | 'caller' | null>(null);
   const [roundNumber, setRoundNumber] = useState(0);
   const [totalRounds, setTotalRounds] = useState(0);
+  const [roundPhase, setRoundPhase] = useState<RoundPhase>('pre_spin');
   const [scores, setScores] = useState<Record<string, number>>({});
   const [timeLeft, setTimeLeft] = useState(0);
   const [lastResult, setLastResult] = useState<RoundResult | null>(null);
@@ -172,7 +195,17 @@ export function CoinFlipBoard() {
       }
     });
 
-    s.on(CF.MATCH_STATE, (data: { state?: { totalRounds?: number }; message?: string }) => {
+    s.on(CF.MATCH_STATE, (data: {
+      state?: { totalRounds?: number };
+      message?: string;
+      totalRounds?: number;
+      players?: { id: string; displayName?: string | null }[];
+    }) => {
+      // Sent both on the initial join (carries `players` + `totalRounds`
+      // at the top level) and on reconnect (carries `state` + `message`).
+      const opponent = data.players?.find((p) => p.id !== user.id);
+      if (opponent) setOpponentName(opponent.displayName ?? 'Opponent');
+      if (data.totalRounds) setTotalRounds(data.totalRounds);
       if (data.state?.totalRounds) setTotalRounds(data.state.totalRounds);
       if (data.message?.includes('Waiting')) setPage('waiting');
     });
@@ -181,17 +214,27 @@ export function CoinFlipBoard() {
       setRoundNumber(data.roundNumber);
       setTotalRounds(data.totalRounds);
       setMyRole(data.spinnerId === user.id ? 'spinner' : 'caller');
+      setRoundPhase('pre_spin');
+      setLastResult(null);
       setPage('live');
+      // The spinner has SPIN_TIMEOUT_MS to act — both seats see it count down.
+      startTimer(SPIN_TIMEOUT_MS);
     });
 
     s.on(CF.COMMIT_HASH, () => {});
 
     s.on(CF.SPIN_STARTED, () => {
-      startTimer(10_000);
+      setRoundPhase('spinning');
+      // The caller has CALL_TIMEOUT_MS to call heads/tails.
+      startTimer(CALL_TIMEOUT_MS);
     });
 
     s.on(CF.CALL_MADE, () => {
-      startTimer(10_000);
+      // The call is in; the server reveals in ~2s. Nobody is waiting on a
+      // clock here, so this is a short "revealing" beat, not a fresh countdown.
+      setRoundPhase('revealing');
+      clearTimer();
+      setTimeLeft(0);
     });
 
     s.on(CF.ROUND_RESULT, (data: RoundResult) => {
@@ -286,6 +329,8 @@ export function CoinFlipBoard() {
     setScores({});
     setRoundNumber(0);
     setMyRole(null);
+    setRoundPhase('pre_spin');
+    setOpponentName(null);
     setRoomCode(null);
     setError(null);
     // Reconnect
@@ -672,7 +717,7 @@ export function CoinFlipBoard() {
               <p className="text-2xl font-bold">{scores[myId ?? ''] ?? 0}</p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-muted">{opponentName}</p>
+              <p className="text-xs text-muted">{opponentName ?? 'Opponent'}</p>
               <p className="text-2xl font-bold">{scores[Object.keys(scores).find((k) => k !== myId) ?? ''] ?? 0}</p>
             </div>
           </div>
@@ -703,13 +748,23 @@ export function CoinFlipBoard() {
   // --- Live game board ---
   const timerColor = timeLeft <= 3 ? 'text-red' : timeLeft <= 5 ? 'text-gold' : 'text-green';
 
+  const opponentLabel = opponentName ?? 'your opponent';
+
   return (
     <>
       <PageTitle
         title={`Coin Flip — Round ${roundNumber}/${totalRounds}`}
-        subtitle={myRole === 'spinner' ? 'You spin — your opponent calls.' : 'Your opponent spins — you call.'}
+        subtitle={myRole === 'spinner' ? `You spin — ${opponentLabel} calls.` : `${opponentLabel} spins — you call.`}
       />
       <div className="mx-auto max-w-lg">
+        {roundNumber === 1 && !lastResult && (
+          <div className="mb-4 rounded-[12px] border border-green-solid/30 bg-green-solid/10 px-4 py-3 text-center">
+            <p className="text-sm font-bold text-green">
+              🎉 Match started — {myRole === 'spinner' ? 'you spin' : `${opponentLabel} spins`} first!
+            </p>
+          </div>
+        )}
+
         <Card className="mb-4 px-5 py-3">
           <div className="flex items-center justify-between">
             <div className="text-center">
@@ -721,37 +776,49 @@ export function CoinFlipBoard() {
               <p className="text-lg font-bold">{roundNumber}/{totalRounds}</p>
             </div>
             <div className="text-center">
-              <p className="text-[11px] text-muted">{opponentName}</p>
+              <p className="text-[11px] text-muted">{opponentName ?? 'Opponent'}</p>
               <p className="text-xl font-bold">{scores[Object.keys(scores).find((k) => k !== myId) ?? ''] ?? 0}</p>
             </div>
           </div>
         </Card>
 
         <Card className="mb-4 flex flex-col items-center px-6 py-8">
-          {page === 'live' && !lastResult && (
+          {!lastResult && roundPhase === 'pre_spin' && (
             <>
               <span className="mb-2 text-5xl">🪙</span>
-              <p className="text-sm text-muted">Round {roundNumber} — get ready.</p>
-              {myRole === 'spinner' && (
-                <Button variant="primary" className="mt-4" onClick={handleSpin}>Spin Coin</Button>
+              {myRole === 'spinner' ? (
+                <>
+                  <p className="text-sm text-muted">Your turn to spin.</p>
+                  <Button variant="primary" className="mt-4" onClick={handleSpin}>Spin Coin</Button>
+                </>
+              ) : (
+                <p className="text-sm text-muted">Waiting for {opponentLabel} to spin…</p>
               )}
-              {myRole === 'caller' && (
-                <p className="mt-2 text-xs text-faint">Waiting for your opponent to spin…</p>
-              )}
+              <p className={`mt-3 text-2xl font-extrabold ${timerColor}`}>{timeLeft}s</p>
             </>
           )}
 
-          {timeLeft > 0 && !lastResult && (
+          {!lastResult && roundPhase === 'spinning' && (
             <>
               <span className="mb-2 animate-spin text-5xl">🪙</span>
               <p className="text-sm font-bold text-gold">Spinning…</p>
               <p className={`mt-1 text-2xl font-extrabold ${timerColor}`}>{timeLeft}s</p>
-              {myRole === 'caller' && timeLeft > 0 && page === 'live' && (
+              {myRole === 'caller' ? (
                 <div className="mt-4 flex gap-3">
                   <Button variant="solid" size="lg" className="flex-1" onClick={() => handleCall('heads')}>Heads</Button>
                   <Button variant="secondary" size="lg" className="flex-1" onClick={() => handleCall('tails')}>Tails</Button>
                 </div>
+              ) : (
+                <p className="mt-2 text-xs text-faint">Waiting for {opponentLabel} to call…</p>
               )}
+            </>
+          )}
+
+          {!lastResult && roundPhase === 'revealing' && (
+            <>
+              <span className="mb-2 text-5xl">🪙</span>
+              <p className="mb-2 text-sm font-bold text-gold">Revealing…</p>
+              <Spinner className="size-5" />
             </>
           )}
 

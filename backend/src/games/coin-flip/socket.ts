@@ -21,6 +21,7 @@ import {
   revealSeatDraw,
   startSpin,
   resolveCall,
+  resolveSpinTimeout,
   advanceRound,
   SPIN_TIMEOUT_MS,
   CALL_TIMEOUT_MS,
@@ -175,15 +176,8 @@ function startSpinTimer(match: ActiveMatch, spinnerId: string): void {
     // Spinner timed out — auto-forfeit round to caller
     log.info('spin timeout', { matchId: match.matchId, spinnerId });
     const callerId = getOtherPlayer(match, spinnerId);
-    const result = match.state.currentResult!;
 
-    const { state: newState, record } = resolveCall(
-      match.state,
-      null, // no call (spinner didn't even start)
-      result,
-      spinnerId,
-      callerId,
-    );
+    const { state: newState, record } = resolveSpinTimeout(match.state, spinnerId, callerId);
 
     match.state = newState;
     match.roundRecords.push(record);
@@ -192,7 +186,7 @@ function startSpinTimer(match: ActiveMatch, spinnerId: string): void {
       roundNumber: record.roundNumber,
       winnerId: callerId,
       cause: 'no_spin',
-      result,
+      result: record.result,
       call: null,
       scores: match.state.scores,
     });
