@@ -9,6 +9,6 @@ export const ludoManifest: GameManifest = {
   mode: 'pooled',
   minPlayers: 2,
   maxPlayers: 4,
-  status: 'coming-soon',
+  status: 'live',
   icon: '🎲',
 };
