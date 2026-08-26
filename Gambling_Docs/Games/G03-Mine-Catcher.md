@@ -18,7 +18,7 @@ Two players each secretly place 10 mines on their own grid. Once both are ready,
 
 ## Status
 - **Phase:** Devnet/testnet
-- **% Complete:** 0% — designed, not yet coded
+- **% Complete:** 100% — fully implemented
 - **Contract Status:** Off-chain only — uses the shared escrow layer
 - **Inherits:** Rules 1, 3 and 4 of `../10-Game-Common-Rules.md` unchanged — including the Free Bet 1v1 minimum-stake floor, adopted upstream 2026-08-19, which is exactly what this game originally needed. **Overrides the generic disconnect rule** with its own 3-lives system (see Reference) — the only redefinition this file makes.
 
@@ -97,27 +97,27 @@ behaviour **only** from the escrow adapter.
 
 ## Implementation Plan (TODO)
 ```
-[ ] Build match setup flow
+[x] Build match setup flow
     - Board size selector (25/49/81/100), mines always fixed at 10
     - Bet mode selector (Rule 3) -- Fixed: exact amount input; Free: minimum
       stake input, reusing the shared Rule 3 component
     - Discovery is NOT built here -- Random/Friends/Rematch is hub-level
       (Rule 4). This game only consumes whatever match the lobby hands it.
 
-[ ] Build mine placement phase
+[x] Build mine placement phase
     - Render player's own board, let them tap to place/unplace up to 10 mines
     - 30-second countdown, Ready button
     - On timeout: auto-randomly place any remaining unplaced mines, force-ready
       that player
 
-[ ] Build attack phase turn engine
+[x] Build attack phase turn engine
     - Randomly select starting player once both are ready
     - Render opponent's board (hide own board during this phase)
     - 15-second turn timer per click
     - Resolve click: empty = break, mine = blast + increment found-mine count
     - Alternate turn to the other player after each resolution
 
-[ ] Build lives system
+[x] Build lives system
     - Track 3 lives per player for the match
     - Turn-timeout OR failed disconnect-reconnect (15 sec) -> decrement 1 life
     - 0 lives remaining -> trigger match forfeit to opponent
@@ -128,18 +128,18 @@ behaviour **only** from the escrow adapter.
         - If no: proceed with normal forfeit resolution, settleMatch() pays
           the opponent
 
-[ ] Build race-end detection
+[x] Build race-end detection
     - After every successful blast, check if that player has now found all 10
       opponent mines
     - If yes: end match immediately, declare that player the winner, ignore
       remaining state
 
-[ ] Build match settlement
+[x] Build match settlement
     - Call settleMatch() with the winner, or route to the platform-retained
       path for the dual-unreachable case
     - Update both players' win/loss/earnings history and break-count stat
 
-[ ] Build the result screen
+[x] Build the result screen
     - Winner, found-mine counts, payout breakdown (stake, pot, 5% fee, net)
     - Break-count shown as a stat only -- never a deciding factor
     - No "leaderboard" -- a 1v1 match has nothing to rank
@@ -186,4 +186,5 @@ behaviour **only** from the escrow adapter.
 - `../03-Escrow.md` — the functions this game calls instead of touching balances
 
 ## Last Updated
+2026-08-26 — Full implementation complete. All 7 TODO items marked done: match setup (board size/bet mode/stake wizard), mine placement phase (30s timer, auto-random on timeout), attack phase turn engine (15s timer, break/blast resolution, turn alternation), 3-lives system (turn-timeout + disconnect decrements, dual-unreachable platform-retains-pot), race-end detection (instant win on 10th mine found), match settlement (settleMatch + dual-unreachable path), result screen (scoreboard, payout breakdown, rematch suppressed on forfeit/dual-unreachable). Registered in backend registry, route added in App.tsx.
 2026-08-24 — Restructured onto the standard game template and numbered as Game 03, from the original unstructured `game_ideas/Game-MineCatcher.md`. Noted that the Rule 3 minimum-stake dependency this game originally needed was already adopted upstream on 2026-08-19, closing that inherited gap. No content changes to the designed flow itself.

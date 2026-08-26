@@ -1,0 +1,620 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { io, type Socket } from 'socket.io-client';
+import { useAuth } from '../../hooks/useAuth';
+import { tokenStore } from '../../api/client';
+import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
+import { GameShell } from '../../components/shared/GameShell';
+import { formatSol } from '../../lib/format';
+import { MineCatcherSetup } from './MineCatcherSetup';
+import { MinePlacementBoard } from './MinePlacementBoard';
+import { MineAttackBoard } from './MineAttackBoard';
+import { MineCatcherResult } from './MineCatcherResult';
+
+/**
+ * Mirror of backend MC_EVENTS — keep in sync with backend/src/games/mine-catcher/types.ts
+ */
+const MC = {
+  CREATE_MATCH: 'mc:create',
+  JOIN_MATCH: 'mc:join',
+  LIST_MATCHES: 'mc:list',
+  PLACE_MINES: 'mc:place',
+  READY_UP: 'mc:ready',
+  ATTACK_CELL: 'mc:attack',
+  REMATCH_REQUEST: 'mc:rematch:request',
+  MATCH_STATE: 'mc:state',
+  MATCH_CREATED: 'mc:created',
+  MATCHES_LIST: 'mc:matches',
+  PLACEMENT_STARTED: 'mc:placement:started',
+  MINES_PLACED: 'mc:mines:placed',
+  PLAYER_READY: 'mc:player:ready',
+  ATTACK_STARTED: 'mc:attack:started',
+  ATTACK_RESULT: 'mc:attack:result',
+  TURN_START: 'mc:turn:start',
+  MATCH_RESULT: 'mc:match:result',
+  LIVES_UPDATE: 'mc:lives:update',
+  TIMER_TICK: 'mc:timer:tick',
+  OPPONENT_DISCONNECTED: 'mc:opponent:disconnect',
+  OPPONENT_RECONNECTED: 'mc:opponent:reconnect',
+  ERROR: 'mc:error',
+} as const;
+
+const BASE = import.meta.env.VITE_API_URL || '';
+
+type Page =
+  | 'lobby'
+  | 'create'
+  | 'waiting'
+  | 'waiting_friends'
+  | 'join_code'
+  | 'placement'
+  | 'attacking'
+  | 'match_result'
+  | 'error';
+
+type CellState = 'hidden' | 'break' | 'blast';
+type DiscoveryMode = 'random' | 'friends';
+type BoardSize = 25 | 49 | 81 | 100;
+
+interface ListedMatch {
+  matchId: string;
+  hostName: string;
+  stake: string;
+  boardSize: number;
+  betMode: string;
+  minBet: string | null;
+}
+
+interface PlayerInfo {
+  id: string;
+  displayName?: string;
+}
+
+interface MatchResult {
+  winnerId: string | null;
+  foundCounts: Record<string, number>;
+  breakCounts: Record<string, number>;
+  lives: Record<string, number>;
+  endCause: string | null;
+  pot: string | null;
+  feeCollected: string | null;
+  payouts: { userId: string; payout: string }[];
+}
+
+export function MineCatcherBoard() {
+  const { user } = useAuth();
+  const socketRef = useRef<Socket | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [page, setPage] = useState<Page>('lobby');
+  const [error, setError] = useState<string>('');
+  const [listedMatches, setListedMatches] = useState<ListedMatch[]>([]);
+
+  // Match state
+  const [matchId, setMatchId] = useState<string>('');
+  const [roomCode, setRoomCode] = useState<string>('');
+  const [players, setPlayers] = useState<PlayerInfo[]>([]);
+  const [boardSize, setBoardSize] = useState<BoardSize>(25);
+  const [stake, setStake] = useState<number>(0);
+
+  // Placement state
+  const [placementTimeLeft, setPlacementTimeLeft] = useState(30);
+  const [myReady, setMyReady] = useState(false);
+  const [opponentReady, setOpponentReady] = useState(false);
+
+  // Attack state
+  const [opponentCells, setOpponentCells] = useState<CellState[]>([]);
+  const [currentAttacker, setCurrentAttacker] = useState<string | null>(null);
+  const [turnTimeLeft, setTurnTimeLeft] = useState(15);
+  const [myFoundCount, setMyFoundCount] = useState(0);
+  const [opponentFoundCount, setOpponentFoundCount] = useState(0);
+  const [myBreakCount, setMyBreakCount] = useState(0);
+  const [myLives, setMyLives] = useState(3);
+  const [opponentLives, setOpponentLives] = useState(3);
+  const [lastAttack, setLastAttack] = useState<{ cellIndex: number; type: 'break' | 'blast' } | null>(null);
+
+  // Result state
+  const [result, setResult] = useState<MatchResult | null>(null);
+  const [rematchAvailable, setRematchAvailable] = useState(false);
+
+  const myId = user?.id ?? '';
+  const opponentId = players.find((p) => p.id !== myId)?.id ?? '';
+
+  // Socket connection
+  useEffect(() => {
+    const token = tokenStore.get();
+    if (!token) return;
+
+    const socket = io(BASE, { auth: { token }, transports: ['websocket'] });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      socket.emit(MC.LIST_MATCHES);
+    });
+
+    socket.on(MC.MATCHES_LIST, (data: { matches: ListedMatch[] }) => {
+      setListedMatches(data.matches);
+    });
+
+    socket.on(MC.MATCH_CREATED, (data: { matchId: string; roomCode?: string }) => {
+      setMatchId(data.matchId);
+      if (data.roomCode) {
+        setRoomCode(data.roomCode);
+        setPage('waiting_friends');
+      } else {
+        setPage('waiting');
+      }
+    });
+
+    socket.on(MC.MATCH_STATE, (data: {
+      matchId?: string;
+      players?: PlayerInfo[];
+      boardSize?: number;
+      stake?: number;
+      state?: {
+        phase: string;
+        currentAttacker: string | null;
+        boards: Record<string, { mines: number[]; revealed: CellState[]; foundCount: number }>;
+        foundCounts: Record<string, number>;
+        breakCounts: Record<string, number>;
+        lives: Record<string, number>;
+        turnStartedAt: number | null;
+        readyPlayers: string[];
+      };
+      message?: string;
+    }) => {
+      if (data.matchId) setMatchId(data.matchId);
+      if (data.players) setPlayers(data.players);
+      if (data.boardSize) setBoardSize(data.boardSize as BoardSize);
+      if (data.stake) setStake(data.stake);
+
+      if (data.state) {
+        const myBoard = data.state.boards[myId];
+        if (myBoard) {
+          setOpponentCells(myBoard.revealed);
+          setMyFoundCount(data.state.foundCounts[myId] ?? 0);
+          setMyBreakCount(data.state.breakCounts[myId] ?? 0);
+        }
+        const oppBoard = data.state.boards[opponentId];
+        if (oppBoard) {
+          setOpponentFoundCount(data.state.foundCounts[opponentId] ?? 0);
+        }
+        setMyLives(data.state.lives[myId] ?? 3);
+        setOpponentLives(data.state.lives[opponentId] ?? 3);
+        setCurrentAttacker(data.state.currentAttacker);
+        setMyReady(data.state.readyPlayers.includes(myId));
+        setOpponentReady(data.state.readyPlayers.includes(opponentId));
+
+        if (data.state.phase === 'attacking') {
+          setPage('attacking');
+          if (data.state.turnStartedAt) {
+            const elapsed = Math.floor((Date.now() - data.state.turnStartedAt) / 1000);
+            setTurnTimeLeft(Math.max(0, 15 - elapsed));
+          }
+        } else if (data.state.phase === 'placement') {
+          setPage('placement');
+        }
+      }
+    });
+
+    socket.on(MC.PLACEMENT_STARTED, (data: {
+      boardSize: number;
+      totalMines: number;
+      placementTimeout: number;
+      placementStartedAt: number;
+    }) => {
+      setPage('placement');
+      setBoardSize(data.boardSize as BoardSize);
+      const elapsed = Math.floor((Date.now() - data.placementStartedAt) / 1000);
+      setPlacementTimeLeft(Math.max(0, Math.floor(data.placementTimeout / 1000) - elapsed));
+    });
+
+    socket.on(MC.MINES_PLACED, (_data: { userId: string; mineCount: number }) => {
+      // Could show opponent's placement progress here
+    });
+
+    socket.on(MC.PLAYER_READY, (data: { userId: string }) => {
+      if (data.userId === myId) {
+        setMyReady(true);
+      } else {
+        setOpponentReady(true);
+      }
+    });
+
+    socket.on(MC.ATTACK_STARTED, (data: {
+      currentAttacker: string;
+      turnStartedAt: number;
+    }) => {
+      setPage('attacking');
+      setCurrentAttacker(data.currentAttacker);
+      const elapsed = Math.floor((Date.now() - data.turnStartedAt) / 1000);
+      setTurnTimeLeft(Math.max(0, 15 - elapsed));
+      setLastAttack(null);
+
+      // Initialize opponent cells as all hidden if not already set
+      setOpponentCells((prev) => {
+        if (prev.length === 0) {
+          const dims = boardSize === 25 ? 25 : boardSize === 49 ? 49 : boardSize === 81 ? 81 : 100;
+          return Array.from({ length: dims }, () => 'hidden' as CellState);
+        }
+        return prev;
+      });
+    });
+
+    socket.on(MC.ATTACK_RESULT, (data: {
+      attackerId: string;
+      cellIndex: number;
+      result: 'break' | 'blast';
+      foundCounts: Record<string, number>;
+      breakCounts: Record<string, number>;
+    }) => {
+      if (data.attackerId === myId) {
+        // I attacked — update opponent's board as I see it
+        setOpponentCells((prev) => {
+          const next = [...prev];
+          next[data.cellIndex] = data.result;
+          return next;
+        });
+        setMyFoundCount(data.foundCounts[myId] ?? 0);
+        setMyBreakCount(data.breakCounts[myId] ?? 0);
+      } else {
+        // Opponent attacked me — no update to opponentCells (my board is hidden from me)
+        setOpponentFoundCount(data.foundCounts[opponentId] ?? 0);
+      }
+      setLastAttack({ cellIndex: data.cellIndex, type: data.result });
+    });
+
+    socket.on(MC.TURN_START, (data: {
+      currentAttacker: string;
+      turnStartedAt: number;
+    }) => {
+      setCurrentAttacker(data.currentAttacker);
+      const elapsed = Math.floor((Date.now() - data.turnStartedAt) / 1000);
+      setTurnTimeLeft(Math.max(0, 15 - elapsed));
+    });
+
+    socket.on(MC.MATCH_RESULT, (data: MatchResult & { matchId?: string }) => {
+      setResult(data);
+      setPage('match_result');
+      setRematchAvailable(
+        data.winnerId !== null &&
+        data.endCause !== 'dual_unreachable' &&
+        data.endCause !== 'lives_forfeit',
+      );
+      clearTimer();
+    });
+
+    socket.on(MC.LIVES_UPDATE, (data: { userId: string; lives: number }) => {
+      if (data.userId === myId) {
+        setMyLives(data.lives);
+      } else {
+        setOpponentLives(data.lives);
+      }
+    });
+
+    socket.on(MC.OPPONENT_DISCONNECTED, (_data: { userId: string }) => {
+      // Could show a banner
+    });
+
+    socket.on(MC.OPPONENT_RECONNECTED, (_data: { userId: string }) => {
+      // Could hide the disconnect banner
+    });
+
+    socket.on(MC.ERROR, (data: { message: string }) => {
+      setError(data.message);
+      setTimeout(() => setError(''), 3000);
+    });
+
+    socket.on('disconnect', () => {
+      // Could show reconnection state
+    });
+
+    return () => {
+      clearTimer();
+      socket.disconnect();
+    };
+  }, [myId, opponentId, boardSize]);
+
+  // Timer for placement and turn countdowns
+  useEffect(() => {
+    if (page === 'placement' && !myReady) {
+      timerRef.current = setInterval(() => {
+        setPlacementTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearTimer();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else if (page === 'attacking' && currentAttacker === myId) {
+      timerRef.current = setInterval(() => {
+        setTurnTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearTimer();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      clearTimer();
+    }
+
+    return () => clearTimer();
+  }, [page, myReady, currentAttacker, myId]);
+
+  function clearTimer() {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }
+
+  const handleCreate = useCallback((settings: {
+    discovery: DiscoveryMode;
+    boardSize: BoardSize;
+    betMode: 'fixed' | 'free';
+    stake: number;
+  }) => {
+    socketRef.current?.emit(MC.CREATE_MATCH, {
+      boardSize: settings.boardSize,
+      betMode: settings.betMode,
+      stake: settings.stake,
+      discovery: settings.discovery,
+    });
+  }, []);
+
+  const handleJoin = useCallback((matchId: string) => {
+    socketRef.current?.emit(MC.JOIN_MATCH, { matchId });
+  }, []);
+
+  const handlePlace = useCallback((cells: number[]) => {
+    socketRef.current?.emit(MC.PLACE_MINES, { cells });
+  }, []);
+
+  const handleReady = useCallback(() => {
+    socketRef.current?.emit(MC.READY_UP);
+  }, []);
+
+  const handleAttack = useCallback((cellIndex: number) => {
+    socketRef.current?.emit(MC.ATTACK_CELL, { cellIndex });
+  }, []);
+
+  const handleRematch = useCallback(() => {
+    socketRef.current?.emit(MC.REMATCH_REQUEST, { matchId });
+  }, [matchId]);
+
+  const handleBackToGames = useCallback(() => {
+    window.location.href = '/dashboard/games';
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    socketRef.current?.emit(MC.LIST_MATCHES);
+  }, []);
+
+  // --- Render ---
+
+  if (page === 'lobby') {
+    return (
+      <GameShell title="Mine Catcher">
+        <PageTitle title="Mine Catcher" subtitle="1v1 mine-hiding race" />
+        {error && (
+          <div className="mx-auto mb-4 max-w-sm rounded-[10px] border border-red/30 bg-red/10 px-4 py-2 text-center text-xs text-red">
+            {error}
+          </div>
+        )}
+
+        <div className="mx-auto max-w-sm space-y-4">
+          <Button variant="primary" size="lg" className="w-full" onClick={() => setPage('create')}>
+            Create Match
+          </Button>
+
+          <Button variant="ghost" size="sm" className="w-full" onClick={() => setPage('join_code')}>
+            Join by Room Code
+          </Button>
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted">Random Play</p>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className="text-xs text-green hover:underline"
+            >
+              Refresh
+            </button>
+          </div>
+
+          {listedMatches.length === 0 && (
+            <Card className="px-4 py-8 text-center">
+              <p className="text-sm text-muted">No open matches. Create one!</p>
+            </Card>
+          )}
+
+          {listedMatches.map((m) => (
+            <Card key={m.matchId} className="flex items-center justify-between px-4 py-3">
+              <div>
+                <p className="text-sm font-bold">{m.hostName}</p>
+                <p className="text-xs text-muted">
+                  {m.boardSize === 25 ? '5×5' : m.boardSize === 49 ? '7×7' : m.boardSize === 81 ? '9×9' : '10×10'} · {formatSol(m.stake)} SOL
+                </p>
+              </div>
+              <Button variant="primary" size="sm" onClick={() => handleJoin(m.matchId)}>
+                Join
+              </Button>
+            </Card>
+          ))}
+        </div>
+      </GameShell>
+    );
+  }
+
+  if (page === 'create') {
+    return (
+      <GameShell title="Mine Catcher">
+        <MineCatcherSetup
+          balance={user?.availableBalance?.toString() ?? null}
+          onPublish={handleCreate}
+          onBack={() => setPage('lobby')}
+        />
+      </GameShell>
+    );
+  }
+
+  if (page === 'waiting' || page === 'waiting_friends') {
+    return (
+      <GameShell title="Mine Catcher">
+        <PageTitle
+          title="Mine Catcher"
+          subtitle={page === 'waiting_friends' ? 'Share room code with your friend' : 'Waiting for opponent...'}
+        />
+        <Card className="mx-auto max-w-sm px-6 py-8 text-center">
+          {page === 'waiting_friends' && roomCode && (
+            <div className="mb-6">
+              <p className="mb-2 text-xs text-muted">Room Code</p>
+              <p className="rounded-[10px] border border-line bg-bg2 px-6 py-3 font-mono text-2xl font-bold tracking-widest text-green">
+                {roomCode}
+              </p>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard.writeText(roomCode)}
+                className="mt-2 text-xs text-green hover:underline"
+              >
+                Copy to clipboard
+              </button>
+            </div>
+          )}
+          <Spinner className="mx-auto" />
+          <p className="mt-4 text-sm text-muted">Waiting for an opponent to join...</p>
+          <p className="mt-1 text-xs text-faint">
+            {boardSize === 25 ? '5×5' : boardSize === 49 ? '7×7' : boardSize === 81 ? '9×9' : '10×10'} · {formatSol(String(stake))} SOL
+          </p>
+        </Card>
+      </GameShell>
+    );
+  }
+
+  if (page === 'join_code') {
+    return (
+      <GameShell title="Mine Catcher">
+        <PageTitle title="Join Match" subtitle="Enter a room code" />
+        <Card className="mx-auto max-w-sm px-6 py-6">
+          <JoinByCode socket={socketRef.current} onError={setError} />
+          <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={() => setPage('lobby')}>
+            Back
+          </Button>
+        </Card>
+      </GameShell>
+    );
+  }
+
+  if (page === 'placement') {
+    return (
+      <GameShell title="Mine Catcher">
+        <PageTitle title="Mine Catcher" subtitle="Hide your mines!" />
+        {error && (
+          <div className="mx-auto mb-4 max-w-sm rounded-[10px] border border-red/30 bg-red/10 px-4 py-2 text-center text-xs text-red">
+            {error}
+          </div>
+        )}
+        <MinePlacementBoard
+          boardSize={boardSize}
+          totalMines={10}
+          placementTimeLeft={placementTimeLeft}
+          onPlace={handlePlace}
+          onReady={handleReady}
+          isReady={myReady}
+          opponentReady={opponentReady}
+        />
+      </GameShell>
+    );
+  }
+
+  if (page === 'attacking') {
+    return (
+      <GameShell title="Mine Catcher">
+        <PageTitle title="Mine Catcher" subtitle="Find the opponent's mines!" />
+        {error && (
+          <div className="mx-auto mb-4 max-w-sm rounded-[10px] border border-red/30 bg-red/10 px-4 py-2 text-center text-xs text-red">
+            {error}
+          </div>
+        )}
+        <MineAttackBoard
+          boardSize={boardSize}
+          myId={myId}
+          currentAttacker={currentAttacker}
+          opponentCells={opponentCells}
+          foundCount={myFoundCount}
+          breakCount={myBreakCount}
+          opponentFoundCount={opponentFoundCount}
+          turnTimeLeft={turnTimeLeft}
+          myLives={myLives}
+          opponentLives={opponentLives}
+          lastAttack={lastAttack}
+          onAttack={handleAttack}
+        />
+      </GameShell>
+    );
+  }
+
+  if (page === 'match_result' && result) {
+    return (
+      <GameShell title="Mine Catcher">
+        <PageTitle title="Mine Catcher" subtitle="Match Result" />
+        <MineCatcherResult
+          won={result.winnerId === myId}
+          myId={myId}
+          winnerId={result.winnerId}
+          foundCounts={result.foundCounts}
+          breakCounts={result.breakCounts}
+          lives={result.lives}
+          endCause={result.endCause}
+          pot={result.pot}
+          feeCollected={result.feeCollected}
+          payouts={result.payouts}
+          playerNames={Object.fromEntries(players.map((p) => [p.id, p.displayName ?? 'Player']))}
+          onRematch={rematchAvailable ? handleRematch : undefined}
+          onBackToGames={handleBackToGames}
+        />
+      </GameShell>
+    );
+  }
+
+  return (
+    <GameShell title="Mine Catcher">
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Spinner className="mx-auto" />
+      </div>
+    </GameShell>
+  );
+}
+
+// --- Join by code sub-component ---
+
+function JoinByCode({ socket, onError }: { socket: Socket | null; onError: (msg: string) => void }) {
+  const [code, setCode] = useState('');
+
+  const handleJoin = () => {
+    if (!code.trim()) {
+      onError('Enter a room code');
+      return;
+    }
+    socket?.emit(MC.JOIN_MATCH, { roomCode: code.trim() });
+  };
+
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-semibold text-muted">Room Code</label>
+      <input
+        type="text"
+        value={code}
+        onChange={(e) => setCode(e.target.value.toUpperCase())}
+        className="mb-3 w-full rounded-[9px] border border-line bg-bg2 px-3.5 py-[11px] text-center font-mono text-lg font-bold tracking-widest text-text uppercase placeholder:text-faint focus:border-green focus:outline-none"
+        placeholder="ABC123"
+        maxLength={6}
+      />
+      <Button variant="primary" size="lg" className="w-full" onClick={handleJoin}>
+        Join Match
+      </Button>
+    </div>
+  );
+}
