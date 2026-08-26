@@ -24,7 +24,7 @@ The `G` prefix keeps game numbers from being confused with the root doc numbers 
 |---|---|---|---|---|---|---|---|---|---|
 | 01 | Coin Flip | `coin-flip` | Pooled | 1v1 | Planning | 0% | Off-chain only | `Games/G01-Coin-Flip.md` | 2026-08-19 |
 | 02 | Ludo | `ludo` | Pooled | Multiplayer (2-4, overrides Rule 2's fixed top-2 — see doc) | In Progress | 100% | Off-chain only | `Games/G02-Ludo.md` | 2026-08-25 |
-| 03 | Mine Catcher | `mine-catcher` | Pooled | 1v1 | Planning | 0% | Off-chain only | `Games/G03-Mine-Catcher.md` | 2026-08-24 |
+| 03 | Mine Catcher | `mine-catcher` | Pooled | 1v1 | In Progress | 100% | Off-chain only | `Games/G03-Mine-Catcher.md` | 2026-08-26 |
 | 04 | Trumpcard | `trumpcard` | Pooled | Multiplayer (2-4, overrides Rule 2's fixed top-2 — see doc) | Planning | 0% | Off-chain only | `Games/G04-Trumpcard.md` | 2026-08-25 |
 | 05 | Hand Cricket | `hand-cricket` | Pooled | 1v1 | Planning | 0% | Off-chain only | `Games/G05-Hand-Cricket.md` | 2026-08-25 |
 
