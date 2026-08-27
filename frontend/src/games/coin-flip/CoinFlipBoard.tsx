@@ -5,6 +5,8 @@ import { tokenStore } from '../../api/client';
 import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
 import { formatSol } from '../../lib/format';
+import { CoinFlipLiveCard } from './CoinFlipLiveCard';
+import type { Coin3DHandle } from './Coin3D';
 
 /**
  * Mirror of backend CF_EVENTS — keep in sync with backend/src/games/coin-flip/types.ts
@@ -94,6 +96,17 @@ interface MatchResult {
   payouts: { userId: string; payout: string }[];
 }
 
+/** Mirrors the fields of backend CoinFlipState (types.ts) this UI needs to restore after a reconnect. */
+interface CoinFlipReconnectState {
+  totalRounds: number;
+  currentRound: number;
+  scores: Record<string, number>;
+  seats: Record<string, 'spinner' | 'caller'>;
+  phase: 'seat_draw' | 'waiting_spin' | 'waiting_call' | 'revealing' | 'round_over' | 'match_over';
+  spinStartedAt: number | null;
+  callStartedAt: number | null;
+}
+
 export function CoinFlipBoard() {
   return (
     <GameShell title="Coin Flip">
@@ -142,6 +155,14 @@ function CoinFlipBoardInner() {
 
   // --- Live game ---
   const [myId, setMyId] = useState<string | null>(user?.id ?? null);
+  const [matchId, setMatchId] = useState<string | null>(null);
+  // Mirrored into a ref so the 'connect' handler below — registered once,
+  // when the socket effect first runs — can read the *current* matchId on a
+  // later reconnect instead of closing over the null it started with.
+  const matchIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    matchIdRef.current = matchId;
+  }, [matchId]);
   const [opponentName, setOpponentName] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<'spinner' | 'caller' | null>(null);
   const [roundNumber, setRoundNumber] = useState(0);
@@ -156,6 +177,10 @@ function CoinFlipBoardInner() {
   // --- Rematch (Rule 4's third discovery path — same opponent, same
   // settings, both confirm) ---
   const [rematchStatus, setRematchStatus] = useState<'idle' | 'waiting' | 'offered'>('idle');
+
+  // Driven directly from SPIN_STARTED / ROUND_RESULT below — the 3D coin's
+  // own spin/land animation has no state of its own in this component.
+  const coinRef = useRef<Coin3DHandle>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -197,6 +222,20 @@ function CoinFlipBoardInner() {
       setMyId(user.id);
       // Load available matches
       s.emit(CF.LIST_MATCHES, { gameType: 'coin-flip' });
+
+      // A reconnect (network blip, backgrounded tab, socket.io's own ping
+      // timeout) drops this socket and opens a brand new one with a new
+      // socket.id — the server's per-match socketIds map (used to target
+      // every broadcast, see backend socket.ts's broadcastToMatch) still
+      // points at the dead one. If we were mid-match when that happened,
+      // rejoin with the known matchId so the server updates that mapping
+      // and replies with a fresh snapshot — otherwise every event for the
+      // rest of the match silently goes nowhere and the screen just never
+      // updates again. No-op on the very first connect (matchIdRef is null
+      // until a match actually starts).
+      if (matchIdRef.current) {
+        s.emit(CF.JOIN_MATCH, { matchId: matchIdRef.current });
+      }
     });
 
     s.on(CF.MATCHES_LIST, (data: { matches: ListedMatch[] }) => {
@@ -204,6 +243,14 @@ function CoinFlipBoardInner() {
     });
 
     s.on(CF.MATCH_CREATED, (data: { matchId: string; roomCode?: string }) => {
+      // Deliberately doesn't set matchId here — the match doesn't exist in
+      // the server's ActiveMatch map until a second player joins (see
+      // beginMatch in socket.ts), only in the pre-match public listing. If
+      // matchIdRef pointed at it and this socket reconnected while still
+      // waiting for a friend, the 'connect' handler's rejoin below would
+      // hit JOIN_MATCH's "already in this match" branch and bounce us to
+      // an error page. matchId is set once the match actually begins,
+      // below in MATCH_STATE's `data.players` branch.
       if (data.roomCode) {
         setRoomCode(data.roomCode);
         setPage('waiting_friends');
@@ -213,17 +260,46 @@ function CoinFlipBoardInner() {
     });
 
     s.on(CF.MATCH_STATE, (data: {
-      state?: { totalRounds?: number };
+      matchId?: string;
+      state?: CoinFlipReconnectState;
       message?: string;
       totalRounds?: number;
       players?: { id: string; displayName?: string | null }[];
     }) => {
-      // Sent both on the initial join (carries `players` + `totalRounds`
-      // at the top level) and on reconnect (carries `state` + `message`).
+      if (data.matchId) setMatchId(data.matchId);
+
+      // Reconnect snapshot: the server resends the live state wholesale
+      // instead of relying on the events we missed while disconnected.
+      if (data.state && data.message?.includes('Reconnected')) {
+        const state = data.state;
+        setRoundNumber(state.currentRound);
+        setTotalRounds(state.totalRounds);
+        setScores(state.scores);
+        setMyRole(state.seats[user.id] === 'spinner' ? 'spinner' : 'caller');
+        setRoundPhase(
+          state.phase === 'waiting_call'
+            ? 'spinning'
+            : state.phase === 'revealing' || state.phase === 'round_over'
+              ? 'revealing'
+              : 'pre_spin',
+        );
+        setPage('live');
+
+        if (state.phase === 'waiting_spin' && state.spinStartedAt) {
+          startTimer(Math.max(0, SPIN_TIMEOUT_MS - (Date.now() - state.spinStartedAt)));
+        } else if (state.phase === 'waiting_call' && state.callStartedAt) {
+          startTimer(Math.max(0, CALL_TIMEOUT_MS - (Date.now() - state.callStartedAt)));
+        } else {
+          clearTimer();
+        }
+        return;
+      }
+
+      // Sent on the initial join — carries `players` + `totalRounds` at the
+      // top level.
       const opponent = data.players?.find((p) => p.id !== user.id);
       if (opponent) setOpponentName(opponent.displayName ?? 'Opponent');
       if (data.totalRounds) setTotalRounds(data.totalRounds);
-      if (data.state?.totalRounds) setTotalRounds(data.state.totalRounds);
       if (data.message?.includes('Waiting')) setPage('waiting');
     });
 
@@ -252,6 +328,9 @@ function CoinFlipBoardInner() {
       setRoundPhase('spinning');
       // The caller has CALL_TIMEOUT_MS to call heads/tails.
       startTimer(CALL_TIMEOUT_MS);
+      // Free-spin until ROUND_RESULT tells us the actual face — the result
+      // isn't known client-side before then (see the comment there).
+      coinRef.current?.setSpinning(true);
     });
 
     s.on(CF.CALL_MADE, () => {
@@ -260,12 +339,18 @@ function CoinFlipBoardInner() {
       setRoundPhase('revealing');
       clearTimer();
       setTimeLeft(0);
+      // Keep the coin spinning through the reveal delay — the caller's
+      // guess doesn't determine the coin's actual face, so there's nothing
+      // to land on yet.
     });
 
     s.on(CF.ROUND_RESULT, (data: RoundResult) => {
       clearTimer();
       setLastResult(data);
       setScores(data.scores);
+      // No result (e.g. the spinner never spun at all — "no_spin") means
+      // there's nothing to land on; otherwise land on the real face.
+      if (data.result) coinRef.current?.landOn(data.result);
     });
 
     s.on(CF.MATCH_RESULT, (data: MatchResult) => {
@@ -341,6 +426,9 @@ function CoinFlipBoardInner() {
   };
 
   const handleJoinRandom = (matchId: string) => {
+    // matchId is captured from the server's own MATCH_STATE broadcast once
+    // the match actually begins, not here — see the comment in the
+    // MATCH_CREATED handler above for why.
     emit(CF.JOIN_MATCH, { matchId });
   };
 
@@ -364,6 +452,7 @@ function CoinFlipBoardInner() {
     socketRef.current?.disconnect();
     socketRef.current = null;
     setPage('lobby');
+    setMatchId(null);
     setMatchResult(null);
     setLastResult(null);
     setScores({});
@@ -816,9 +905,8 @@ function CoinFlipBoardInner() {
   }
 
   // --- Live game board ---
-  const timerColor = timeLeft <= 3 ? 'text-red' : timeLeft <= 5 ? 'text-gold' : 'text-green';
-
   const opponentLabel = opponentName ?? 'your opponent';
+  const opponentId = Object.keys(scores).find((k) => k !== myId);
 
   return (
     <>
@@ -835,92 +923,22 @@ function CoinFlipBoardInner() {
           </div>
         )}
 
-        <Card className="mb-4 px-5 py-3">
-          <div className="flex items-center justify-between">
-            <div className="text-center">
-              <p className="text-[11px] text-muted">You</p>
-              <p className="text-xl font-bold">{scores[myId ?? ''] ?? 0}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-[11px] text-muted">Round</p>
-              <p className="text-lg font-bold">{roundNumber}/{totalRounds}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-[11px] text-muted">{opponentName ?? 'Opponent'}</p>
-              <p className="text-xl font-bold">{scores[Object.keys(scores).find((k) => k !== myId) ?? ''] ?? 0}</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="mb-4 flex flex-col items-center px-6 py-8">
-          {!lastResult && roundPhase === 'pre_spin' && (
-            <>
-              <span className="mb-2 text-5xl">🪙</span>
-              {myRole === 'spinner' ? (
-                <>
-                  <p className="text-sm text-muted">Your turn to spin.</p>
-                  <Button variant="primary" className="mt-4" onClick={handleSpin}>Spin Coin</Button>
-                </>
-              ) : (
-                <p className="text-sm text-muted">Waiting for {opponentLabel} to spin…</p>
-              )}
-              <p className={`mt-3 text-2xl font-extrabold ${timerColor}`}>{timeLeft}s</p>
-            </>
-          )}
-
-          {!lastResult && roundPhase === 'spinning' && (
-            <>
-              <span className="mb-2 animate-spin text-5xl">🪙</span>
-              <p className="text-sm font-bold text-gold">Spinning…</p>
-              <p className={`mt-1 text-2xl font-extrabold ${timerColor}`}>{timeLeft}s</p>
-              {myRole === 'caller' ? (
-                <div className="mt-4 flex gap-3">
-                  <Button variant="solid" size="lg" className="flex-1" onClick={() => handleCall('heads')}>Heads</Button>
-                  <Button variant="secondary" size="lg" className="flex-1" onClick={() => handleCall('tails')}>Tails</Button>
-                </div>
-              ) : (
-                <p className="mt-2 text-xs text-faint">Waiting for {opponentLabel} to call…</p>
-              )}
-            </>
-          )}
-
-          {!lastResult && roundPhase === 'revealing' && (
-            <>
-              <span className="mb-2 text-5xl">🪙</span>
-              <p className="mb-2 text-sm font-bold text-gold">Revealing…</p>
-              <Spinner className="size-5" />
-            </>
-          )}
-
-          {lastResult && (
-            <>
-              <span className="mb-2 text-5xl">{lastResult.result === 'heads' ? '👑' : '🌙'}</span>
-              <p className="mb-1 text-sm font-bold">
-                It was <span className="text-gold uppercase">{lastResult.result}</span>!
-              </p>
-              <p className="mb-3 text-xs text-muted">
-                {lastResult.cause === 'correct_call' ? `${lastResult.call} — correct call!`
-                  : lastResult.cause === 'wrong_call' ? `${lastResult.call} — wrong call.`
-                  : lastResult.cause === 'no_call' ? 'Caller timed out.'
-                  : 'Spinner timed out.'}
-              </p>
-              <p className="text-lg font-bold text-green">
-                {lastResult.winnerId === myId ? 'You won this round!' : 'Opponent won this round.'}
-              </p>
-            </>
-          )}
-        </Card>
-
-        {lastResult && (
-          <Button
-            variant="primary"
-            size="lg"
-            className="w-full"
-            onClick={() => { setLastResult(null); setPage('live'); }}
-          >
-            Next Round
-          </Button>
-        )}
+        <CoinFlipLiveCard
+          coinRef={coinRef}
+          roundNumber={roundNumber}
+          totalRounds={totalRounds}
+          myScore={scores[myId ?? ''] ?? 0}
+          oppScore={scores[opponentId ?? ''] ?? 0}
+          opponentLabel={opponentLabel}
+          myRole={myRole}
+          roundPhase={roundPhase}
+          timeLeft={timeLeft}
+          lastResult={lastResult}
+          iWonLastRound={lastResult?.winnerId === myId}
+          onSpin={handleSpin}
+          onCall={handleCall}
+          onDismissResult={() => setLastResult(null)}
+        />
       </div>
     </>
   );

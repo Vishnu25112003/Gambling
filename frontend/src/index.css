@@ -227,6 +227,18 @@ html[data-theme='light'] .wallet-adapter-modal-wrapper {
   opacity: 0.75;
 }
 
+/* Used by CoinFlipLiveCard's round-result reveal (animate-[fadeUp_.35s_ease-out]). */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes wallet-modal-pop {
   from {
     opacity: 0;
