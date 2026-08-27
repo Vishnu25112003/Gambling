@@ -101,7 +101,11 @@ interface PublicMatch {
 
 const publicMatches = new Map<string, PublicMatch>();
 
-const LISTING_GRACE_MS = 20_000;
+// See the matching constant in coin-flip/socket.ts for the full rationale:
+// 20s is shorter than socket.io's own worst-case disconnect-detection
+// latency plus the time it takes to actually share and redeem a Friends
+// Play code, so codes were routinely invalidated before anyone used them.
+const LISTING_GRACE_MS = 2 * 60 * 1000;
 const listingGraceTimers = new Map<string, NodeJS.Timeout>();
 
 // --- Room codes (Friends Play) -----------------------------------------------

@@ -130,8 +130,16 @@ const publicMatches = new Map<string, PublicMatch>();
  * socket drops, with no grace period, silently invalidates their own room
  * code and stops them from ever being reachable when a friend actually joins
  * — see the connection-handler note below for the other half of this fix.
+ *
+ * 20s used to be here, which is shorter than socket.io's own worst-case
+ * disconnect-detection latency (pingInterval + pingTimeout, up to ~35s —
+ * see sockets/index.ts) plus the time it actually takes to paste a code
+ * into a chat app and have a friend act on it, so Friends Play codes were
+ * routinely invalidated before anyone got to redeem them. Matched to
+ * REMATCH_WINDOW_MS below, which grants the same "player stepped away"
+ * leeway elsewhere in this file.
  */
-const LISTING_GRACE_MS = 20_000;
+const LISTING_GRACE_MS = 2 * 60 * 1000;
 
 /** matchId → pending teardown timer, while its host's socket is disconnected. */
 const listingGraceTimers = new Map<string, NodeJS.Timeout>();
