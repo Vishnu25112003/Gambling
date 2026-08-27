@@ -119,6 +119,20 @@ export function MineCatcherBoard() {
   const myId = user?.id ?? '';
   const opponentId = players.find((p) => p.id !== myId)?.id ?? '';
 
+  // Mirrored into refs so the socket-connection effect below (which must
+  // stay mounted for the lifetime of a match — see its dependency array)
+  // can read current values without tearing the socket down and
+  // reconnecting mid-match every time a match/player update changes them.
+  const opponentIdRef = useRef(opponentId);
+  useEffect(() => {
+    opponentIdRef.current = opponentId;
+  }, [opponentId]);
+
+  const boardSizeRef = useRef(boardSize);
+  useEffect(() => {
+    boardSizeRef.current = boardSize;
+  }, [boardSize]);
+
   // Socket connection
   useEffect(() => {
     const token = tokenStore.get();
@@ -174,15 +188,16 @@ export function MineCatcherBoard() {
           setMyFoundCount(data.state.foundCounts[myId] ?? 0);
           setMyBreakCount(data.state.breakCounts[myId] ?? 0);
         }
-        const oppBoard = data.state.boards[opponentId];
+        const oppId = opponentIdRef.current;
+        const oppBoard = data.state.boards[oppId];
         if (oppBoard) {
-          setOpponentFoundCount(data.state.foundCounts[opponentId] ?? 0);
+          setOpponentFoundCount(data.state.foundCounts[oppId] ?? 0);
         }
         setMyLives(data.state.lives[myId] ?? 3);
-        setOpponentLives(data.state.lives[opponentId] ?? 3);
+        setOpponentLives(data.state.lives[oppId] ?? 3);
         setCurrentAttacker(data.state.currentAttacker);
         setMyReady(data.state.readyPlayers.includes(myId));
-        setOpponentReady(data.state.readyPlayers.includes(opponentId));
+        setOpponentReady(data.state.readyPlayers.includes(oppId));
 
         if (data.state.phase === 'attacking') {
           setPage('attacking');
@@ -233,7 +248,8 @@ export function MineCatcherBoard() {
       // Initialize opponent cells as all hidden if not already set
       setOpponentCells((prev) => {
         if (prev.length === 0) {
-          const dims = boardSize === 25 ? 25 : boardSize === 49 ? 49 : boardSize === 81 ? 81 : 100;
+          const size = boardSizeRef.current;
+          const dims = size === 25 ? 25 : size === 49 ? 49 : size === 81 ? 81 : 100;
           return Array.from({ length: dims }, () => 'hidden' as CellState);
         }
         return prev;
@@ -258,7 +274,7 @@ export function MineCatcherBoard() {
         setMyBreakCount(data.breakCounts[myId] ?? 0);
       } else {
         // Opponent attacked me — no update to opponentCells (my board is hidden from me)
-        setOpponentFoundCount(data.foundCounts[opponentId] ?? 0);
+        setOpponentFoundCount(data.foundCounts[opponentIdRef.current] ?? 0);
       }
       setLastAttack({ cellIndex: data.cellIndex, type: data.result });
     });
@@ -312,7 +328,12 @@ export function MineCatcherBoard() {
       clearTimer();
       socket.disconnect();
     };
-  }, [myId, opponentId, boardSize]);
+    // Deliberately excludes opponentId/boardSize: those are server-pushed
+    // match state that changes right as a match starts, and including them
+    // here tore the socket down and reconnected both players mid-join (see
+    // opponentIdRef/boardSizeRef above for how handlers stay current instead).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myId]);
 
   // Timer for placement and turn countdowns
   useEffect(() => {
