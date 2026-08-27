@@ -8,6 +8,8 @@ import { GameShell } from '../../components/shared/GameShell';
 import { formatSol } from '../../lib/format';
 import { LudoSetup } from './LudoSetup';
 import { LudoResult } from './LudoResult';
+import { LudoBoardGrid } from './LudoBoardGrid';
+import { LUDO_COLOR_VAR } from './boardGeometry';
 
 /**
  * Mirror of backend LUDO_EVENTS — keep in sync with backend/src/games/ludo/types.ts
@@ -95,14 +97,6 @@ interface MatchResult {
   feeCollected: string;
   payouts: { userId: string; payout: string }[];
 }
-
-/** Color display names and hex for tokens. */
-const COLOR_META: Record<LudoColor, { label: string; hex: string; emoji: string }> = {
-  red: { label: 'Red', hex: '#ef4444', emoji: '🔴' },
-  green: { label: 'Green', hex: '#22c55e', emoji: '🟢' },
-  yellow: { label: 'Yellow', hex: '#eab308', emoji: '🟡' },
-  blue: { label: 'Blue', hex: '#3b82f6', emoji: '🔵' },
-};
 
 export function LudoBoard() {
   return (
@@ -634,7 +628,6 @@ function LudoBoardInner() {
   }
 
   // --- Live game board ---
-  const myColor = gameState?.colors[myId ?? ''] ?? 'red';
   const timerColor = timeLeft <= 3 ? 'text-red' : timeLeft <= 5 ? 'text-gold' : 'text-green';
 
   return (
@@ -652,8 +645,11 @@ function LudoBoardInner() {
                 <p className="text-[11px] text-muted">
                   {p.id === myId ? 'You' : p.displayName ?? 'Player'}
                 </p>
-                <div className="flex items-center justify-center gap-1">
-                  <span className="text-lg">{COLOR_META[p.color].emoji}</span>
+                <div className="flex items-center justify-center gap-1.5">
+                  <span
+                    className="size-2.5 rounded-full"
+                    style={{ background: LUDO_COLOR_VAR[p.color] }}
+                  />
                   <p className="text-xl font-bold">{gameState?.totalSteps[p.id] ?? 0}</p>
                 </div>
                 <p className="text-[10px] text-faint">
@@ -663,6 +659,17 @@ function LudoBoardInner() {
             ))}
           </div>
         </Card>
+
+        {/* Board */}
+        <div className="mb-4">
+          <LudoBoardGrid
+            players={players}
+            tokens={gameState?.tokens ?? {}}
+            myId={myId}
+            validMoves={validMoves}
+            onMoveToken={handleMoveToken}
+          />
+        </div>
 
         {/* Dice + Action area */}
         <Card className="mb-4 flex flex-col items-center px-6 py-8">
@@ -736,32 +743,6 @@ function LudoBoardInner() {
             </div>
           )}
         </Card>
-
-        {/* Token status */}
-        {gameState && myId && gameState.tokens[myId] && (
-          <Card className="px-5 py-3">
-            <p className="mb-2 text-xs font-semibold text-muted">Your Tokens ({COLOR_META[myColor].emoji} {COLOR_META[myColor].label})</p>
-            <div className="grid grid-cols-4 gap-2">
-              {gameState.tokens[myId].map((token, i) => (
-                <div
-                  key={i}
-                  className={`rounded-[8px] border px-2 py-2 text-center text-xs ${
-                    token.zone === 'home'
-                      ? 'border-green-solid bg-green-solid/15 text-green'
-                      : token.zone === 'track'
-                        ? 'border-line bg-bg2 text-text'
-                        : 'border-line bg-bg2 text-faint'
-                  }`}
-                >
-                  <p className="font-bold">T{i + 1}</p>
-                  <p className="text-[10px]">
-                    {token.zone === 'yard' ? 'Yard' : token.zone === 'home' ? `Home ${token.homePosition}` : `Pos ${token.position}`}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
       </div>
     </>
   );

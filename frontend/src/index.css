@@ -30,6 +30,7 @@
   --stripe1: #101a13;
   --stripe2: #0b130d;
   --red: #f87171;
+  --ludo-blue: #3b82f6;
 
   /* Strength of the ambient green glow behind the page — brighter in light. */
   --page-glow: 0.1;
@@ -70,6 +71,7 @@ html[data-theme='light'] {
   --stripe1: #eaf0ea;
   --stripe2: #dfe7e0;
   --red: #dc2626;
+  --ludo-blue: #2563eb;
 
   --page-glow: 0.14;
   --scroll-thumb: #cbd6cc;
@@ -106,6 +108,7 @@ html[data-theme='light'] {
   --color-on-green: var(--on-green);
   --color-gold: var(--gold);
   --color-red: var(--red);
+  --color-ludo-blue: var(--ludo-blue);
   --color-banner: var(--banner-bg);
 
   --color-tier-bronze: var(--tier-bronze);

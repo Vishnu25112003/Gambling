@@ -164,6 +164,34 @@ export function isOnOwnStart(color: LudoColor, trackPosition: number): boolean {
   return trackPosition === 0;
 }
 
+/**
+ * Classic Ludo "block": two tokens of the same color sharing a track square
+ * form a block that no other color — including a third of that same color —
+ * may land on. This checks the destination as it stands *before* the move:
+ * empty or a single token of any color is always fine to land on (landing on
+ * a single opponent captures it, per executeMove's existing capture logic);
+ * two-or-more of one color already there means it's full.
+ */
+export function canOccupyTrackSquare(
+  globalPosition: number,
+  allTokens: Record<string, Token[]>,
+  playerIds: string[],
+  colors: Record<string, LudoColor>,
+): boolean {
+  const countsByColor: Partial<Record<LudoColor, number>> = {};
+  for (const id of playerIds) {
+    const playerColor = colors[id];
+    const playerTokens = allTokens[id];
+    if (!playerColor || !playerTokens) continue;
+    for (const t of playerTokens) {
+      if (t.zone === 'track' && getGlobalPosition(playerColor, t.position) === globalPosition) {
+        countsByColor[playerColor] = (countsByColor[playerColor] ?? 0) + 1;
+      }
+    }
+  }
+  return Object.values(countsByColor).every((count) => count! < 2);
+}
+
 // --- Move validation --------------------------------------------------------
 
 export interface ValidMove {
@@ -177,8 +205,10 @@ export interface ValidMove {
  *
  * Rules:
  * - Yard tokens: only movable on a 6 (brings token to start square).
- * - Track tokens: movable if destination is not occupied by a friendly token
- *   (unless destination is the start square, which is always valid to enter).
+ * - Track tokens: movable if the destination isn't full — two tokens of one
+ *   color already there is a block (see canOccupyTrackSquare); landing on a
+ *   single opponent captures it, landing on a single token of your own forms
+ *   a new block.
  * - Home column tokens: movable if destination doesn't exceed HOME_COLUMN_LENGTH.
  * - If no valid moves exist, the turn is skipped.
  */
@@ -205,8 +235,10 @@ export function getValidMoves(
     if (token.zone === 'yard') {
       // Can only leave yard on a 6
       if (diceValue === 6) {
-        // Start square is always safe to enter
-        moves.push({ tokenIndex: i, type: 'yard' });
+        const startGlobalPos = getGlobalPosition(color, 0);
+        if (canOccupyTrackSquare(startGlobalPos, allTokens, playerIds, colors)) {
+          moves.push({ tokenIndex: i, type: 'yard' });
+        }
       }
     } else if (token.zone === 'track') {
       const targetTrackPos = token.position + diceValue;
@@ -224,18 +256,11 @@ export function getValidMoves(
           }
         }
       } else {
-        // Moving on track
+        // Moving on track — blocked only if the destination is already a
+        // full block (two of one color, own or opponent's).
         const globalPos = getGlobalPosition(color, targetTrackPos);
 
-        // Check no friendly token at destination (except own start square which is always valid)
-        const friendlyAtDest = tokens.some(
-          (t, j) =>
-            j !== i &&
-            t.zone === 'track' &&
-            getGlobalPosition(color, t.position) === globalPos,
-        );
-
-        if (!friendlyAtDest) {
+        if (canOccupyTrackSquare(globalPos, allTokens, playerIds, colors)) {
           moves.push({ tokenIndex: i, type: 'track' });
         }
       }
