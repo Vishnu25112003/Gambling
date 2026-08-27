@@ -23,7 +23,12 @@ const BY_NAME: Record<string, GameVisual> = {
     tone: 'var(--gold)',
     art: '/games/Coin_Flip.png',
   },
-  ludo: { icon: 'dice', tint: 'rgba(168,85,247,0.14)', tone: '#a855f7' },
+  ludo: {
+    icon: 'dice',
+    tint: 'rgba(168,85,247,0.14)',
+    tone: '#a855f7',
+    art: '/games/Ludo.png',
+  },
   dice: { icon: 'dice', tint: 'rgba(34,197,94,0.14)', tone: 'var(--green)' },
   mines: { icon: 'bomb', tint: 'rgba(248,113,113,0.13)', tone: 'var(--red)', art: '/games/Mine_Catcher.png' },
   'mine catcher': { icon: 'bomb', tint: 'rgba(248,113,113,0.13)', tone: 'var(--red)', art: '/games/Mine_Catcher.png' },
