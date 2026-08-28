@@ -91,6 +91,7 @@ const lobbyInfo = new Map<string, {
   seatCount: number;
   stake: number;
   betMode: 'fixed' | 'free';
+  minBet: number | null;
   discovery: 'random' | 'friends';
   createdAt: number;
 }>();
@@ -278,6 +279,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
         seatCount: m.seatCount,
         stake: String(m.stake),
         betMode: m.betMode,
+        minBet: m.minBet != null ? String(m.minBet) : null,
       }));
     socket.emit(LUDO_EVENTS.MATCHES_LIST, { matches: listed });
   });
@@ -288,12 +290,14 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
     seatCount?: number;
     betMode?: 'fixed' | 'free';
     stake?: number;
+    minBet?: number;
   }) => {
     try {
       const seatCount = data.seatCount ?? 2;
       const stakeAmount = data.stake ?? 0.1;
       const mode = data.betMode ?? 'fixed';
       const discovery = data.discovery ?? 'random';
+      const minBetValue = data.minBet ?? null;
 
       if (seatCount < 2 || seatCount > 4) {
         socket.emit(LUDO_EVENTS.ERROR, { message: 'Seat count must be 2, 3, or 4' });
@@ -308,7 +312,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
       const matchId = await escrow.createMatch({
         gameType: 'ludo',
         mode: 'pooled',
-        gameState: { seatCount, betMode: mode, stake: stakeAmount },
+        gameState: { seatCount, betMode: mode, stake: stakeAmount, minBet: minBetValue },
       });
 
       // Add host as participant (not locked yet — reserved per Rule 4)
@@ -333,6 +337,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
           seatCount,
           stake: stakeAmount,
           betMode: mode,
+          minBet: minBetValue,
           discovery: 'random',
           createdAt: Date.now(),
         });
@@ -354,6 +359,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
               seatCount: m.seatCount,
               stake: String(m.stake),
               betMode: m.betMode,
+              minBet: m.minBet != null ? String(m.minBet) : null,
             })),
         });
       } else {
@@ -370,6 +376,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
           seatCount,
           stake: stakeAmount,
           betMode: mode,
+          minBet: minBetValue,
           discovery: 'friends',
           createdAt: Date.now(),
         });

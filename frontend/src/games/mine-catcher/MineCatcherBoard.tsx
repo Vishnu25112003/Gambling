@@ -4,8 +4,9 @@ import { useAuth } from '../../hooks/useAuth';
 import { tokenStore } from '../../api/client';
 import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
+import { GameSetupWizard, GameJoinByCode, GameWaitingRoom } from '../../components/shared/gameSetup';
 import { formatSol } from '../../lib/format';
-import { MineCatcherSetup } from './MineCatcherSetup';
+import { mineCatcherSetupConfig } from './mineCatcherSetupConfig';
 import { MinePlacementBoard } from './MinePlacementBoard';
 import { MineAttackBoard } from './MineAttackBoard';
 import { MineCatcherResult } from './MineCatcherResult';
@@ -95,6 +96,9 @@ export function MineCatcherBoard() {
   const [players, setPlayers] = useState<PlayerInfo[]>([]);
   const [boardSize, setBoardSize] = useState<BoardSize>(25);
   const [stake, setStake] = useState<number>(0);
+  // Display-only, set from GameSetupWizard's onPublish — the waiting-room
+  // summary text is the only thing that needs it.
+  const [betMode, setBetMode] = useState<'fixed' | 'free'>('fixed');
 
   // Placement state
   const [placementTimeLeft, setPlacementTimeLeft] = useState(30);
@@ -376,12 +380,17 @@ export function MineCatcherBoard() {
     boardSize: BoardSize;
     betMode: 'fixed' | 'free';
     stake: number;
+    minBet: number | null;
   }) => {
+    setBoardSize(settings.boardSize);
+    setStake(settings.stake);
+    setBetMode(settings.betMode);
     socketRef.current?.emit(MC.CREATE_MATCH, {
       boardSize: settings.boardSize,
       betMode: settings.betMode,
       stake: settings.stake,
       discovery: settings.discovery,
+      minBet: settings.minBet ?? undefined,
     });
   }, []);
 
@@ -456,7 +465,9 @@ export function MineCatcherBoard() {
               <div>
                 <p className="text-sm font-bold">{m.hostName}</p>
                 <p className="text-xs text-muted">
-                  {m.boardSize === 25 ? '5×5' : m.boardSize === 49 ? '7×7' : m.boardSize === 81 ? '9×9' : '10×10'} · {formatSol(m.stake)} SOL
+                  {m.boardSize === 25 ? '5×5' : m.boardSize === 49 ? '7×7' : m.boardSize === 81 ? '9×9' : '10×10'} ·{' '}
+                  {m.betMode === 'fixed' ? 'Fixed' : 'Free'} bet
+                  {m.betMode === 'free' && m.minBet ? ` · min ${formatSol(m.minBet)}` : ''} · {formatSol(m.stake)} SOL
                 </p>
               </div>
               <Button variant="primary" size="sm" onClick={() => handleJoin(m.matchId)}>
@@ -472,7 +483,8 @@ export function MineCatcherBoard() {
   if (page === 'create') {
     return (
       <GameShell title="Mine Catcher">
-        <MineCatcherSetup
+        <GameSetupWizard
+          config={mineCatcherSetupConfig}
           balance={user?.availableBalance?.toString() ?? null}
           onPublish={handleCreate}
           onBack={() => setPage('lobby')}
@@ -482,34 +494,16 @@ export function MineCatcherBoard() {
   }
 
   if (page === 'waiting' || page === 'waiting_friends') {
+    const boardLabel = boardSize === 25 ? '5×5' : boardSize === 49 ? '7×7' : boardSize === 81 ? '9×9' : '10×10';
     return (
       <GameShell title="Mine Catcher">
-        <PageTitle
-          title="Mine Catcher"
-          subtitle={page === 'waiting_friends' ? 'Share room code with your friend' : 'Waiting for opponent...'}
+        <GameWaitingRoom
+          mode={page === 'waiting_friends' ? 'friends' : 'random'}
+          roomCode={roomCode}
+          waitingText="Waiting for an opponent to join…"
+          summary={`${boardLabel} · ${betMode === 'fixed' ? 'Fixed' : 'Free'} bet · ${formatSol(String(stake))} SOL`}
+          onCancel={handleBackToGames}
         />
-        <Card className="mx-auto max-w-sm px-6 py-8 text-center">
-          {page === 'waiting_friends' && roomCode && (
-            <div className="mb-6">
-              <p className="mb-2 text-xs text-muted">Room Code</p>
-              <p className="rounded-[10px] border border-line bg-bg2 px-6 py-3 font-mono text-2xl font-bold tracking-widest text-green">
-                {roomCode}
-              </p>
-              <button
-                type="button"
-                onClick={() => navigator.clipboard.writeText(roomCode)}
-                className="mt-2 text-xs text-green hover:underline"
-              >
-                Copy to clipboard
-              </button>
-            </div>
-          )}
-          <Spinner className="mx-auto" />
-          <p className="mt-4 text-sm text-muted">Waiting for an opponent to join...</p>
-          <p className="mt-1 text-xs text-faint">
-            {boardSize === 25 ? '5×5' : boardSize === 49 ? '7×7' : boardSize === 81 ? '9×9' : '10×10'} · {formatSol(String(stake))} SOL
-          </p>
-        </Card>
       </GameShell>
     );
   }
@@ -517,13 +511,10 @@ export function MineCatcherBoard() {
   if (page === 'join_code') {
     return (
       <GameShell title="Mine Catcher">
-        <PageTitle title="Join Match" subtitle="Enter a room code" />
-        <Card className="mx-auto max-w-sm px-6 py-6">
-          <JoinByCode socket={socketRef.current} onError={setError} />
-          <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={() => setPage('lobby')}>
-            Back
-          </Button>
-        </Card>
+        <GameJoinByCode
+          onJoin={(code) => socketRef.current?.emit(MC.JOIN_MATCH, { roomCode: code })}
+          onBack={() => setPage('lobby')}
+        />
       </GameShell>
     );
   }
@@ -606,36 +597,5 @@ export function MineCatcherBoard() {
         <Spinner className="mx-auto" />
       </div>
     </GameShell>
-  );
-}
-
-// --- Join by code sub-component ---
-
-function JoinByCode({ socket, onError }: { socket: Socket | null; onError: (msg: string) => void }) {
-  const [code, setCode] = useState('');
-
-  const handleJoin = () => {
-    if (!code.trim()) {
-      onError('Enter a room code');
-      return;
-    }
-    socket?.emit(MC.JOIN_MATCH, { roomCode: code.trim() });
-  };
-
-  return (
-    <div>
-      <label className="mb-1 block text-xs font-semibold text-muted">Room Code</label>
-      <input
-        type="text"
-        value={code}
-        onChange={(e) => setCode(e.target.value.toUpperCase())}
-        className="mb-3 w-full rounded-[9px] border border-line bg-bg2 px-3.5 py-[11px] text-center font-mono text-lg font-bold tracking-widest text-text uppercase placeholder:text-faint focus:border-green focus:outline-none"
-        placeholder="ABC123"
-        maxLength={6}
-      />
-      <Button variant="primary" size="lg" className="w-full" onClick={handleJoin}>
-        Join Match
-      </Button>
-    </div>
   );
 }
