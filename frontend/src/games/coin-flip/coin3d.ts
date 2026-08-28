@@ -1,91 +1,42 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /**
  * Standalone Three.js coin renderer — no React, no game logic. Mounts into
  * a container element and exposes a tiny imperative API (setTarget /
  * setSpinning / dispose) that Coin3D.tsx wraps in a React-friendly ref.
  *
- * Ported from the Claude Design prototype (`coin3d-view.js` in the
- * "Model 3D coin flip UI" design project) — the visuals and physics are
- * unchanged; only typing was added.
+ * The coin itself is a modeled asset (`gold-coin.glb`, served from
+ * public/models/coin-flip) with baked heads/tails/rim textures, loaded
+ * async on mount. Everything else — camera, lighting, the spin/land
+ * animation loop — is unchanged from the original procedural-geometry
+ * version this replaced.
  */
 
-function makeStripe(colorA: string, colorB: string): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 512;
-  c.height = 64;
-  const ctx = c.getContext('2d')!;
-  const n = 96;
-  for (let i = 0; i < n; i++) {
-    ctx.fillStyle = i % 2 === 0 ? colorA : colorB;
-    ctx.fillRect(i * (c.width / n), 0, c.width / n, c.height);
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
+const MODEL_URL = '/models/coin-flip/gold-coin.glb';
+// Matches the previous procedural coin's diameter (2 * its R = 0.82) so the
+// model fills the same on-screen footprint under the same camera framing.
+const TARGET_DIAMETER = 1.64;
+// See the comment where this is applied, in the GLTF load callback below.
+const COIN_YAW_CORRECTION = 4.4593179;
 
-function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, rot: number): void {
-  ctx.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const ang = rot + (i * Math.PI) / 5;
-    const rad = i % 2 === 0 ? r : r * 0.42;
-    const x = cx + Math.cos(ang) * rad;
-    const y = cy + Math.sin(ang) * rad;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-}
-
-function makeFaceTexture(letter: string): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 512;
-  c.height = 512;
-  const ctx = c.getContext('2d')!;
-  const cx = 256;
-  const cy = 256;
-
-  const grad = ctx.createRadialGradient(cx - 70, cy - 80, 30, cx, cy, 300);
-  grad.addColorStop(0, '#fff8dc');
-  grad.addColorStop(0.5, '#ffd35c');
-  grad.addColorStop(1, '#c9962a');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(cx, cy, 250, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = '#a9791f';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.arc(cx, cy, 224, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(cx, cy, 196, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.fillStyle = '#b5842a';
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
-    drawStar(ctx, cx + Math.cos(a) * 210, cy + Math.sin(a) * 210, 10, a);
-    ctx.fill();
-  }
-
-  ctx.save();
-  ctx.font = '800 230px Georgia, serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = 'rgba(140,95,20,0.55)';
-  ctx.fillText(letter, cx + 5, cy + 7);
-  ctx.fillStyle = '#8a5f14';
-  ctx.fillText(letter, cx, cy);
-  ctx.restore();
-
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+function disposeModel(root: THREE.Object3D): void {
+  root.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    obj.geometry.dispose();
+    const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (const material of materials) {
+      if (material instanceof THREE.MeshStandardMaterial) {
+        material.map?.dispose();
+        material.metalnessMap?.dispose();
+        material.roughnessMap?.dispose();
+        material.normalMap?.dispose();
+        material.aoMap?.dispose();
+        material.emissiveMap?.dispose();
+      }
+      material.dispose();
+    }
+  });
 }
 
 function easeOutExpo(t: number): number {
@@ -145,20 +96,6 @@ export function mountCoin(container: HTMLElement): CoinView {
   const coinGroup = new THREE.Group();
   outer.add(coinGroup);
 
-  const R = 0.82;
-  const T = 0.18;
-  const geo = new THREE.CylinderGeometry(R, R, T, 72, 1, false);
-  geo.rotateX(Math.PI / 2);
-  const sideMap = makeStripe('#ffe9a8', '#a9791f');
-  sideMap.repeat.set(40, 1);
-  const sideMat = new THREE.MeshStandardMaterial({ map: sideMap, metalness: 0.7, roughness: 0.4, color: 0xffe9a8 });
-  const headsTex = makeFaceTexture('H');
-  const tailsTex = makeFaceTexture('T');
-  const headsMat = new THREE.MeshStandardMaterial({ map: headsTex, metalness: 0.55, roughness: 0.32, color: 0xffffff });
-  const tailsMat = new THREE.MeshStandardMaterial({ map: tailsTex, metalness: 0.55, roughness: 0.32, color: 0xffffff });
-  const mesh = new THREE.Mesh(geo, [sideMat, headsMat, tailsMat]);
-  mesh.name = 'coin';
-  coinGroup.add(mesh);
   outer.rotation.x = 0.22;
   outer.rotation.z = -0.1;
 
@@ -169,6 +106,35 @@ export function mountCoin(container: HTMLElement): CoinView {
     raf: 0,
     disposed: false,
   };
+
+  let model: THREE.Object3D | null = null;
+  new GLTFLoader().load(
+    MODEL_URL,
+    (gltf) => {
+      if (state.disposed) return;
+      const root = gltf.scene;
+      // The source asset's own root node carries an incidental ~15° rest
+      // tilt from the authoring tool, with the heads/tails face normal
+      // pointing mostly along local +X rather than +Z. This fixed yaw
+      // (measured against this exact asset) re-points that normal at
+      // world +Z, so coinGroup.rotation.y = 0 shows heads face-on and
+      // +180° shows tails — matching what Coin3D.tsx's landOn() assumes.
+      root.rotation.y = COIN_YAW_CORRECTION;
+      const box = new THREE.Box3().setFromObject(root);
+      const size = box.getSize(new THREE.Vector3());
+      const diameter = Math.max(size.x, size.y);
+      if (diameter > 0) root.scale.setScalar(TARGET_DIAMETER / diameter);
+      // Re-measure post-scale so the center offset below is in the same
+      // space as the final geometry — position is applied after
+      // rotation/scale, so this exactly cancels any off-origin center.
+      const center = new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());
+      root.position.sub(center);
+      coinGroup.add(root);
+      model = root;
+    },
+    undefined,
+    (err) => console.error('[coin3d] failed to load gold-coin.glb', err),
+  );
 
   function resize(): void {
     const w = container.clientWidth || 220;
@@ -225,6 +191,7 @@ export function mountCoin(container: HTMLElement): CoinView {
       state.disposed = true;
       if (state.raf) cancelAnimationFrame(state.raf);
       ro.disconnect();
+      if (model) disposeModel(model);
       renderer.dispose();
       renderer.domElement.parentNode?.removeChild(renderer.domElement);
     },
