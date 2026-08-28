@@ -1,3 +1,4 @@
+import { Lock } from 'lucide-react';
 import { Card } from '../shared/ui';
 import { TierBadge, tierColor } from './TierBadge';
 import { formatSol } from '../../lib/format';
@@ -81,7 +82,7 @@ export function TierProgress({ tier }: { tier: TierProgressData }) {
             }
           >
             {rung.label}
-            {!rung.reached && <span aria-label="locked">🔒</span>}
+            {!rung.reached && <Lock aria-label="locked" className="size-2.5" />}
           </span>
         ))}
       </div>

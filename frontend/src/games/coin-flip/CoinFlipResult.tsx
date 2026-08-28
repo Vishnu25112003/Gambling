@@ -1,3 +1,4 @@
+import { Crown, Frown, Moon, Trophy } from 'lucide-react';
 import { Card, Button } from '../../components/shared/ui';
 import { formatSol } from '../../lib/format';
 
@@ -37,7 +38,11 @@ export function CoinFlipResult({
 }: CoinFlipResultProps) {
   return (
     <Card className="mx-auto max-w-sm px-6 py-10 text-center">
-      <span className="mb-3 block text-5xl">{won ? '🏆' : '😢'}</span>
+      {won ? (
+        <Trophy className="mx-auto mb-3 size-12 text-gold" />
+      ) : (
+        <Frown className="mx-auto mb-3 size-12 text-muted" />
+      )}
       <p className="mb-1 text-xl font-extrabold">
         {won ? 'You won!' : 'You lost.'}
       </p>
@@ -47,9 +52,11 @@ export function CoinFlipResult({
 
       {coinResult && (
         <div className="mb-4 flex items-center justify-center gap-3">
-          <span className="text-3xl">
-            {coinResult === 'heads' ? '👑' : '🌙'}
-          </span>
+          {coinResult === 'heads' ? (
+            <Crown className="size-7 text-gold" />
+          ) : (
+            <Moon className="size-7 text-muted" />
+          )}
           {callerCall && (
             <p className="text-xs text-muted">
               You called{' '}

@@ -31,6 +31,10 @@ export const SPIN_TIMEOUT_MS = 10_000;
 /** Caller has 10 seconds to call Head or Tail. */
 export const CALL_TIMEOUT_MS = 10_000;
 
+/** How long the result banner stays up before the next round (or the match
+ * result, on the final round) begins. */
+export const ROUND_TRANSITION_DELAY_MS = 2500;
+
 // --- Commit-reveal helpers --------------------------------------------------
 
 /**

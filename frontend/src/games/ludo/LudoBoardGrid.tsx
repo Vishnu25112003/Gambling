@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { Star } from 'lucide-react';
 import {
   BOARD_SIZE,
   CENTER_POINT,
@@ -149,7 +150,7 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
             style={{ ...gridArea(cell.row, cell.col), background: 'var(--bg2)' }}
             className="flex items-center justify-center border border-line/40"
           >
-            {SAFE_CELL_KEYS.has(cellKey) && <span className="text-[8px] text-faint">★</span>}
+            {SAFE_CELL_KEYS.has(cellKey) && <Star className="size-2 fill-faint text-faint" />}
           </div>
         );
       })}

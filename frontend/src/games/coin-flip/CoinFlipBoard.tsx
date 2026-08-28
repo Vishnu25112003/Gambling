@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { Coins, Dices, Frown, Lock, PartyPopper, Trophy, Unlock, Users } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { tokenStore } from '../../api/client';
 import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
@@ -488,7 +489,8 @@ function CoinFlipBoardInner() {
           <PageTitle title="Coin Flip" subtitle="Two ways to play — jump into a random match, or join a friend." />
           <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" onClick={() => setPage('join_code')} disabled={!connected}>
-              👥 Join with Code
+              <Users className="mr-1.5 inline size-4" />
+              Join with Code
             </Button>
             <Button variant="primary" size="sm" onClick={handleCreateGame} disabled={!connected}>
               + Create Game
@@ -504,8 +506,9 @@ function CoinFlipBoardInner() {
           each its own header-level action keeps them structurally separate:
           this section is Random Play only, and always is.
         */}
-        <h2 className="mb-3 text-xs font-bold tracking-wide text-muted uppercase">
-          🎲 Random Play — Open Matches
+        <h2 className="mb-3 flex items-center gap-1.5 text-xs font-bold tracking-wide text-muted uppercase">
+          <Dices className="size-3.5" />
+          Random Play — Open Matches
         </h2>
 
         {!connected ? (
@@ -515,7 +518,8 @@ function CoinFlipBoardInner() {
           </Card>
         ) : matches.length === 0 ? (
           <Card className="px-6 py-12 text-center">
-            <span className="mb-3 block text-3xl">🪙</span>
+            <Coins className="mx-auto mb-3 size-8 text-muted" />
+
             <p className="mb-1 text-sm font-bold">No open random matches right now</p>
             <p className="text-xs text-muted">
               Create one, or use "Join with Code" above if a friend sent you one.
@@ -583,7 +587,10 @@ function CoinFlipBoardInner() {
             className="block w-full cursor-pointer rounded-[18px] border border-line bg-card px-6 py-5 text-left transition hover:border-green-solid/40"
             onClick={() => { setDiscovery('random'); setPage('create_rounds'); }}
           >
-            <p className="mb-1 text-sm font-bold">🎲 Random Play</p>
+            <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
+              <Dices className="size-4" />
+              Random Play
+            </p>
             <p className="text-xs text-muted">Listed publicly. Anyone can join instantly.</p>
           </button>
           <button
@@ -591,7 +598,10 @@ function CoinFlipBoardInner() {
             className="block w-full cursor-pointer rounded-[18px] border border-line bg-card px-6 py-5 text-left transition hover:border-green-solid/40"
             onClick={() => { setDiscovery('friends'); setPage('create_rounds'); }}
           >
-            <p className="mb-1 text-sm font-bold">👥 Friends Play</p>
+            <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
+              <Users className="size-4" />
+              Friends Play
+            </p>
             <p className="text-xs text-muted">Private room code. Share it with a friend.</p>
           </button>
           <Button variant="ghost" size="sm" className="w-full" onClick={() => setPage('lobby')}>
@@ -643,7 +653,10 @@ function CoinFlipBoardInner() {
             className="block w-full cursor-pointer rounded-[18px] border border-line bg-card px-6 py-5 text-left transition hover:border-green-solid/40"
             onClick={() => { setBetMode('fixed'); setPage('create_amount'); }}
           >
-            <p className="mb-1 text-sm font-bold">🔒 Fixed Bet</p>
+            <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
+              <Lock className="size-4" />
+              Fixed Bet
+            </p>
             <p className="text-xs text-muted">Every player bets the same amount.</p>
           </button>
           <button
@@ -651,7 +664,10 @@ function CoinFlipBoardInner() {
             className="block w-full cursor-pointer rounded-[18px] border border-line bg-card px-6 py-5 text-left transition hover:border-green-solid/40"
             onClick={() => { setBetMode('free'); setPage('create_amount'); }}
           >
-            <p className="mb-1 text-sm font-bold">🆓 Free Bet</p>
+            <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
+              <Unlock className="size-4" />
+              Free Bet
+            </p>
             <p className="text-xs text-muted">Each player picks their own amount. Set a minimum to prevent lowball.</p>
           </button>
           <Button variant="ghost" size="sm" className="w-full" onClick={() => setPage('create_rounds')}>
@@ -744,9 +760,21 @@ function CoinFlipBoardInner() {
         <PageTitle title="Create Match" subtitle="Review your match settings" />
         <Card className="mx-auto max-w-sm px-6 py-6">
           <div className="mb-5 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted">Mode</span><span className="font-bold">{discovery === 'random' ? '🎲 Random Play' : '👥 Friends Play'}</span></div>
+            <div className="flex justify-between">
+              <span className="text-muted">Mode</span>
+              <span className="flex items-center gap-1.5 font-bold">
+                {discovery === 'random' ? <Dices className="size-4" /> : <Users className="size-4" />}
+                {discovery === 'random' ? 'Random Play' : 'Friends Play'}
+              </span>
+            </div>
             <div className="flex justify-between"><span className="text-muted">Rounds</span><span className="font-bold">{rounds}</span></div>
-            <div className="flex justify-between"><span className="text-muted">Bet mode</span><span className="font-bold">{betMode === 'fixed' ? '🔒 Fixed' : '🆓 Free'}</span></div>
+            <div className="flex justify-between">
+              <span className="text-muted">Bet mode</span>
+              <span className="flex items-center gap-1.5 font-bold">
+                {betMode === 'fixed' ? <Lock className="size-4" /> : <Unlock className="size-4" />}
+                {betMode === 'fixed' ? 'Fixed' : 'Free'}
+              </span>
+            </div>
             <div className="flex justify-between"><span className="text-muted">Your stake</span><span className="font-bold text-green">{formatSol(stake)} SOL</span></div>
             {betMode === 'free' && (
               <div className="flex justify-between"><span className="text-muted">Min for joiner</span><span className="font-bold">{formatSol(minBet)} SOL</span></div>
@@ -847,7 +875,11 @@ function CoinFlipBoardInner() {
       <>
         <PageTitle title="Coin Flip — Match Over" />
         <Card className="mx-auto max-w-md px-6 py-10 text-center">
-          <span className="mb-3 block text-5xl">{iWon ? '🏆' : '😢'}</span>
+          {iWon ? (
+            <Trophy className="mx-auto mb-3 size-12 text-gold" />
+          ) : (
+            <Frown className="mx-auto mb-3 size-12 text-muted" />
+          )}
           <p className="mb-1 text-xl font-extrabold">{iWon ? 'You won!' : 'You lost.'}</p>
           <p className="mb-6 text-sm text-muted">{matchResult.roundsPlayed} / {matchResult.totalRounds} rounds</p>
           <div className="mb-6 flex justify-center gap-8">
@@ -915,10 +947,13 @@ function CoinFlipBoardInner() {
         subtitle={myRole === 'spinner' ? `You spin — ${opponentLabel} calls.` : `${opponentLabel} spins — you call.`}
       />
       <div className="mx-auto max-w-lg">
-        {roundNumber === 1 && !lastResult && (
+        {!lastResult && (
           <div className="mb-4 rounded-[12px] border border-green-solid/30 bg-green-solid/10 px-4 py-3 text-center">
-            <p className="text-sm font-bold text-green">
-              🎉 Match started — {myRole === 'spinner' ? 'you spin' : `${opponentLabel} spins`} first!
+            <p className="flex items-center justify-center gap-1.5 text-sm font-bold text-green">
+              {roundNumber === 1 ? <PartyPopper className="size-4" /> : <Coins className="size-4" />}
+              {roundNumber === 1
+                ? `Match started — ${myRole === 'spinner' ? 'you spin' : `${opponentLabel} spins`} first!`
+                : `Round ${roundNumber} — ${myRole === 'spinner' ? 'you spin' : `${opponentLabel} spins`} first!`}
             </p>
           </div>
         )}
@@ -937,7 +972,6 @@ function CoinFlipBoardInner() {
           iWonLastRound={lastResult?.winnerId === myId}
           onSpin={handleSpin}
           onCall={handleCall}
-          onDismissResult={() => setLastResult(null)}
         />
       </div>
     </>

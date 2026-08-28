@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { Bomb, Heart } from 'lucide-react';
 import { Card } from '../../components/shared/ui';
 
 type CellState = 'hidden' | 'break' | 'blast';
@@ -33,15 +34,15 @@ function gridDimensions(size: number): { rows: number; cols: number } {
   return { rows: 10, cols: 10 };
 }
 
-function getCellContent(state: CellState, isLastAttack: boolean): { emoji: string; bgClass: string } {
+function getCellBgClass(state: CellState, isLastAttack: boolean): string {
   switch (state) {
     case 'blast':
-      return { emoji: '💥', bgClass: 'border-red bg-red/20' };
+      return 'border-red bg-red/20';
     case 'break':
-      return { emoji: '', bgClass: isLastAttack ? 'border-yellow bg-yellow/10' : 'border-line bg-bg3' };
+      return isLastAttack ? 'border-yellow bg-yellow/10' : 'border-line bg-bg3';
     case 'hidden':
     default:
-      return { emoji: '', bgClass: 'border-line bg-bg2 hover:border-green-solid/40 hover:bg-bg3 cursor-pointer' };
+      return 'border-line bg-bg2 hover:border-green-solid/40 hover:bg-bg3 cursor-pointer';
   }
 }
 
@@ -100,9 +101,7 @@ export function MineAttackBoard({
       <div className="mb-3 flex items-center justify-between px-1">
         <div className="flex gap-1">
           {Array.from({ length: 3 }).map((_, i) => (
-            <span key={i} className={`text-sm ${i < myLives ? '' : 'opacity-20'}`}>
-              ❤️
-            </span>
+            <Heart key={i} className={`size-4 fill-red text-red ${i < myLives ? '' : 'opacity-20'}`} />
           ))}
         </div>
         <p className="text-xs text-muted">
@@ -110,9 +109,7 @@ export function MineAttackBoard({
         </p>
         <div className="flex gap-1">
           {Array.from({ length: 3 }).map((_, i) => (
-            <span key={i} className={`text-sm ${i < opponentLives ? '' : 'opacity-20'}`}>
-              ❤️
-            </span>
+            <Heart key={i} className={`size-4 fill-red text-red ${i < opponentLives ? '' : 'opacity-20'}`} />
           ))}
         </div>
       </div>
@@ -141,7 +138,7 @@ export function MineAttackBoard({
         >
           {opponentCells.map((cellState, i) => {
             const isLast = lastAttack?.cellIndex === i;
-            const { emoji, bgClass } = getCellContent(cellState, isLast);
+            const bgClass = getCellBgClass(cellState, isLast);
             const isHidden = cellState === 'hidden';
 
             return (
@@ -150,11 +147,11 @@ export function MineAttackBoard({
                 type="button"
                 disabled={!isMyTurn || !isHidden}
                 onClick={() => handleCellClick(i)}
-                className={`aspect-square rounded-[6px] border text-xs font-bold transition-all ${bgClass} ${
+                className={`flex aspect-square items-center justify-center rounded-[6px] border text-xs font-bold transition-all ${bgClass} ${
                   isMyTurn && isHidden ? 'cursor-pointer' : ''
                 }`}
               >
-                {emoji}
+                {cellState === 'blast' && <Bomb className="size-4 text-red" />}
               </button>
             );
           })}

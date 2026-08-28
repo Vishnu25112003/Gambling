@@ -1,3 +1,4 @@
+import { Frown, Medal, Trophy } from 'lucide-react';
 import { Card, Button } from '../../components/shared/ui';
 import { formatSol } from '../../lib/format';
 
@@ -21,7 +22,8 @@ interface LudoResultProps {
   onPlayAgain?: () => void;
 }
 
-const RANK_MEDALS = ['🥇', '🥈', '🥉', '4th'];
+/** Medal color per finish rank (1st/2nd/3rd) — rank 4 falls back to plain "#4". */
+const MEDAL_COLOR = ['text-[var(--tier-gold)]', 'text-[var(--tier-silver)]', 'text-[var(--tier-bronze)]'];
 
 export function LudoResult({
   won,
@@ -37,7 +39,11 @@ export function LudoResult({
 }: LudoResultProps) {
   return (
     <Card className="mx-auto max-w-sm px-6 py-10 text-center">
-      <span className="mb-3 block text-5xl">{won ? '🏆' : '😢'}</span>
+      {won ? (
+        <Trophy className="mx-auto mb-3 size-12 text-gold" />
+      ) : (
+        <Frown className="mx-auto mb-3 size-12 text-muted" />
+      )}
       <p className="mb-1 text-xl font-extrabold">
         {won ? 'You won!' : 'You lost.'}
       </p>
@@ -55,7 +61,11 @@ export function LudoResult({
             } ${r.playerId === myId ? 'text-green' : ''}`}
           >
             <div className="flex items-center gap-2">
-              <span className="text-lg">{RANK_MEDALS[r.rank - 1] ?? `#${r.rank}`}</span>
+              {r.rank <= 3 ? (
+                <Medal className={`size-5 ${MEDAL_COLOR[r.rank - 1]}`} />
+              ) : (
+                <span className="w-5 text-center text-xs font-bold text-muted">#{r.rank}</span>
+              )}
               <span className="text-sm font-bold">
                 {r.playerId === myId ? 'You' : (playerNames[r.playerId] ?? 'Player')}
               </span>
