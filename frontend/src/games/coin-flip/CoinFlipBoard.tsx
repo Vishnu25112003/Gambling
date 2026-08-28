@@ -38,15 +38,17 @@ const CF = {
 
 const ROUND_OPTIONS = [3, 5, 7, 9, 11, 13, 15] as const;
 
-const coinFlipSetupConfig: GameSetupConfig<number, 'rounds'> = {
+const coinFlipSetupConfig: GameSetupConfig<'rounds'> = {
   gameName: 'Coin Flip',
-  extraStep: {
-    key: 'rounds',
-    stepTitle: 'Number of rounds (odd only)',
-    columns: 4,
-    defaultValue: 3,
-    options: ROUND_OPTIONS.map((r) => ({ value: r, label: String(r) })),
-  },
+  extraSteps: [
+    {
+      key: 'rounds',
+      stepTitle: 'Number of rounds (odd only)',
+      columns: 4,
+      defaultValue: 3,
+      options: ROUND_OPTIONS.map((r) => ({ value: r, label: String(r) })),
+    },
+  ],
 };
 
 // Mirrors backend/src/games/coin-flip/engine.ts SPIN_TIMEOUT_MS / CALL_TIMEOUT_MS —
@@ -421,15 +423,16 @@ function CoinFlipBoardInner() {
     betMode: BetMode;
     stake: number;
     minBet: number | null;
-    rounds: number;
+    rounds: string | number;
   }) => {
-    setRounds(settings.rounds);
+    const rounds = Number(settings.rounds);
+    setRounds(rounds);
     setBetMode(settings.betMode);
     setStake(String(settings.stake));
     emit(CF.CREATE_MATCH, {
       gameType: 'coin-flip',
       discovery: settings.discovery,
-      rounds: settings.rounds,
+      rounds,
       betMode: settings.betMode,
       stake: settings.stake,
       minBet: settings.minBet ?? undefined,

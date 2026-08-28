@@ -8,39 +8,60 @@ import { SelectableCard } from './SelectableCard';
 import { OptionPillGrid } from './OptionPillGrid';
 import { StakeAmountStep } from './StakeAmountStep';
 import { ReviewStep, type ReviewRow } from './ReviewStep';
-import type { BetMode, DiscoveryMode, GameSetupWizardProps } from './types';
+import type { BetMode, DiscoveryMode, ExtraStepConfig, GameSetupWizardProps } from './types';
 
-type Step = 'discovery' | 'extra' | 'betmode' | 'amount' | 'minbet' | 'review';
+type Step = 'discovery' | `extra-${number}` | 'betmode' | 'amount' | 'minbet' | 'review';
 
-function stepsFor(betMode: BetMode): Step[] {
-  return ['discovery', 'extra', 'betmode', 'amount', ...(betMode === 'free' ? (['minbet'] as const) : []), 'review'];
+function stepsFor(betMode: BetMode, extraCount: number): Step[] {
+  const extraSteps = Array.from({ length: extraCount }, (_, i) => `extra-${i}` as Step);
+  return ['discovery', ...extraSteps, 'betmode', 'amount', ...(betMode === 'free' ? (['minbet'] as const) : []), 'review'];
+}
+
+/** Resolve every extra step's default in order, so a later step can depend on an earlier one's default. */
+function resolveDefaultValues(extraSteps: ExtraStepConfig[]): Record<string, string | number> {
+  const values: Record<string, string | number> = {};
+  for (const s of extraSteps) {
+    values[s.key] = typeof s.defaultValue === 'function' ? s.defaultValue(values) : s.defaultValue;
+  }
+  return values;
+}
+
+function extraStepIndexFromStep(step: Step): number | null {
+  return step.startsWith('extra-') ? Number(step.slice('extra-'.length)) : null;
 }
 
 /**
  * Config-driven pre-match setup wizard shared by every game: discovery mode
- * → the game's own setting (rounds / seats / board size) → bet mode → stake
- * → min bet (free bet only) → review & publish. All step state lives here —
- * the parent Board only supplies `balance` and receives the final settings
- * via `onPublish`.
+ * → the game's own settings (rounds / seats / board size / ...) → bet mode →
+ * stake → min bet (free bet only) → review & publish. All step state lives
+ * here — the parent Board only supplies `balance` and receives the final
+ * settings via `onPublish`.
+ *
+ * `extraSteps` is an ordered array rather than a single step because some
+ * games need more than one game-specific setting, and a later one may depend
+ * on an earlier one (e.g. Trumpcard's cards-per-player cap depends on its
+ * seat count) — see `frontend/src/games/trumpcard/trumpcardSetupConfig.tsx`.
  */
-export function GameSetupWizard<T extends string | number, K extends string>({
+export function GameSetupWizard<K extends string>({
   config,
   balance,
   onPublish,
   onBack,
-}: GameSetupWizardProps<T, K>) {
+}: GameSetupWizardProps<K>) {
   const visual = gameVisual({ name: config.gameName });
   const accentColor = visual.tone;
   const accentTint = visual.tint;
 
   const [discovery, setDiscovery] = useState<DiscoveryMode>('random');
-  const [extraValue, setExtraValue] = useState<T>(config.extraStep.defaultValue);
+  const [extraValues, setExtraValues] = useState<Record<string, string | number>>(() =>
+    resolveDefaultValues(config.extraSteps),
+  );
   const [betMode, setBetMode] = useState<BetMode>('fixed');
   const [stake, setStake] = useState('0.1');
   const [minBet, setMinBet] = useState('0.05');
   const [step, setStep] = useState<Step>('discovery');
 
-  const steps = stepsFor(betMode);
+  const steps = stepsFor(betMode, config.extraSteps.length);
   const currentIndex = steps.indexOf(step);
 
   const stakeNum = Number(stake) || 0;
@@ -64,18 +85,39 @@ export function GameSetupWizard<T extends string | number, K extends string>({
       betMode,
       stake: stakeNum,
       minBet: betMode === 'free' ? minBetNum : null,
-      [config.extraStep.key]: extraValue,
+      ...extraValues,
     } as never);
+  };
+
+  const extraIndex = extraStepIndexFromStep(step);
+  const extraCfg = extraIndex !== null ? config.extraSteps[extraIndex] : undefined;
+  const extraOptions = extraCfg
+    ? typeof extraCfg.options === 'function' ? extraCfg.options(extraValues) : extraCfg.options
+    : [];
+
+  const handleExtraChange = (idx: number, key: string, v: string | number) => {
+    setExtraValues((prev) => {
+      // Changing an earlier step invalidates any later step's stale value
+      // (e.g. Trumpcard's cards-per-player cap changes with seat count) —
+      // recompute every step after this one back to its own default.
+      const next = { ...prev, [key]: v };
+      for (let j = idx + 1; j < config.extraSteps.length; j++) {
+        const later = config.extraSteps[j]!;
+        next[later.key] = typeof later.defaultValue === 'function' ? later.defaultValue(next) : later.defaultValue;
+      }
+      return next;
+    });
+    goNext();
   };
 
   const stepTitle: Record<Step, string> = {
     discovery: 'How do you want to play?',
-    extra: config.extraStep.stepTitle,
     betmode: 'Bet mode',
     amount: `${betMode === 'fixed' ? 'Bet' : 'Your bet'} amount (SOL)`,
     minbet: 'Minimum bet for joiners (SOL)',
     review: 'Review your match settings',
-  };
+    ...Object.fromEntries(config.extraSteps.map((s, i) => [`extra-${i}`, s.stepTitle])),
+  } as Record<Step, string>;
 
   const reviewRows: ReviewRow[] = [
     {
@@ -87,10 +129,14 @@ export function GameSetupWizard<T extends string | number, K extends string>({
         </>
       ),
     },
-    {
-      label: config.extraStep.stepTitle.replace(/\s*\(.*\)$/, ''),
-      value: config.extraStep.options.find((o) => o.value === extraValue)?.label ?? String(extraValue),
-    },
+    ...config.extraSteps.map((s) => {
+      const opts = typeof s.options === 'function' ? s.options(extraValues) : s.options;
+      const v = extraValues[s.key];
+      return {
+        label: s.stepTitle.replace(/\s*\(.*\)$/, ''),
+        value: opts.find((o) => o.value === v)?.label ?? String(v),
+      };
+    }),
     {
       label: 'Bet mode',
       value: (
@@ -142,15 +188,15 @@ export function GameSetupWizard<T extends string | number, K extends string>({
             </div>
           )}
 
-          {step === 'extra' && (
+          {extraCfg && extraIndex !== null && (
             <OptionPillGrid
-              options={config.extraStep.options}
-              value={extraValue}
-              onChange={(v) => { setExtraValue(v); goNext(); }}
-              columns={config.extraStep.columns}
+              options={extraOptions}
+              value={extraValues[extraCfg.key]!}
+              onChange={(v) => handleExtraChange(extraIndex, extraCfg.key, v)}
+              columns={extraCfg.columns}
               accentColor={accentColor}
               accentTint={accentTint}
-              infoBox={config.extraStep.infoBox?.(extraValue)}
+              infoBox={extraCfg.infoBox?.(extraValues[extraCfg.key]!, extraValues)}
             />
           )}
 

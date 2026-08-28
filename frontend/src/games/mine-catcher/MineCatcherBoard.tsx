@@ -377,16 +377,17 @@ export function MineCatcherBoard() {
 
   const handleCreate = useCallback((settings: {
     discovery: DiscoveryMode;
-    boardSize: BoardSize;
+    boardSize: string | number;
     betMode: 'fixed' | 'free';
     stake: number;
     minBet: number | null;
   }) => {
-    setBoardSize(settings.boardSize);
+    const boardSize = Number(settings.boardSize) as BoardSize;
+    setBoardSize(boardSize);
     setStake(settings.stake);
     setBetMode(settings.betMode);
     socketRef.current?.emit(MC.CREATE_MATCH, {
-      boardSize: settings.boardSize,
+      boardSize,
       betMode: settings.betMode,
       stake: settings.stake,
       discovery: settings.discovery,

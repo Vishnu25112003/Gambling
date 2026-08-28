@@ -19,6 +19,7 @@ import { NotFound } from './pages/NotFound';
 import { CoinFlipBoard } from './games/coin-flip/CoinFlipBoard';
 import { LudoBoard } from './games/ludo/LudoBoard';
 import { MineCatcherBoard } from './games/mine-catcher/MineCatcherBoard';
+import { TrumpcardBoard } from './games/trumpcard/TrumpcardBoard';
 
 /**
  * Doc 06's two layers: a public landing page and a dashboard you can enter
@@ -78,6 +79,7 @@ export default function App() {
               <Route path="/dashboard/play/coin-flip" element={<CoinFlipBoard />} />
               <Route path="/dashboard/play/ludo" element={<LudoBoard />} />
               <Route path="/dashboard/play/mine-catcher" element={<MineCatcherBoard />} />
+              <Route path="/dashboard/play/trumpcard" element={<TrumpcardBoard />} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>

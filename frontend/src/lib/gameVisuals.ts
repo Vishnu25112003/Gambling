@@ -33,6 +33,12 @@ const BY_NAME: Record<string, GameVisual> = {
   mines: { icon: 'bomb', tint: 'rgba(248,113,113,0.13)', tone: 'var(--red)', art: '/games/Mine_Catcher.png' },
   'mine catcher': { icon: 'bomb', tint: 'rgba(248,113,113,0.13)', tone: 'var(--red)', art: '/games/Mine_Catcher.png' },
   roulette: { icon: 'roulette', tint: 'rgba(168,85,247,0.14)', tone: '#a855f7' },
+  trumpcard: {
+    icon: 'cards',
+    tint: 'rgba(96,165,250,0.14)',
+    tone: '#60a5fa',
+    art: '/games/Trumpcard.png',
+  },
   crash: { icon: 'rocket', tint: 'rgba(59,130,246,0.14)', tone: '#60a5fa' },
   blackjack: { icon: 'cards', tint: 'rgba(34,197,94,0.14)', tone: 'var(--green)' },
 };
