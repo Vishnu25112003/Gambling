@@ -6,8 +6,9 @@ import { tokenStore } from '../../api/client';
 import { walletApi } from '../../api/endpoints';
 import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
+import { GameSetupWizard, GameJoinByCode, GameWaitingRoom } from '../../components/shared/gameSetup';
 import { formatSol } from '../../lib/format';
-import { LudoSetup } from './LudoSetup';
+import { ludoSetupConfig } from './ludoSetupConfig';
 import { LudoResult } from './LudoResult';
 import { LudoBoardGrid } from './LudoBoardGrid';
 import { LUDO_COLOR_VAR } from './boardGeometry';
@@ -57,6 +58,7 @@ interface ListedMatch {
   seatCount: number;
   stake: string;
   betMode: BetMode;
+  minBet: string | null;
 }
 
 interface PlayerInfo {
@@ -125,12 +127,12 @@ function LudoBoardInner() {
   const [matches, setMatches] = useState<ListedMatch[]>([]);
 
   // --- Create flow ---
+  // Populated from GameSetupWizard's onPublish, purely so the waiting-room
+  // summary text below has something to show.
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [seatCount, setSeatCount] = useState(2);
+  const [betMode, setBetMode] = useState<BetMode>('fixed');
   const [stake, setStake] = useState('0.1');
-
-  // --- Friends join ---
-  const [joinCode, setJoinCode] = useState('');
 
   // --- Live game ---
   const [myId, setMyId] = useState<string | null>(user?.id ?? null);
@@ -389,14 +391,17 @@ function LudoBoardInner() {
     seatCount: number;
     betMode: BetMode;
     stake: number;
+    minBet: number | null;
   }) => {
     setSeatCount(settings.seatCount);
     setStake(String(settings.stake));
+    setBetMode(settings.betMode);
     emit(LUDO.CREATE_MATCH, {
       discovery: settings.discovery,
       seatCount: settings.seatCount,
       betMode: settings.betMode,
       stake: settings.stake,
+      minBet: settings.minBet ?? undefined,
     });
   };
 
@@ -404,9 +409,9 @@ function LudoBoardInner() {
     emit(LUDO.JOIN_MATCH, { matchId });
   };
 
-  const handleJoinByCode = () => {
-    if (!joinCode.trim()) return;
-    emit(LUDO.JOIN_MATCH, { roomCode: joinCode.trim().toUpperCase() });
+  const handleJoinByCode = (code: string) => {
+    if (!code.trim()) return;
+    emit(LUDO.JOIN_MATCH, { roomCode: code });
     setPage('waiting');
   };
 
@@ -477,6 +482,7 @@ function LudoBoardInner() {
                     <p className="text-sm font-bold">{m.hostName}</p>
                     <p className="text-xs text-muted">
                       {m.seatCount} players · {m.betMode === 'fixed' ? 'Fixed' : 'Free'} bet
+                      {m.betMode === 'free' && m.minBet ? ` · min ${formatSol(m.minBet)}` : ''}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -496,34 +502,14 @@ function LudoBoardInner() {
 
   // --- Friends Play: Join with code ---
   if (page === 'join_code') {
-    return (
-      <>
-        <PageTitle title="Join with Code" subtitle="Enter a room code from your friend." />
-        <Card className="mx-auto max-w-sm px-6 py-8">
-          <label className="mb-1 block text-xs font-semibold text-muted">Room Code</label>
-          <input
-            value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-            className="mb-4 w-full rounded-[9px] border border-line bg-bg2 px-3.5 py-[11px] text-center text-lg font-bold tracking-widest text-text placeholder:text-faint focus:border-green focus:outline-none"
-            placeholder="ABCD"
-            maxLength={8}
-            autoFocus
-          />
-          <Button variant="primary" size="lg" className="w-full" onClick={handleJoinByCode} disabled={!joinCode.trim()}>
-            Join Match
-          </Button>
-          <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={() => setPage('lobby')}>
-            Back to Lobby
-          </Button>
-        </Card>
-      </>
-    );
+    return <GameJoinByCode onJoin={handleJoinByCode} onBack={() => setPage('lobby')} />;
   }
 
   // --- Create flow ---
   if (page === 'create') {
     return (
-      <LudoSetup
+      <GameSetupWizard
+        config={ludoSetupConfig}
         balance={balance}
         onPublish={handlePublish}
         onBack={() => setPage('lobby')}
@@ -534,56 +520,26 @@ function LudoBoardInner() {
   // --- Waiting (Friends Play) ---
   if (page === 'waiting_friends') {
     return (
-      <>
-        <PageTitle title="Friends Play" subtitle="Share this code with your friends." />
-        <Card className="mx-auto max-w-md px-6 py-10 text-center">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Room Code</p>
-          <p className="mb-1 text-4xl font-extrabold tracking-[0.35em] text-green">{roomCode}</p>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="mt-4"
-            onClick={() => { if (roomCode) void navigator.clipboard?.writeText(roomCode); }}
-          >
-            Copy Code
-          </Button>
-
-          <div className="mt-8 flex flex-col items-center">
-            <Spinner className="mb-3 size-5" />
-            <p className="text-sm text-muted">Waiting for players to join...</p>
-          </div>
-
-          <p className="mt-4 text-xs text-faint">
-            {formatSol(stake)} SOL · {seatCount} players
-          </p>
-          <Button variant="ghost" size="sm" className="mt-6" onClick={goHome}>Cancel</Button>
-        </Card>
-      </>
+      <GameWaitingRoom
+        mode="friends"
+        roomCode={roomCode}
+        waitingText="Waiting for players to join…"
+        summary={`${formatSol(stake)} SOL · ${seatCount} players · ${betMode === 'fixed' ? 'Fixed' : 'Free'} bet`}
+        onCancel={goHome}
+      />
     );
   }
 
   // --- Waiting (Random or filling) ---
   if (page === 'waiting') {
     return (
-      <>
-        <PageTitle title="Ludo" />
-        <Card className="mx-auto max-w-md px-6 py-12 text-center">
-          <Spinner className="mb-4 size-6" />
-          <p className="text-sm text-muted">
-            {waitingReason ?? 'Waiting for players to join...'}
-          </p>
-          {roomCode && (
-            <div className="mt-4 rounded-[10px] border border-line bg-bg2 px-4 py-3">
-              <p className="mb-1 text-xs text-muted">Share this code:</p>
-              <p className="text-2xl font-extrabold tracking-widest">{roomCode}</p>
-            </div>
-          )}
-          <p className="mt-3 text-xs text-faint">
-            {formatSol(stake)} SOL · {seatCount} players
-          </p>
-          <Button variant="ghost" size="sm" className="mt-6" onClick={goHome}>Cancel</Button>
-        </Card>
-      </>
+      <GameWaitingRoom
+        mode="random"
+        roomCode={roomCode}
+        waitingText={waitingReason ?? 'Waiting for players to join…'}
+        summary={`${formatSol(stake)} SOL · ${seatCount} players`}
+        onCancel={goHome}
+      />
     );
   }
 

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { Coins, Dices, Frown, Lock, PartyPopper, Trophy, Unlock, Users } from 'lucide-react';
+import { Coins, Dices, Frown, PartyPopper, Trophy, Users } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { tokenStore } from '../../api/client';
 import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
+import { GameSetupWizard, GameJoinByCode, GameWaitingRoom, type GameSetupConfig } from '../../components/shared/gameSetup';
 import { formatSol } from '../../lib/format';
 import { CoinFlipLiveCard } from './CoinFlipLiveCard';
 import type { Coin3DHandle } from './Coin3D';
@@ -37,6 +38,17 @@ const CF = {
 
 const ROUND_OPTIONS = [3, 5, 7, 9, 11, 13, 15] as const;
 
+const coinFlipSetupConfig: GameSetupConfig<number, 'rounds'> = {
+  gameName: 'Coin Flip',
+  extraStep: {
+    key: 'rounds',
+    stepTitle: 'Number of rounds (odd only)',
+    columns: 4,
+    defaultValue: 3,
+    options: ROUND_OPTIONS.map((r) => ({ value: r, label: String(r) })),
+  },
+};
+
 // Mirrors backend/src/games/coin-flip/engine.ts SPIN_TIMEOUT_MS / CALL_TIMEOUT_MS —
 // the two 10s action timers are deliberately symmetric (see G01-Coin-Flip.md).
 const SPIN_TIMEOUT_MS = 10_000;
@@ -52,12 +64,7 @@ type RoundPhase = 'pre_spin' | 'spinning' | 'revealing';
 
 type Page =
   | 'lobby'
-  | 'create_mode'
-  | 'create_rounds'
-  | 'create_betmode'
-  | 'create_amount'
-  | 'create_minbet'
-  | 'create_review'
+  | 'create'
   | 'waiting'
   | 'waiting_friends'
   | 'join_code'
@@ -144,15 +151,13 @@ function CoinFlipBoardInner() {
   const [matches, setMatches] = useState<ListedMatch[]>([]);
 
   // --- Create flow ---
-  const [discovery, setDiscovery] = useState<DiscoveryMode>('random');
+  // Populated from GameSetupWizard's onPublish, purely so the waiting-room
+  // summary text below has something to show — the wizard itself owns all
+  // the actual step state now.
   const [rounds, setRounds] = useState<number>(3);
   const [betMode, setBetMode] = useState<BetMode>('fixed');
   const [stake, setStake] = useState('0.1');
-  const [minBet, setMinBet] = useState('0.05');
   const [roomCode, setRoomCode] = useState<string | null>(null);
-
-  // --- Friends join ---
-  const [joinCode, setJoinCode] = useState('');
 
   // --- Live game ---
   const [myId, setMyId] = useState<string | null>(user?.id ?? null);
@@ -408,21 +413,26 @@ function CoinFlipBoardInner() {
   }, []);
 
   const handleCreateGame = () => {
-    setPage('create_mode');
+    setPage('create');
   };
 
-  const handlePublish = () => {
-    const s = Number(stake);
-    if (!s || s <= 0) { setError('Enter a valid stake.'); setPage('error'); return; }
-    if (balance !== null && s > Number(balance)) { setError('Insufficient balance.'); setPage('error'); return; }
-
+  const handlePublish = (settings: {
+    discovery: DiscoveryMode;
+    betMode: BetMode;
+    stake: number;
+    minBet: number | null;
+    rounds: number;
+  }) => {
+    setRounds(settings.rounds);
+    setBetMode(settings.betMode);
+    setStake(String(settings.stake));
     emit(CF.CREATE_MATCH, {
       gameType: 'coin-flip',
-      discovery,
-      rounds,
-      betMode,
-      stake: s,
-      minBet: betMode === 'free' ? Number(minBet) : undefined,
+      discovery: settings.discovery,
+      rounds: settings.rounds,
+      betMode: settings.betMode,
+      stake: settings.stake,
+      minBet: settings.minBet ?? undefined,
     });
   };
 
@@ -433,9 +443,9 @@ function CoinFlipBoardInner() {
     emit(CF.JOIN_MATCH, { matchId });
   };
 
-  const handleJoinByCode = () => {
-    if (!joinCode.trim()) return;
-    emit(CF.JOIN_MATCH, { roomCode: joinCode.trim().toUpperCase() });
+  const handleJoinByCode = (code: string) => {
+    if (!code.trim()) return;
+    emit(CF.JOIN_MATCH, { roomCode: code });
     setPage('waiting');
   };
 
@@ -473,9 +483,6 @@ function CoinFlipBoardInner() {
     s.on('connect', () => { setConnected(true); s.emit(CF.LIST_MATCHES, { gameType: 'coin-flip' }); });
     s.on(CF.MATCHES_LIST, (data: { matches: ListedMatch[] }) => setMatches(data.matches));
   };
-
-  const stakeNum = Number(stake) || 0;
-  const canAfford = balance === null || stakeNum <= Number(balance);
 
   // =====================================================================
   // RENDER
@@ -552,305 +559,42 @@ function CoinFlipBoardInner() {
 
   // --- Friends Play: Join with code ---
   if (page === 'join_code') {
-    return (
-      <>
-        <PageTitle title="Join with Code" subtitle="Enter a room code from your friend." />
-        <Card className="mx-auto max-w-sm px-6 py-8">
-          <label className="mb-1 block text-xs font-semibold text-muted">Room Code</label>
-          <input
-            value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-            className="mb-4 w-full rounded-[9px] border border-line bg-bg2 px-3.5 py-[11px] text-center text-lg font-bold tracking-widest text-text placeholder:text-faint focus:border-green focus:outline-none"
-            placeholder="ABCD"
-            maxLength={8}
-            autoFocus
-          />
-          <Button variant="primary" size="lg" className="w-full" onClick={handleJoinByCode} disabled={!joinCode.trim()}>
-            Join Match
-          </Button>
-          <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={() => setPage('lobby')}>
-            Back to Lobby
-          </Button>
-        </Card>
-      </>
-    );
+    return <GameJoinByCode onJoin={handleJoinByCode} onBack={() => setPage('lobby')} />;
   }
 
-  // --- Create: Step 1 — Discovery mode ---
-  if (page === 'create_mode') {
+  // --- Create match ---
+  if (page === 'create') {
     return (
-      <>
-        <PageTitle title="Create Match" subtitle="Step 1 — How do you want to play?" />
-        <div className="mx-auto max-w-sm space-y-3">
-          <button
-            type="button"
-            className="block w-full cursor-pointer rounded-[18px] border border-line bg-card px-6 py-5 text-left transition hover:border-green-solid/40"
-            onClick={() => { setDiscovery('random'); setPage('create_rounds'); }}
-          >
-            <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
-              <Dices className="size-4" />
-              Random Play
-            </p>
-            <p className="text-xs text-muted">Listed publicly. Anyone can join instantly.</p>
-          </button>
-          <button
-            type="button"
-            className="block w-full cursor-pointer rounded-[18px] border border-line bg-card px-6 py-5 text-left transition hover:border-green-solid/40"
-            onClick={() => { setDiscovery('friends'); setPage('create_rounds'); }}
-          >
-            <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
-              <Users className="size-4" />
-              Friends Play
-            </p>
-            <p className="text-xs text-muted">Private room code. Share it with a friend.</p>
-          </button>
-          <Button variant="ghost" size="sm" className="w-full" onClick={() => setPage('lobby')}>
-            Back
-          </Button>
-        </div>
-      </>
-    );
-  }
-
-  // --- Create: Step 2 — Rounds ---
-  if (page === 'create_rounds') {
-    return (
-      <>
-        <PageTitle title="Create Match" subtitle="Step 2 — Number of rounds (odd only)" />
-        <Card className="mx-auto max-w-sm px-6 py-6">
-          <div className="grid grid-cols-4 gap-2">
-            {ROUND_OPTIONS.map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => { setRounds(r); setPage('create_betmode'); }}
-                className={`rounded-[10px] border px-4 py-3 text-sm font-bold transition ${
-                  rounds === r
-                    ? 'border-green-solid bg-green-solid/15 text-green'
-                    : 'border-line bg-bg2 text-text hover:border-green-solid/40'
-                }`}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
-          <Button variant="ghost" size="sm" className="mt-4 w-full" onClick={() => setPage('create_mode')}>
-            Back
-          </Button>
-        </Card>
-      </>
-    );
-  }
-
-  // --- Create: Step 3 — Bet mode ---
-  if (page === 'create_betmode') {
-    return (
-      <>
-        <PageTitle title="Create Match" subtitle="Step 3 — Bet mode" />
-        <div className="mx-auto max-w-sm space-y-3">
-          <button
-            type="button"
-            className="block w-full cursor-pointer rounded-[18px] border border-line bg-card px-6 py-5 text-left transition hover:border-green-solid/40"
-            onClick={() => { setBetMode('fixed'); setPage('create_amount'); }}
-          >
-            <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
-              <Lock className="size-4" />
-              Fixed Bet
-            </p>
-            <p className="text-xs text-muted">Every player bets the same amount.</p>
-          </button>
-          <button
-            type="button"
-            className="block w-full cursor-pointer rounded-[18px] border border-line bg-card px-6 py-5 text-left transition hover:border-green-solid/40"
-            onClick={() => { setBetMode('free'); setPage('create_amount'); }}
-          >
-            <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
-              <Unlock className="size-4" />
-              Free Bet
-            </p>
-            <p className="text-xs text-muted">Each player picks their own amount. Set a minimum to prevent lowball.</p>
-          </button>
-          <Button variant="ghost" size="sm" className="w-full" onClick={() => setPage('create_rounds')}>
-            Back
-          </Button>
-        </div>
-      </>
-    );
-  }
-
-  // --- Create: Step 4 — Bet amount ---
-  if (page === 'create_amount') {
-    return (
-      <>
-        <PageTitle title="Create Match" subtitle={`Step 4 — ${betMode === 'fixed' ? 'Bet' : 'Your bet'} amount (SOL)`} />
-        <Card className="mx-auto max-w-sm px-6 py-6">
-          {balance !== null && (
-            <p className="mb-4 text-xs text-muted">
-              Balance: <span className="font-bold text-text">{formatSol(balance)} SOL</span>
-            </p>
-          )}
-          <label className="mb-1 block text-xs font-semibold text-muted">Amount (SOL)</label>
-          <input
-            type="number"
-            min="0.01"
-            step="0.01"
-            value={stake}
-            onChange={(e) => setStake(e.target.value)}
-            className="mb-1 w-full rounded-[9px] border border-line bg-bg2 px-3.5 py-[11px] text-sm text-text placeholder:text-faint focus:border-green focus:outline-none"
-            placeholder="0.1"
-          />
-          {!canAfford && <p className="mb-2 text-xs text-red">Insufficient balance.</p>}
-          <Button
-            variant="primary"
-            size="lg"
-            className="mt-3 w-full"
-            disabled={!stake || Number(stake) <= 0 || !canAfford}
-            onClick={() => betMode === 'free' ? setPage('create_minbet') : setPage('create_review')}
-          >
-            {betMode === 'free' ? 'Next' : 'Review'}
-          </Button>
-          <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={() => setPage('create_betmode')}>
-            Back
-          </Button>
-        </Card>
-      </>
-    );
-  }
-
-  // --- Create: Step 5 — Min bet (free bet only) ---
-  if (page === 'create_minbet') {
-    return (
-      <>
-        <PageTitle title="Create Match" subtitle="Step 5 — Minimum bet for joiners (SOL)" />
-        <Card className="mx-auto max-w-sm px-6 py-6">
-          <p className="mb-4 text-xs text-muted">
-            Joiners must stake at least this much. Protects against lowball.
-          </p>
-          <label className="mb-1 block text-xs font-semibold text-muted">Minimum bet (SOL)</label>
-          <input
-            type="number"
-            min="0.01"
-            step="0.01"
-            value={minBet}
-            onChange={(e) => setMinBet(e.target.value)}
-            className="mb-1 w-full rounded-[9px] border border-line bg-bg2 px-3.5 py-[11px] text-sm text-text placeholder:text-faint focus:border-green focus:outline-none"
-            placeholder="0.05"
-          />
-          <Button
-            variant="primary"
-            size="lg"
-            className="mt-3 w-full"
-            disabled={!minBet || Number(minBet) <= 0}
-            onClick={() => setPage('create_review')}
-          >
-            Review
-          </Button>
-          <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={() => setPage('create_amount')}>
-            Back
-          </Button>
-        </Card>
-      </>
-    );
-  }
-
-  // --- Create: Step 6 — Review & Publish ---
-  if (page === 'create_review') {
-    return (
-      <>
-        <PageTitle title="Create Match" subtitle="Review your match settings" />
-        <Card className="mx-auto max-w-sm px-6 py-6">
-          <div className="mb-5 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted">Mode</span>
-              <span className="flex items-center gap-1.5 font-bold">
-                {discovery === 'random' ? <Dices className="size-4" /> : <Users className="size-4" />}
-                {discovery === 'random' ? 'Random Play' : 'Friends Play'}
-              </span>
-            </div>
-            <div className="flex justify-between"><span className="text-muted">Rounds</span><span className="font-bold">{rounds}</span></div>
-            <div className="flex justify-between">
-              <span className="text-muted">Bet mode</span>
-              <span className="flex items-center gap-1.5 font-bold">
-                {betMode === 'fixed' ? <Lock className="size-4" /> : <Unlock className="size-4" />}
-                {betMode === 'fixed' ? 'Fixed' : 'Free'}
-              </span>
-            </div>
-            <div className="flex justify-between"><span className="text-muted">Your stake</span><span className="font-bold text-green">{formatSol(stake)} SOL</span></div>
-            {betMode === 'free' && (
-              <div className="flex justify-between"><span className="text-muted">Min for joiner</span><span className="font-bold">{formatSol(minBet)} SOL</span></div>
-            )}
-          </div>
-          {!canAfford && <p className="mb-3 text-xs text-red">Insufficient balance.</p>}
-          <Button
-            variant="primary"
-            size="lg"
-            className="w-full"
-            disabled={!canAfford}
-            onClick={handlePublish}
-          >
-            Publish Match
-          </Button>
-          <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={() => setPage(betMode === 'free' ? 'create_minbet' : 'create_amount')}>
-            Back
-          </Button>
-        </Card>
-      </>
+      <GameSetupWizard
+        config={coinFlipSetupConfig}
+        balance={balance}
+        onPublish={handlePublish}
+        onBack={() => setPage('lobby')}
+      />
     );
   }
 
   // --- Waiting (Friends Play) — show the room code ---
   if (page === 'waiting_friends') {
     return (
-      <>
-        <PageTitle title="Friends Play" subtitle="Share this code with your friend." />
-        <Card className="mx-auto max-w-md px-6 py-10 text-center">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Room Code</p>
-          <p className="mb-1 text-4xl font-extrabold tracking-[0.35em] text-green">{roomCode}</p>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="mt-4"
-            onClick={() => { if (roomCode) void navigator.clipboard?.writeText(roomCode); }}
-          >
-            Copy Code
-          </Button>
-
-          <div className="mt-8 flex flex-col items-center">
-            <Spinner className="mb-3 size-5" />
-            <p className="text-sm text-muted">Waiting for your friend to join…</p>
-          </div>
-
-          <p className="mt-4 text-xs text-faint">
-            {formatSol(stake)} SOL · {rounds} rounds · {betMode === 'fixed' ? 'Fixed' : 'Free'} bet
-          </p>
-          <Button variant="ghost" size="sm" className="mt-6" onClick={goHome}>Cancel</Button>
-        </Card>
-      </>
+      <GameWaitingRoom
+        mode="friends"
+        roomCode={roomCode}
+        summary={`${formatSol(stake)} SOL · ${rounds} rounds · ${betMode === 'fixed' ? 'Fixed' : 'Free'} bet`}
+        onCancel={goHome}
+      />
     );
   }
 
   // --- Waiting (Random) ---
   if (page === 'waiting') {
     return (
-      <>
-        <PageTitle title="Coin Flip" />
-        <Card className="mx-auto max-w-md px-6 py-12 text-center">
-          <Spinner className="mb-4 size-6" />
-          <p className="text-sm text-muted">
-            {roomCode ? 'Waiting for friend to confirm…' : 'Waiting for an opponent to join…'}
-          </p>
-          {roomCode && (
-            <div className="mt-4 rounded-[10px] border border-line bg-bg2 px-4 py-3">
-              <p className="mb-1 text-xs text-muted">Share this code:</p>
-              <p className="text-2xl font-extrabold tracking-widest">{roomCode}</p>
-            </div>
-          )}
-          <p className="mt-3 text-xs text-faint">
-            {formatSol(stake)} SOL · {rounds} rounds
-          </p>
-          <Button variant="ghost" size="sm" className="mt-6" onClick={goHome}>Cancel</Button>
-        </Card>
-      </>
+      <GameWaitingRoom
+        mode="random"
+        roomCode={roomCode}
+        summary={`${formatSol(stake)} SOL · ${rounds} rounds`}
+        onCancel={goHome}
+      />
     );
   }
 
