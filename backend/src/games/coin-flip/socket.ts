@@ -25,6 +25,7 @@ import {
   advanceRound,
   SPIN_TIMEOUT_MS,
   CALL_TIMEOUT_MS,
+  ROUND_TRANSITION_DELAY_MS,
   VALID_ROUND_COUNTS,
 } from './engine.js';
 import type {
@@ -211,6 +212,10 @@ function guardSync(label: string, work: () => void, context?: Record<string, unk
   }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function clearTimeouts(match: ActiveMatch): void {
   if (match.timers.spin) {
     clearTimeout(match.timers.spin);
@@ -283,6 +288,14 @@ function startCallTimer(match: ActiveMatch, callerId: string): void {
 
 async function handleRoundEnd(match: ActiveMatch, roundWinnerId: string): Promise<void> {
   clearTimeouts(match);
+
+  // Let the ROUND_RESULT just broadcast by the caller stay on screen before
+  // the next round (or, on the final round, MATCH_RESULT) arrives — both
+  // the "next round" path and the match-over path below flow through here,
+  // so this one delay paces both. spinStartedAt is captured further down,
+  // after this resolves, so the next round's spin-timeout deadline stays
+  // correctly anchored to when ROUND_START actually goes out.
+  await sleep(ROUND_TRANSITION_DELAY_MS);
 
   if (match.state.phase === 'match_over') {
     // A player clinched — settle the match

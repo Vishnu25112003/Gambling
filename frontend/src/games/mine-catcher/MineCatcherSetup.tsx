@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Dices, Lock, Unlock, Users } from 'lucide-react';
 import { Button, Card, PageTitle } from '../../components/shared/ui';
 import { formatSol } from '../../lib/format';
 
@@ -52,7 +53,10 @@ export function MineCatcherSetup({ balance, onPublish, onBack }: MineCatcherSetu
             className="block w-full cursor-pointer rounded-[18px] border border-line bg-card px-6 py-5 text-left transition hover:border-green-solid/40"
             onClick={() => { setDiscovery('random'); setStep('boardsize'); }}
           >
-            <p className="mb-1 text-sm font-bold">🎲 Random Play</p>
+            <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
+              <Dices className="size-4" />
+              Random Play
+            </p>
             <p className="text-xs text-muted">Listed publicly. Anyone can join instantly.</p>
           </button>
           <button
@@ -60,7 +64,10 @@ export function MineCatcherSetup({ balance, onPublish, onBack }: MineCatcherSetu
             className="block w-full cursor-pointer rounded-[18px] border border-line bg-card px-6 py-5 text-left transition hover:border-green-solid/40"
             onClick={() => { setDiscovery('friends'); setStep('boardsize'); }}
           >
-            <p className="mb-1 text-sm font-bold">👥 Friends Play</p>
+            <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
+              <Users className="size-4" />
+              Friends Play
+            </p>
             <p className="text-xs text-muted">Private room code. Share it with friends.</p>
           </button>
           <Button variant="ghost" size="sm" className="w-full" onClick={onBack}>
@@ -116,7 +123,10 @@ export function MineCatcherSetup({ balance, onPublish, onBack }: MineCatcherSetu
             className="block w-full cursor-pointer rounded-[18px] border border-line bg-card px-6 py-5 text-left transition hover:border-green-solid/40"
             onClick={() => { setBetMode('fixed'); setStep('amount'); }}
           >
-            <p className="mb-1 text-sm font-bold">🔒 Fixed Bet</p>
+            <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
+              <Lock className="size-4" />
+              Fixed Bet
+            </p>
             <p className="text-xs text-muted">Every player bets the same amount.</p>
           </button>
           <button
@@ -124,7 +134,10 @@ export function MineCatcherSetup({ balance, onPublish, onBack }: MineCatcherSetu
             className="block w-full cursor-pointer rounded-[18px] border border-line bg-card px-6 py-5 text-left transition hover:border-green-solid/40"
             onClick={() => { setBetMode('free'); setStep('amount'); }}
           >
-            <p className="mb-1 text-sm font-bold">🆓 Free Bet</p>
+            <p className="mb-1 flex items-center gap-1.5 text-sm font-bold">
+              <Unlock className="size-4" />
+              Free Bet
+            </p>
             <p className="text-xs text-muted">Each player picks their own amount.</p>
           </button>
           <Button variant="ghost" size="sm" className="w-full" onClick={() => setStep('boardsize')}>
@@ -181,7 +194,10 @@ export function MineCatcherSetup({ balance, onPublish, onBack }: MineCatcherSetu
         <div className="mb-5 space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-muted">Mode</span>
-            <span className="font-bold">{discovery === 'random' ? '🎲 Random Play' : '👥 Friends Play'}</span>
+            <span className="flex items-center gap-1.5 font-bold">
+              {discovery === 'random' ? <Dices className="size-4" /> : <Users className="size-4" />}
+              {discovery === 'random' ? 'Random Play' : 'Friends Play'}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted">Board</span>
@@ -193,7 +209,10 @@ export function MineCatcherSetup({ balance, onPublish, onBack }: MineCatcherSetu
           </div>
           <div className="flex justify-between">
             <span className="text-muted">Bet mode</span>
-            <span className="font-bold">{betMode === 'fixed' ? '🔒 Fixed' : '🆓 Free'}</span>
+            <span className="flex items-center gap-1.5 font-bold">
+              {betMode === 'fixed' ? <Lock className="size-4" /> : <Unlock className="size-4" />}
+              {betMode === 'fixed' ? 'Fixed' : 'Free'}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted">Your stake</span>

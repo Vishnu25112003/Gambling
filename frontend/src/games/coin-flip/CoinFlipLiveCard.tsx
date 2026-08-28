@@ -27,7 +27,6 @@ interface CoinFlipLiveCardProps {
   iWonLastRound: boolean;
   onSpin: () => void;
   onCall: (call: 'heads' | 'tails') => void;
-  onDismissResult: () => void;
 }
 
 /**
@@ -50,7 +49,6 @@ export function CoinFlipLiveCard({
   iWonLastRound,
   onSpin,
   onCall,
-  onDismissResult,
 }: CoinFlipLiveCardProps) {
   const timerColor = timeLeft <= 3 ? 'text-red' : timeLeft <= 5 ? 'text-gold' : 'text-green';
   const showTimer = !lastResult && roundPhase !== 'revealing' && timeLeft > 0;
@@ -78,12 +76,12 @@ export function CoinFlipLiveCard({
 
       <Card className="mb-4 flex flex-col items-center px-6 py-8">
         {/* Coin + ground shadow */}
-        <div className="relative mb-3 flex h-[230px] w-[220px] items-center justify-center">
+        <div className="relative mb-3 flex h-[310px] w-[300px] items-center justify-center">
           <div
-            className="absolute bottom-0.5 h-[22px] w-[150px] rounded-full"
+            className="absolute bottom-0.5 h-[30px] w-[205px] rounded-full"
             style={{ background: 'radial-gradient(ellipse, rgba(0,0,0,0.5), transparent 70%)' }}
           />
-          <Coin3D ref={coinRef} className="h-[220px] w-[220px]" />
+          <Coin3D ref={coinRef} className="h-[300px] w-[300px]" />
         </div>
 
         {!lastResult && roundPhase === 'pre_spin' && (
@@ -130,30 +128,23 @@ export function CoinFlipLiveCard({
 
         {lastResult && (
           <div className="animate-[fadeUp_.35s_ease-out] text-center">
-            <p className="mb-1 text-sm font-bold">
-              It was <span className="text-gold uppercase">{lastResult.result}</span>!
+            <p className={`mb-2 text-xl font-extrabold ${iWonLastRound ? 'text-green' : 'text-red'}`}>
+              Round {lastResult.roundNumber} — {iWonLastRound ? 'You win!' : `${opponentLabel} wins!`}
             </p>
-            <p className="mb-3 text-xs text-muted">
-              {lastResult.cause === 'correct_call'
-                ? `${lastResult.call} — correct call!`
-                : lastResult.cause === 'wrong_call'
-                  ? `${lastResult.call} — wrong call.`
-                  : lastResult.cause === 'no_call'
-                    ? 'Caller timed out.'
-                    : 'Spinner timed out.'}
-            </p>
-            <p className={`text-lg font-bold ${iWonLastRound ? 'text-green' : 'text-red'}`}>
-              {iWonLastRound ? 'You won this round!' : `${opponentLabel} won this round.`}
-            </p>
+            {lastResult.result ? (
+              <p className="text-xs text-muted">
+                It was <span className="text-gold uppercase">{lastResult.result}</span>
+                {lastResult.cause === 'correct_call' && ` — ${lastResult.call}, correct call!`}
+                {lastResult.cause === 'wrong_call' && ` — ${lastResult.call}, wrong call.`}
+              </p>
+            ) : (
+              <p className="text-xs text-muted">
+                {lastResult.cause === 'no_call' ? 'Caller timed out.' : 'Spinner timed out.'}
+              </p>
+            )}
           </div>
         )}
       </Card>
-
-      {lastResult && (
-        <Button variant="primary" size="lg" className="w-full" onClick={onDismissResult}>
-          Next Round
-        </Button>
-      )}
     </>
   );
 }

@@ -1,3 +1,4 @@
+import { Frown, Trophy } from 'lucide-react';
 import { Card, Button } from '../../components/shared/ui';
 import { formatSol } from '../../lib/format';
 
@@ -45,7 +46,11 @@ export function MineCatcherResult({
 
   return (
     <Card className="mx-auto max-w-sm px-6 py-10 text-center">
-      <span className="mb-3 block text-5xl">{won ? '🏆' : '😢'}</span>
+      {won ? (
+        <Trophy className="mx-auto mb-3 size-12 text-gold" />
+      ) : (
+        <Frown className="mx-auto mb-3 size-12 text-muted" />
+      )}
       <p className="mb-1 text-xl font-extrabold">
         {won ? 'You won!' : winnerId ? 'You lost.' : 'No winner.'}
       </p>

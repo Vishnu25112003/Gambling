@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { Dices } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { tokenStore } from '../../api/client';
 import { walletApi } from '../../api/endpoints';
@@ -455,7 +456,7 @@ function LudoBoardInner() {
           </Card>
         ) : matches.length === 0 ? (
           <Card className="px-6 py-12 text-center">
-            <span className="mb-3 block text-3xl">🎲</span>
+            <Dices className="mx-auto mb-3 size-8 text-muted" />
             <p className="mb-1 text-sm font-bold">No open matches</p>
             <p className="text-xs text-muted">Create one or join with a room code.</p>
             <Button variant="secondary" size="sm" className="mt-4" onClick={() => setPage('join_code')}>
@@ -694,9 +695,9 @@ function LudoBoardInner() {
               <button
                 type="button"
                 onClick={handleRollDice}
-                className="mb-2 flex h-20 w-20 items-center justify-center rounded-full border-2 border-green-solid bg-green-solid/20 text-3xl transition hover:bg-green-solid/30"
+                className="mb-2 flex h-20 w-20 items-center justify-center rounded-full border-2 border-green-solid bg-green-solid/20 text-green transition hover:bg-green-solid/30"
               >
-                🎲
+                <Dices className="size-8" />
               </button>
               <p className={`text-2xl font-extrabold ${timerColor}`}>{timeLeft}s</p>
             </>

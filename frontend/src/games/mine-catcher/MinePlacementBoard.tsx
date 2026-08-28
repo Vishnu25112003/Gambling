@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { Bomb } from 'lucide-react';
 import { Button, Card } from '../../components/shared/ui';
 
 type BoardSize = 25 | 49 | 81 | 100;
@@ -97,13 +98,13 @@ export function MinePlacementBoard({
             type="button"
             disabled={isReady}
             onClick={() => toggleCell(i)}
-            className={`aspect-square rounded-[6px] border text-xs font-bold transition-all ${
+            className={`flex aspect-square items-center justify-center rounded-[6px] border text-xs font-bold transition-all ${
               selected.has(i)
                 ? 'border-red bg-red/20 text-red hover:bg-red/30'
                 : 'border-line bg-bg2 text-faint hover:border-green-solid/40 hover:bg-bg3'
             } ${isReady ? 'cursor-default opacity-60' : 'cursor-pointer'}`}
           >
-            {selected.has(i) ? '💣' : ''}
+            {selected.has(i) && <Bomb className="size-4" />}
           </button>
         ))}
       </div>
