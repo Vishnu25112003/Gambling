@@ -5,6 +5,7 @@ import type { GameManifest, GameModule } from './types.js';
 import coinFlipGame from './coin-flip/index.js';
 import ludoGame from './ludo/index.js';
 import mineCatcherGame from './mine-catcher/index.js';
+import trumpcardGame from './trumpcard/index.js';
 
 const log = createLogger('games');
 
@@ -36,6 +37,7 @@ const modules: GameModule[] = [
   coinFlipGame,
   ludoGame,
   mineCatcherGame,
+  trumpcardGame,
 ];
 
 const byId = new Map<string, GameModule>();

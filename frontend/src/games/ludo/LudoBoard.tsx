@@ -388,17 +388,18 @@ function LudoBoardInner() {
 
   const handlePublish = (settings: {
     discovery: DiscoveryMode;
-    seatCount: number;
+    seatCount: string | number;
     betMode: BetMode;
     stake: number;
     minBet: number | null;
   }) => {
-    setSeatCount(settings.seatCount);
+    const seatCount = Number(settings.seatCount);
+    setSeatCount(seatCount);
     setStake(String(settings.stake));
     setBetMode(settings.betMode);
     emit(LUDO.CREATE_MATCH, {
       discovery: settings.discovery,
-      seatCount: settings.seatCount,
+      seatCount,
       betMode: settings.betMode,
       stake: settings.stake,
       minBet: settings.minBet ?? undefined,

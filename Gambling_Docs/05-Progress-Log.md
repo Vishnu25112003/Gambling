@@ -4,6 +4,60 @@ Dated changelog of decisions and milestones. Newest entry on top.
 
 ---
 
+## 2026-08-28 — Trumpcard (Game 04) implemented end-to-end
+
+Backend (`backend/src/games/trumpcard/{index,manifest,engine,socket,types}.ts`)
+and frontend (`frontend/src/games/trumpcard/*`) built and registered — the game
+is playable at `/dashboard/play/trumpcard`. Built directly against
+`Games/G04-Trumpcard.md`'s existing spec, reusing Ludo's lobby-fill-gate and
+seat-count-scaled-payout patterns and Mine Catcher's combined-lives-system
+shape (with one deliberate deviation from Mine Catcher's disconnect handling —
+see below).
+
+**Done:**
+- Full game engine: fixed 52-card deck (deterministic stats, not
+  re-randomized per match), shuffle/deal respecting the 26/17/13
+  cards-per-player caps, round resolution with the tie-pool mechanic,
+  0-card and 0-life elimination, match-end detection (timer or last player
+  standing), final ranking, and the Ludo/Trumpcard payout-split table ported
+  verbatim.
+- Realtime socket flow: lobby-fill-gated create/join (mirroring Ludo), leader
+  stat-choice timer, staged round reveal, lives/elimination broadcasts, and
+  settlement.
+- **Deliberate fix versus copying Mine Catcher's disconnect pattern
+  verbatim:** `escrow.forfeitPlayer()` is never called on a raw disconnect —
+  only at the exact moment a life loss (skip or disconnect-timeout) brings a
+  player to 0 lives. Copying Mine Catcher's literal pattern would have
+  started a real stake-forfeit countdown on the *first* disconnect regardless
+  of remaining lives, contradicting the game doc's own statement that the
+  lives system decides only *when* `forfeitPlayer()` fires.
+- Frontend: a page-state-machine board (lobby/create/waiting/live/result,
+  same shape as `LudoBoard.tsx`), a generic stylized suit+rank stat card (no
+  per-card art pipeline exists in this repo), a staged round-reveal overlay
+  (interaction pattern referenced from the user's own "Gaming_Hub" demo
+  project, reimplemented in this repo's own stack — no code shared), and a
+  result screen with no rematch button (Rule 4's Rematch path doesn't cover
+  3+ seats).
+- **Shared `GameSetupWizard` generalized** from a single `extraStep` to an
+  ordered `extraSteps[]` array, since this game needs three game-specific
+  setup fields (seat count, cards-per-player depending on seat count, match
+  duration) where the existing wizard only ever needed one. Every existing
+  game's setup config (`coin-flip`, `ludo`, `mine-catcher`) was migrated to
+  the new shape with no behavior change.
+- Two open questions resolved with the user directly: card visuals (generic
+  stat card, not character art) and the 3+ player tie-pool scope (every
+  active player's compared card pools on a tie, not just the tied ones).
+- 20 new unit tests (`backend/tests/trumpcard-engine.test.ts`) covering deck
+  determinism, dealing/discard limits, round resolution (including the
+  two-round tie-then-claim sequence), lives/elimination, leader succession,
+  ranking, and payout weights. Backend and frontend both typecheck and build
+  clean.
+
+See `Games/G04-Trumpcard.md`'s Last Updated for the full breakdown and
+`04-Games-Index.md` for the updated master table.
+
+---
+
 ## 2026-08-25 — Trumpcard and Hand Cricket restructured onto the game doc template
 
 `game_ideas/Game-Trumpcard.md` and `game_ideas/Game-HandCricket.md` were early,
