@@ -9,6 +9,7 @@
  * behaviour comes from the escrow adapter.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { Namespace, Socket } from 'socket.io';
 import { escrow } from '../../escrow/index.js';
 import { prisma } from '../../config/db.js';
@@ -434,9 +435,20 @@ async function writeRoundRecord(
   record: CoinFlipRoundRecord,
 ): Promise<void> {
   try {
+    // `coin_flip_rounds.id` is declared `@default(uuid())` in schema.prisma, but
+    // the applied migration created the column with NO default (a known drift
+    // between the schema and the migration). Because this write goes through a
+    // raw SQL INSERT that omits `id`, Postgres rejected every row with
+    // "null value in column \"id\" — so no round record was ever persisted (no
+    // reconnect catch-up, no result breakdown, no fairness proof) and the match
+    // could not progress past the first round. Generate the id here so the INSERT
+    // is self-sufficient and works regardless of the DB-level default. See the
+    // companion migration `..._fix_coin_flip_rounds_id` which restores the
+    // default so Prisma-client writes are covered too.
+    const id = randomUUID();
     await prisma.$executeRaw`
-      INSERT INTO coin_flip_rounds ("matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
-      VALUES (${matchId}::uuid, ${record.roundNumber}, ${record.commitHash}, ${record.seed}, ${record.result}, ${record.call}, ${record.cause}, ${record.spinnerId}, ${record.callerId})
+      INSERT INTO coin_flip_rounds ("id", "matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
+      VALUES (${id}::uuid, ${matchId}::uuid, ${record.roundNumber}, ${record.commitHash}, ${record.seed}, ${record.result}, ${record.call}, ${record.cause}, ${record.spinnerId}, ${record.callerId})
     `;
   } catch (err) {
     log.error('failed to write round record', { matchId, roundNumber: record.roundNumber, err });

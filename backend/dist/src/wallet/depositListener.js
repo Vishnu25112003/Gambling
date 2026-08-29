@@ -4,6 +4,7 @@ import { getTreasuryPublicKey } from './treasury.js';
 import { createLogger } from '../lib/logger.js';
 import { env } from '../config/env.js';
 import { fromLamports, toAmountString } from '../lib/money.js';
+import { emitLedgerEntryCreated } from '../lib/ledgerEvents.js';
 const log = createLogger('deposits');
 /**
  * Doc 02 — deposit detection.
@@ -113,8 +114,9 @@ export async function processSignature(signature, treasuryKey) {
      * and the whole transaction rolls back — the balance is never touched.
      */
     let updatedBalance;
+    let creditedEntry;
     try {
-        updatedBalance = await prisma.$transaction(async (tx2) => {
+        ({ balance: updatedBalance, entry: creditedEntry } = await prisma.$transaction(async (tx2) => {
             await tx2.ledgerEntry.create({
                 data: {
                     txSignature: signature,
@@ -130,15 +132,15 @@ export async function processSignature(signature, treasuryKey) {
                 where: { id: user.id },
                 data: { availableBalance: { increment: received } },
             });
-            await tx2.ledgerEntry.update({
+            const entry = await tx2.ledgerEntry.update({
                 where: { txSignature: signature },
                 data: {
                     balanceAfterAvailable: credited.availableBalance,
                     balanceAfterLocked: credited.lockedBalance,
                 },
             });
-            return toAmountString(credited.availableBalance);
-        });
+            return { balance: toAmountString(credited.availableBalance), entry };
+        }));
     }
     catch (err) {
         if (typeof err === 'object' && err !== null && err.code === 'P2002') {
@@ -147,6 +149,7 @@ export async function processSignature(signature, treasuryKey) {
         throw err;
     }
     log.info('deposit credited', { signature, sender, amount: toAmountString(received) });
+    emitLedgerEntryCreated(creditedEntry);
     const event = {
         userId: user.id,
         walletAddress: sender,

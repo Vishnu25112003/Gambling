@@ -615,7 +615,9 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
       }
 
       if (match.state.currentPlayerId !== userId) {
-        socket.emit(LUDO_EVENTS.ERROR, { message: 'Not your turn' });
+        // Benign: a stale/duplicate roll click arriving after the turn already
+        // passed. Do not fatal-error the client — just ignore.
+        log.debug('ignored ROLL_DICE not current player', { matchId, userId, current: match.state.currentPlayerId });
         return;
       }
 
@@ -770,13 +772,18 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
         return;
       }
 
+      // Benign guard: a late or duplicate MOVE_TOKEN (e.g. double-click, or
+      // arriving after the move already resolved and phase returned to
+      // 'rolling') must NOT surface as a fatal error — it just gets ignored.
+      // Only a genuine logic mismatch would land here, and we log it server-side
+      // instead of disconnecting the client from the match.
       if (match.state.phase !== 'moving') {
-        socket.emit(LUDO_EVENTS.ERROR, { message: 'Not the moving phase' });
+        log.debug('ignored MOVE_TOKEN outside moving phase', { matchId, userId, phase: match.state.phase });
         return;
       }
 
       if (match.state.currentPlayerId !== userId) {
-        socket.emit(LUDO_EVENTS.ERROR, { message: 'Not your turn' });
+        log.debug('ignored MOVE_TOKEN not current player', { matchId, userId, current: match.state.currentPlayerId });
         return;
       }
 

@@ -611,6 +611,11 @@ export function processTurnPass(state: LudoState): {
       ...state,
       currentDice: null,
       consecutiveSixes: 0,
+      // Always return to the 'rolling' phase so the next player can roll.
+      // Without this, a turn pass (e.g. on move/roll timeout) left phase ===
+      // 'moving', and the next player's ROLL_DICE hit the "Not the rolling
+      // phase" guard, surfacing a fatal "Not the moving phase" error.
+      phase: 'rolling',
       currentPlayerId: nextPlayerId,
       turnNumber: state.turnNumber + 1,
     },

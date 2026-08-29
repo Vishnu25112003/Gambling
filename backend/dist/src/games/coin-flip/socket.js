@@ -8,18 +8,47 @@
  * The game never imports User, LedgerEntry, Match, or treasury — all money
  * behaviour comes from the escrow adapter.
  */
+import { randomUUID } from 'node:crypto';
 import { escrow } from '../../escrow/index.js';
 import { prisma } from '../../config/db.js';
 import { createLogger } from '../../lib/logger.js';
-import { generateSeatDraw, generateCoinResult, createInitialState, revealSeatDraw, startSpin, resolveCall, advanceRound, SPIN_TIMEOUT_MS, CALL_TIMEOUT_MS, } from './engine.js';
+import { generateSeatDraw, generateCoinResult, createInitialState, revealSeatDraw, startSpin, resolveCall, resolveSpinTimeout, advanceRound, SPIN_TIMEOUT_MS, CALL_TIMEOUT_MS, ROUND_TRANSITION_DELAY_MS, } from './engine.js';
 import { CF_EVENTS } from './types.js';
 const log = createLogger('game:coin-flip');
 /** matchId → active match. */
 const matches = new Map();
+// --- Rematch (Rule 4's third discovery path) --------------------------------
+/** How long a finished match's rematch offer stays open before it expires. */
+const REMATCH_WINDOW_MS = 2 * 60 * 1000;
+/** Keyed by the match that just finished — not the (not yet created) next one. */
+const pendingRematches = new Map();
 /** stake (string) → waiting player. One player per stake level. */
 const waitingQueue = new Map();
 /** matchId → public match listing. */
 const publicMatches = new Map();
+/**
+ * How long a listing survives its host's socket disconnecting before it's
+ * actually torn down. A host waiting for Random Play or a Friends Play code
+ * to be redeemed can sit for minutes — sharing a code inherently means
+ * switching away from the tab — and any ordinary reconnect during that wait
+ * (a network blip, a backgrounded tab's ping timing out) is invisible to the
+ * player: nothing on the waiting screen shows connection state, so they have
+ * no reason to think anything happened. Purging the listing the instant that
+ * socket drops, with no grace period, silently invalidates their own room
+ * code and stops them from ever being reachable when a friend actually joins
+ * — see the connection-handler note below for the other half of this fix.
+ *
+ * 20s used to be here, which is shorter than socket.io's own worst-case
+ * disconnect-detection latency (pingInterval + pingTimeout, up to ~35s —
+ * see sockets/index.ts) plus the time it actually takes to paste a code
+ * into a chat app and have a friend act on it, so Friends Play codes were
+ * routinely invalidated before anyone got to redeem them. Matched to
+ * REMATCH_WINDOW_MS below, which grants the same "player stepped away"
+ * leeway elsewhere in this file.
+ */
+const LISTING_GRACE_MS = 2 * 60 * 1000;
+/** matchId → pending teardown timer, while its host's socket is disconnected. */
+const listingGraceTimers = new Map();
 // --- Room codes (Friends Play) -----------------------------------------------
 const CODE_LENGTH = 6;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1 to avoid confusion
@@ -76,6 +105,9 @@ function guardSync(label, work, context) {
         log.error(`${label} failed`, { ...context, err });
     }
 }
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
 function clearTimeouts(match) {
     if (match.timers.spin) {
         clearTimeout(match.timers.spin);
@@ -92,16 +124,14 @@ function startSpinTimer(match, spinnerId) {
         // Spinner timed out — auto-forfeit round to caller
         log.info('spin timeout', { matchId: match.matchId, spinnerId });
         const callerId = getOtherPlayer(match, spinnerId);
-        const result = match.state.currentResult;
-        const { state: newState, record } = resolveCall(match.state, null, // no call (spinner didn't even start)
-        result, spinnerId, callerId);
+        const { state: newState, record } = resolveSpinTimeout(match.state, spinnerId, callerId);
         match.state = newState;
         match.roundRecords.push(record);
         broadcastToMatch(match, CF_EVENTS.ROUND_RESULT, {
             roundNumber: record.roundNumber,
             winnerId: callerId,
             cause: 'no_spin',
-            result,
+            result: record.result,
             call: null,
             scores: match.state.scores,
         });
@@ -132,6 +162,13 @@ function startCallTimer(match, callerId) {
 // --- Round end / match end --------------------------------------------------
 async function handleRoundEnd(match, roundWinnerId) {
     clearTimeouts(match);
+    // Let the ROUND_RESULT just broadcast by the caller stay on screen before
+    // the next round (or, on the final round, MATCH_RESULT) arrives — both
+    // the "next round" path and the match-over path below flow through here,
+    // so this one delay paces both. spinStartedAt is captured further down,
+    // after this resolves, so the next round's spin-timeout deadline stays
+    // correctly anchored to when ROUND_START actually goes out.
+    await sleep(ROUND_TRANSITION_DELAY_MS);
     if (match.state.phase === 'match_over') {
         // A player clinched — settle the match
         await settleMatch(match, roundWinnerId);
@@ -176,7 +213,7 @@ async function handleRoundEnd(match, roundWinnerId) {
         startSpinTimer(match, spinnerId);
     }
 }
-async function settleMatch(match, winnerId) {
+async function settleMatch(match, winnerId, opts = {}) {
     clearTimeouts(match);
     // Write the final round record
     const latestRecord = match.roundRecords[match.roundRecords.length - 1];
@@ -193,6 +230,7 @@ async function settleMatch(match, winnerId) {
         },
     });
     broadcastToMatch(match, CF_EVENTS.MATCH_RESULT, {
+        matchId: match.matchId,
         winnerId,
         scores: match.state.scores,
         totalRounds: match.state.totalRounds,
@@ -204,6 +242,25 @@ async function settleMatch(match, winnerId) {
             payout: p.payout.toString(),
         })),
     });
+    /**
+     * Rule 4's Rematch path: offered on every match, "however it started" —
+     * except one that ended by forfeit, since the opponent is gone and there is
+     * nobody left to confirm. Keyed by the match that just finished; consumed
+     * (or left to expire) the moment both sides have confirmed — see
+     * REMATCH_REQUEST below.
+     */
+    if (!opts.forfeited) {
+        const expiry = setTimeout(() => {
+            pendingRematches.delete(match.matchId);
+        }, REMATCH_WINDOW_MS);
+        pendingRematches.set(match.matchId, {
+            playerIds: match.playerIds,
+            settings: match.settings,
+            confirmed: new Set(),
+            socketIds: { ...match.socketIds },
+            expiry,
+        });
+    }
     // Clean up
     for (const socketId of Object.values(match.socketIds)) {
         socketToMatch.delete(socketId);
@@ -213,18 +270,124 @@ async function settleMatch(match, winnerId) {
         matchId: match.matchId,
         winnerId,
         roundsPlayed: match.state.currentRound,
+        rematchOffered: !opts.forfeited,
     });
 }
 async function writeRoundRecord(matchId, record) {
     try {
+        // `coin_flip_rounds.id` is declared `@default(uuid())` in schema.prisma, but
+        // the applied migration created the column with NO default (a known drift
+        // between the schema and the migration). Because this write goes through a
+        // raw SQL INSERT that omits `id`, Postgres rejected every row with
+        // "null value in column \"id\" — so no round record was ever persisted (no
+        // reconnect catch-up, no result breakdown, no fairness proof) and the match
+        // could not progress past the first round. Generate the id here so the INSERT
+        // is self-sufficient and works regardless of the DB-level default. See the
+        // companion migration `..._fix_coin_flip_rounds_id` which restores the
+        // default so Prisma-client writes are covered too.
+        const id = randomUUID();
         await prisma.$executeRaw `
-      INSERT INTO coin_flip_rounds ("matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
-      VALUES (${matchId}::uuid, ${record.roundNumber}, ${record.commitHash}, ${record.seed}, ${record.result}, ${record.call}, ${record.cause}, ${record.spinnerId}, ${record.callerId})
+      INSERT INTO coin_flip_rounds ("id", "matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
+      VALUES (${id}::uuid, ${matchId}::uuid, ${record.roundNumber}, ${record.commitHash}, ${record.seed}, ${record.result}, ${record.call}, ${record.cause}, ${record.spinnerId}, ${record.callerId})
     `;
     }
     catch (err) {
         log.error('failed to write round record', { matchId, roundNumber: record.roundNumber, err });
     }
+}
+/**
+ * Everything that happens once two players and their stakes are already
+ * settled on a matchId: seat draw, Round 1's commit, and the first
+ * ROUND_START. Shared by JOIN_MATCH (a fresh Random/Friends Play match) and
+ * the Rematch path below — both start a match the exact same way once they
+ * know who's playing and what they staked.
+ */
+async function beginMatch(matchId, playerIds, settings, socketIds) {
+    const players = await prisma.user.findMany({
+        where: { id: { in: playerIds } },
+        select: { id: true, username: true },
+    });
+    const nameMap = new Map(players.map((p) => [p.id, p.username ?? 'Player']));
+    const state = createInitialState(settings.rounds, playerIds);
+    const seatDraw = generateSeatDraw(playerIds);
+    const newActiveMatch = {
+        matchId,
+        playerIds,
+        state,
+        seatDraw,
+        roundRecords: [],
+        socketIds: { ...socketIds },
+        timers: { spin: null, call: null },
+        settings,
+    };
+    for (const sid of Object.values(newActiveMatch.socketIds)) {
+        socketToMatch.set(sid, matchId);
+    }
+    matches.set(matchId, newActiveMatch);
+    // Notify both players
+    for (const sid of Object.values(newActiveMatch.socketIds)) {
+        const io = getIoRef();
+        if (io)
+            io.to(sid).emit(CF_EVENTS.MATCH_STATE, {
+                matchId,
+                players: playerIds.map((id) => ({ id, displayName: nameMap.get(id) })),
+                totalRounds: settings.rounds,
+                stake: settings.stake,
+            });
+    }
+    // Commit the seat draw
+    broadcastToMatch(newActiveMatch, CF_EVENTS.COMMIT_HASH, {
+        roundNumber: 0,
+        commitHash: newActiveMatch.seatDraw.commitHash,
+        type: 'seat_draw',
+    });
+    // Reveal the seat draw
+    newActiveMatch.state = revealSeatDraw(newActiveMatch.state, newActiveMatch.seatDraw.seed, newActiveMatch.seatDraw.assignment, playerIds);
+    // Write the seat draw record
+    const seatRecord = {
+        roundNumber: 0,
+        commitHash: newActiveMatch.seatDraw.commitHash,
+        seed: newActiveMatch.seatDraw.seed,
+        result: null,
+        call: null,
+        cause: null,
+        spinnerId: playerIds[newActiveMatch.seatDraw.assignment === 'ab' ? 0 : 1],
+        callerId: playerIds[newActiveMatch.seatDraw.assignment === 'ab' ? 1 : 0],
+    };
+    newActiveMatch.roundRecords.push(seatRecord);
+    await writeRoundRecord(matchId, seatRecord);
+    // Generate coin result for Round 1
+    const { result, seed, commitHash } = generateCoinResult();
+    newActiveMatch.state.currentResult = result;
+    newActiveMatch.state.currentSeed = seed;
+    newActiveMatch.state.currentCommitHash = commitHash;
+    // Update gameState in DB
+    await prisma.match.update({
+        where: { id: matchId },
+        data: { gameState: newActiveMatch.state },
+    });
+    // Send commit hash
+    broadcastToMatch(newActiveMatch, CF_EVENTS.COMMIT_HASH, {
+        roundNumber: 1,
+        commitHash,
+    });
+    // Start Round 1
+    const spinnerId = Object.entries(newActiveMatch.state.seats).find(([, seat]) => seat === 'spinner')?.[0];
+    const callerId = Object.entries(newActiveMatch.state.seats).find(([, seat]) => seat === 'caller')?.[0];
+    if (spinnerId && callerId) {
+        newActiveMatch.state.phase = 'waiting_spin';
+        newActiveMatch.state.spinStartedAt = Date.now();
+        broadcastToMatch(newActiveMatch, CF_EVENTS.ROUND_START, {
+            roundNumber: 1,
+            totalRounds: newActiveMatch.state.totalRounds,
+            spinnerId,
+            callerId,
+            scores: newActiveMatch.state.scores,
+            seats: newActiveMatch.state.seats,
+        });
+        startSpinTimer(newActiveMatch, spinnerId);
+    }
+    log.info('match started', { matchId, playerIds, stake: settings.stake });
 }
 // --- Socket event handlers --------------------------------------------------
 export function registerCoinFlipSocket(namespace, socket) {
@@ -233,6 +396,24 @@ export function registerCoinFlipSocket(namespace, socket) {
     // namespace to address a socket by id. Without this line `ioRef` stays null
     // and every server → client event is silently dropped.
     ioRef = namespace;
+    /**
+     * If this user is hosting a not-yet-started listing (Random Play still
+     * waiting for an opponent, or a Friends Play code not yet redeemed), this
+     * connection is how we reach them from now on — refresh it, and cancel any
+     * pending teardown from their previous socket dropping. Runs on every
+     * connection, including the very first; a brand-new player simply owns no
+     * listings yet, so the loop is a no-op for them.
+     */
+    for (const listing of publicMatches.values()) {
+        if (listing.hostUserId === userId) {
+            listing.hostSocketId = socket.id;
+            const graceTimer = listingGraceTimers.get(listing.matchId);
+            if (graceTimer) {
+                clearTimeout(graceTimer);
+                listingGraceTimers.delete(listing.matchId);
+            }
+        }
+    }
     // --- LIST_MATCHES: return public Random Play matches ---
     socket.on(CF_EVENTS.LIST_MATCHES, async (data) => {
         const listed = [...publicMatches.values()]
@@ -425,105 +606,97 @@ export function registerCoinFlipSocket(namespace, socket) {
             publicMatches.delete(matchId);
             if (usedRoomCode)
                 roomCodes.delete(usedRoomCode);
+            const graceTimer = listingGraceTimers.get(matchId);
+            if (graceTimer) {
+                clearTimeout(graceTimer);
+                listingGraceTimers.delete(matchId);
+            }
             // Remove joiner from any waiting queue
             for (const [key, waiting] of waitingQueue) {
                 if (waiting.userId === userId)
                     waitingQueue.delete(key);
             }
-            // Get player names
-            const players = await prisma.user.findMany({
-                where: { id: { in: playerIds } },
-                select: { id: true, username: true },
-            });
-            const nameMap = new Map(players.map((p) => [p.id, p.username ?? 'Player']));
-            // Initialize game state
-            const state = createInitialState(roundCount, playerIds);
-            const seatDraw = generateSeatDraw(playerIds);
-            const newActiveMatch = {
-                matchId,
-                playerIds,
-                state,
-                seatDraw,
-                roundRecords: [],
-                socketIds: {},
-                timers: { spin: null, call: null },
-            };
             // Register sockets
+            const socketIds = {};
             if (hostSocketId)
-                newActiveMatch.socketIds[playerIds[0]] = hostSocketId;
-            newActiveMatch.socketIds[userId] = socket.id;
-            socketToMatch.set(socket.id, matchId);
-            if (hostSocketId)
-                socketToMatch.set(hostSocketId, matchId);
-            matches.set(matchId, newActiveMatch);
-            // Notify both players
-            for (const sid of Object.values(newActiveMatch.socketIds)) {
-                const io = getIoRef();
-                if (io)
-                    io.to(sid).emit(CF_EVENTS.MATCH_STATE, {
-                        matchId,
-                        players: playerIds.map((id) => ({ id, displayName: nameMap.get(id) })),
-                        totalRounds: roundCount,
-                        stake: stakeAmount,
-                    });
-            }
-            // Commit the seat draw
-            broadcastToMatch(newActiveMatch, CF_EVENTS.COMMIT_HASH, {
-                roundNumber: 0,
-                commitHash: newActiveMatch.seatDraw.commitHash,
-                type: 'seat_draw',
-            });
-            // Reveal the seat draw
-            newActiveMatch.state = revealSeatDraw(newActiveMatch.state, newActiveMatch.seatDraw.seed, newActiveMatch.seatDraw.assignment, playerIds);
-            // Write the seat draw record
-            const seatRecord = {
-                roundNumber: 0,
-                commitHash: newActiveMatch.seatDraw.commitHash,
-                seed: newActiveMatch.seatDraw.seed,
-                result: null,
-                call: null,
-                cause: null,
-                spinnerId: playerIds[newActiveMatch.seatDraw.assignment === 'ab' ? 0 : 1],
-                callerId: playerIds[newActiveMatch.seatDraw.assignment === 'ab' ? 1 : 0],
-            };
-            newActiveMatch.roundRecords.push(seatRecord);
-            await writeRoundRecord(matchId, seatRecord);
-            // Generate coin result for Round 1
-            const { result, seed, commitHash } = generateCoinResult();
-            newActiveMatch.state.currentResult = result;
-            newActiveMatch.state.currentSeed = seed;
-            newActiveMatch.state.currentCommitHash = commitHash;
-            // Update gameState in DB
-            await prisma.match.update({
-                where: { id: matchId },
-                data: { gameState: newActiveMatch.state },
-            });
-            // Send commit hash
-            broadcastToMatch(newActiveMatch, CF_EVENTS.COMMIT_HASH, {
-                roundNumber: 1,
-                commitHash,
-            });
-            // Start Round 1
-            const spinnerId = Object.entries(newActiveMatch.state.seats).find(([, seat]) => seat === 'spinner')?.[0];
-            const callerId = Object.entries(newActiveMatch.state.seats).find(([, seat]) => seat === 'caller')?.[0];
-            if (spinnerId && callerId) {
-                newActiveMatch.state.phase = 'waiting_spin';
-                newActiveMatch.state.spinStartedAt = Date.now();
-                broadcastToMatch(newActiveMatch, CF_EVENTS.ROUND_START, {
-                    roundNumber: 1,
-                    totalRounds: newActiveMatch.state.totalRounds,
-                    spinnerId,
-                    callerId,
-                    scores: newActiveMatch.state.scores,
-                    seats: newActiveMatch.state.seats,
-                });
-                startSpinTimer(newActiveMatch, spinnerId);
-            }
+                socketIds[playerIds[0]] = hostSocketId;
+            socketIds[userId] = socket.id;
+            await beginMatch(matchId, playerIds, { rounds: roundCount, betMode, minBet: gs.minBet ?? null, stake: stakeAmount }, socketIds);
             log.info('match joined', { matchId, playerIds, stake: stakeAmount });
         }
         catch (err) {
             log.error('join_match error', { userId, err });
             socket.emit(CF_EVENTS.ERROR, { message: 'Failed to join match' });
+        }
+    });
+    // --- REMATCH_REQUEST: Rule 4's third discovery path — same two players,
+    // settings carried over unchanged, both must confirm, new match id ---
+    socket.on(CF_EVENTS.REMATCH_REQUEST, async (data) => {
+        try {
+            const matchId = data.matchId;
+            if (!matchId) {
+                socket.emit(CF_EVENTS.ERROR, { message: 'No match specified' });
+                return;
+            }
+            const pending = pendingRematches.get(matchId);
+            if (!pending || !pending.playerIds.includes(userId)) {
+                socket.emit(CF_EVENTS.ERROR, { message: 'Rematch is no longer available.' });
+                return;
+            }
+            // Refresh this player's socket (they may be reconnected, or on a
+            // different tab, since the result screen), then record their confirm.
+            pending.socketIds[userId] = socket.id;
+            pending.confirmed.add(userId);
+            const otherId = pending.playerIds.find((id) => id !== userId);
+            if (pending.confirmed.size < 2) {
+                socket.emit(CF_EVENTS.REMATCH_WAITING, { matchId });
+                const otherSocketId = pending.socketIds[otherId];
+                if (otherSocketId) {
+                    getIoRef()?.to(otherSocketId).emit(CF_EVENTS.REMATCH_OFFERED, { matchId });
+                }
+                return;
+            }
+            // Both confirmed — start it. Consume the offer immediately so a
+            // duplicate request (double click, a slow retry) can't start it twice.
+            clearTimeout(pending.expiry);
+            pendingRematches.delete(matchId);
+            const newMatchId = await escrow.createMatch({
+                gameType: 'coin-flip',
+                mode: 'pooled',
+                gameState: {
+                    totalRounds: pending.settings.rounds,
+                    betMode: pending.settings.betMode,
+                    minBet: pending.settings.minBet,
+                },
+            });
+            try {
+                const stakeDecimal = new (await import('../../lib/money.js')).Decimal(pending.settings.stake);
+                for (const uid of pending.playerIds) {
+                    await escrow.lockBalance(uid, stakeDecimal, newMatchId);
+                }
+            }
+            catch (lockErr) {
+                // One side can no longer cover the stake (they just lost it, most
+                // likely). Unwind whatever DID lock rather than leave it stranded —
+                // refundMatch is a no-op for a participant that never locked.
+                log.error('rematch stake lock failed', { previousMatchId: matchId, newMatchId, err: lockErr });
+                await escrow.refundMatch(newMatchId, 'Rematch could not be started').catch(() => { });
+                for (const uid of pending.playerIds) {
+                    const sid = pending.socketIds[uid];
+                    if (sid) {
+                        getIoRef()?.to(sid).emit(CF_EVENTS.ERROR, {
+                            message: 'Rematch failed — one of you no longer has enough balance for this stake.',
+                        });
+                    }
+                }
+                return;
+            }
+            await beginMatch(newMatchId, pending.playerIds, pending.settings, pending.socketIds);
+            log.info('rematch started', { previousMatchId: matchId, newMatchId, playerIds: pending.playerIds });
+        }
+        catch (err) {
+            log.error('rematch error', { userId, err });
+            socket.emit(CF_EVENTS.ERROR, { message: 'Failed to start rematch' });
         }
     });
     socket.on(CF_EVENTS.SPIN, async () => {
@@ -647,15 +820,33 @@ export function registerCoinFlipSocket(namespace, socket) {
                     waitingQueue.delete(key);
                 }
             }
-            // Clean up public match listings owned by this user
+            /**
+             * Give a disconnected host's listing a grace period rather than tearing
+             * it down on the spot. Matched on THIS socket id specifically, not
+             * `hostUserId` — the host may already have reconnected on a different
+             * socket (which re-owns the listing on connect, above) before this
+             * disconnect for their old one even arrives; deleting on userId alone
+             * would tear down a listing that was already successfully reclaimed.
+             *
+             * Nothing is locked yet at this stage (no opponent has joined), so
+             * there is no stake to protect by acting immediately — only a room
+             * code / listing to keep alive long enough for an ordinary reconnect.
+             */
             for (const [matchId, listing] of publicMatches) {
-                if (listing.hostUserId === userId || listing.hostSocketId === socket.id) {
-                    publicMatches.delete(matchId);
-                    // Also clean up room code if any
-                    for (const [code, mid] of roomCodes) {
-                        if (mid === matchId)
-                            roomCodes.delete(code);
-                    }
+                if (listing.hostSocketId === socket.id && !listingGraceTimers.has(matchId)) {
+                    const timer = setTimeout(() => {
+                        listingGraceTimers.delete(matchId);
+                        const current = publicMatches.get(matchId);
+                        // Only delete if nobody reclaimed it in the meantime.
+                        if (current && current.hostSocketId === socket.id) {
+                            publicMatches.delete(matchId);
+                            for (const [code, mid] of roomCodes) {
+                                if (mid === matchId)
+                                    roomCodes.delete(code);
+                            }
+                        }
+                    }, LISTING_GRACE_MS);
+                    listingGraceTimers.set(matchId, timer);
                 }
             }
             const matchId = socketToMatch.get(socket.id);
@@ -675,9 +866,11 @@ export function registerCoinFlipSocket(namespace, socket) {
             // Start the forfeit grace period via escrow
             const forfeitResult = await escrow.forfeitPlayer(matchId, userId);
             if (forfeitResult.outcome === 'forfeited') {
-                // Player was forfeited — settle with the remaining player
+                // Player was forfeited — settle with the remaining player. No
+                // rematch is offered: the opponent is gone, so there is nobody left
+                // to confirm one (Rule 4's Rematch path).
                 const winnerId = getOtherPlayer(match, userId);
-                await settleMatch(match, winnerId);
+                await settleMatch(match, winnerId, { forfeited: true });
             }
             else if (forfeitResult.outcome === 'reconnected') {
                 // They reconnected — cancel forfeit (handled in JOIN_MATCH)

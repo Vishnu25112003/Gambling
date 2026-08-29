@@ -16,6 +16,9 @@ export const VALID_ROUND_COUNTS = [3, 5, 7, 9, 11, 13, 15];
 export const SPIN_TIMEOUT_MS = 10_000;
 /** Caller has 10 seconds to call Head or Tail. */
 export const CALL_TIMEOUT_MS = 10_000;
+/** How long the result banner stays up before the next round (or the match
+ * result, on the final round) begins. */
+export const ROUND_TRANSITION_DELAY_MS = 2500;
 // --- Commit-reveal helpers --------------------------------------------------
 /**
  * Generate a random seed (hex string).
@@ -212,6 +215,42 @@ export function resolveCall(state, call, result, spinnerId, callerId) {
             scores: newScores,
             phase: nextPhase,
             currentCall: call,
+        },
+        record: roundRecord,
+    };
+}
+/**
+ * Resolve a round where the spinner never initiated the spin in time.
+ *
+ * This is NOT the same shape as resolveCall's `call === null` case — that one
+ * means the caller failed to call *after a real spin*, and the spinner wins.
+ * Here the spinner never acted at all, so the round always goes to the
+ * caller instead. A previous version of this handler reused resolveCall for
+ * both timeouts, which silently credited the win to the spinner every time —
+ * the outward-facing broadcast said the caller won, but match.state.scores
+ * (the only thing checkClinch actually reads) kept crediting the spinner, so
+ * the match could later end for a player who never reached the real clinch
+ * threshold.
+ */
+export function resolveSpinTimeout(state, spinnerId, callerId) {
+    const roundRecord = {
+        roundNumber: state.currentRound,
+        commitHash: state.currentCommitHash,
+        seed: state.currentSeed,
+        result: state.currentResult,
+        call: null,
+        cause: 'no_spin',
+        spinnerId,
+        callerId,
+    };
+    const { scores: newScores, winner } = updateScores(state.scores, callerId, state.clinchThreshold);
+    const nextPhase = winner ? 'match_over' : 'round_over';
+    return {
+        state: {
+            ...state,
+            scores: newScores,
+            phase: nextPhase,
+            currentCall: null,
         },
         record: roundRecord,
     };

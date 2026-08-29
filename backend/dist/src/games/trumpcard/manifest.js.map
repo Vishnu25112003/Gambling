@@ -1,0 +1,1 @@
+{"version":3,"file":"manifest.js","sourceRoot":"","sources":["../../../../src/games/trumpcard/manifest.ts"],"names":[],"mappings":"AAEA,MAAM,CAAC,MAAM,iBAAiB,GAAiB;IAC7C,EAAE,EAAE,WAAW;IACf,IAAI,EAAE,WAAW;IACjB,OAAO,EAAE,uDAAuD;IAChE,WAAW,EACT,yTAAyT;IAC3T,IAAI,EAAE,QAAQ;IACd,UAAU,EAAE,CAAC;IACb,UAAU,EAAE,CAAC;IACb,MAAM,EAAE,MAAM;IACd,IAAI,EAAE,IAAI;CACX,CAAC"}

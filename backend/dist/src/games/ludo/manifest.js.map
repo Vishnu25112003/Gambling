@@ -1,0 +1,1 @@
+{"version":3,"file":"manifest.js","sourceRoot":"","sources":["../../../../src/games/ludo/manifest.ts"],"names":[],"mappings":"AAEA,MAAM,CAAC,MAAM,YAAY,GAAiB;IACxC,EAAE,EAAE,MAAM;IACV,IAAI,EAAE,MAAM;IACZ,OAAO,EAAE,0CAA0C;IACnD,WAAW,EACT,gLAAgL;IAClL,IAAI,EAAE,QAAQ;IACd,UAAU,EAAE,CAAC;IACb,UAAU,EAAE,CAAC;IACb,MAAM,EAAE,MAAM;IACd,IAAI,EAAE,IAAI;CACX,CAAC"}

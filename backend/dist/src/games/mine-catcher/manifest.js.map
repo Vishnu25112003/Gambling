@@ -1,0 +1,1 @@
+{"version":3,"file":"manifest.js","sourceRoot":"","sources":["../../../../src/games/mine-catcher/manifest.ts"],"names":[],"mappings":"AAEA,MAAM,CAAC,MAAM,mBAAmB,GAAiB;IAC/C,EAAE,EAAE,cAAc;IAClB,IAAI,EAAE,cAAc;IACpB,OAAO,EAAE,kDAAkD;IAC3D,WAAW,EACT,sNAAsN;IACxN,IAAI,EAAE,QAAQ;IACd,UAAU,EAAE,CAAC;IACb,UAAU,EAAE,CAAC;IACb,MAAM,EAAE,aAAa;IACrB,IAAI,EAAE,IAAI;CACX,CAAC"}
