@@ -8,6 +8,7 @@ import { requestWithdrawal } from './withdraw.js';
 import { processSignature } from './depositListener.js';
 import { fromLamports, toAmountString, toDecimal } from '../lib/money.js';
 import { explorerTxUrl } from '../config/solana.js';
+import { toLedgerRow } from '../lib/ledgerRow.js';
 import { env } from '../config/env.js';
 export const walletRouter = Router();
 /**
@@ -89,18 +90,7 @@ walletRouter.get('/history', requireAuth, asyncHandler(async (req, res) => {
         page,
         limit,
         total,
-        entries: entries.map((e) => ({
-            id: e.id,
-            type: e.type,
-            amount: toAmountString(e.amount),
-            status: e.status,
-            note: e.note,
-            txSignature: e.txSignature,
-            explorerUrl: e.txSignature ? explorerTxUrl(e.txSignature) : null,
-            gameType: e.gameType,
-            matchId: e.matchId,
-            timestamp: e.timestamp,
-        })),
+        entries: entries.map(toLedgerRow),
     });
 }));
 /** GET /api/wallet/treasury — on-chain float, useful while testing on devnet. */

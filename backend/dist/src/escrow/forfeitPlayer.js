@@ -2,6 +2,7 @@ import { prisma } from '../config/db.js';
 import { notFound } from '../lib/errors.js';
 import { Decimal, toDecimal } from '../lib/money.js';
 import { createLogger } from '../lib/logger.js';
+import { emitLedgerEntryCreated } from '../lib/ledgerEvents.js';
 const log = createLogger('escrow:forfeit');
 /** Doc 03 locks this at 15 seconds. */
 export const RECONNECT_GRACE_MS = 15_000;
@@ -73,7 +74,7 @@ export async function cancelForfeit(matchId, userId) {
         data: { status: 'active' },
     });
     // Doc 03: log the event either way — reconnected or forfeited.
-    await prisma.ledgerEntry.create({
+    const ledgerEntry = await prisma.ledgerEntry.create({
         data: {
             userId,
             type: 'forfeit',
@@ -83,6 +84,7 @@ export async function cancelForfeit(matchId, userId) {
             note: 'Reconnected within grace period — no forfeit',
         },
     });
+    emitLedgerEntryCreated(ledgerEntry);
     log.info('reconnected within grace period', { matchId, userId });
     entry.resolve({
         matchId,
@@ -108,7 +110,8 @@ async function markDisconnected(matchId, userId) {
  * doesn't try to unlock the same stake a second time.
  */
 async function applyForfeit(matchId, userId) {
-    return prisma.$transaction(async (tx) => {
+    let pushedEntry = null;
+    const result = await prisma.$transaction(async (tx) => {
         const match = await tx.match.findUnique({ where: { id: matchId } });
         if (!match)
             throw notFound('Match not found.');
@@ -144,7 +147,7 @@ async function applyForfeit(matchId, userId) {
                 status: 'forfeited',
             },
         });
-        await tx.ledgerEntry.create({
+        pushedEntry = await tx.ledgerEntry.create({
             data: {
                 userId,
                 type: 'forfeit',
@@ -160,6 +163,9 @@ async function applyForfeit(matchId, userId) {
         log.info('forfeited', { matchId, userId, amount: amount.toFixed(9) });
         return { matchId, userId, outcome: 'forfeited', forfeitedAmount: amount };
     });
+    if (pushedEntry)
+        emitLedgerEntryCreated(pushedEntry);
+    return result;
 }
 /** True if this player is currently inside a grace window. */
 export function isAwaitingReconnect(matchId, userId) {

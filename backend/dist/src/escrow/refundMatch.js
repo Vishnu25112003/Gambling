@@ -2,6 +2,7 @@ import { prisma } from '../config/db.js';
 import { conflict, notFound } from '../lib/errors.js';
 import { Decimal, toDecimal } from '../lib/money.js';
 import { createLogger } from '../lib/logger.js';
+import { emitLedgerEntryCreated } from '../lib/ledgerEvents.js';
 const log = createLogger('escrow:refund');
 /**
  * Doc 03 — full refund to everyone. Crash or cancel only.
@@ -12,7 +13,8 @@ const log = createLogger('escrow:refund');
  * — the rule is not configurable by a caller.
  */
 export async function refundMatch(matchId, reason = 'Match refunded') {
-    return prisma.$transaction(async (tx) => {
+    const pushedEntries = [];
+    const result = await prisma.$transaction(async (tx) => {
         // Claim atomically so a crash-handler and a manual cancel racing each other
         // cannot both refund the same stakes.
         const claimed = await tx.$executeRaw `
@@ -78,7 +80,7 @@ export async function refundMatch(matchId, reason = 'Match refunded') {
             });
             refunded.push({ userId: participant.userId, amount });
             total = total.plus(amount);
-            await tx.ledgerEntry.create({
+            pushedEntries.push(await tx.ledgerEntry.create({
                 data: {
                     userId: participant.userId,
                     type: 'refund',
@@ -90,11 +92,13 @@ export async function refundMatch(matchId, reason = 'Match refunded') {
                     gameType: match.gameType,
                     note: reason,
                 },
-            });
+            }));
         }
         await tx.match.update({ where: { id: matchId }, data: { feeCollected: 0 } });
         log.info('refunded', { matchId, total: total.toFixed(9), players: refunded.length, reason });
         return { matchId, refunded, total };
     });
+    pushedEntries.forEach(emitLedgerEntryCreated);
+    return result;
 }
 //# sourceMappingURL=refundMatch.js.map

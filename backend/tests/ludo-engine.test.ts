@@ -180,3 +180,18 @@ describe('ludo engine — dice roll & extra turn (processDiceRoll / processToken
   });
 });
 
+describe('ludo engine — turn pass phase regression', () => {
+  it('processTurnPass always returns to the rolling phase (so the next roll is accepted)', async () => {
+    const { createInitialState, processTurnPass } = await import(
+      '../src/games/ludo/engine.js'
+    );
+    // Simulate a pass that happens while phase was 'moving' (the move-timeout
+    // case). The old code left phase === 'moving', which made the next player's
+    // ROLL_DICE hit the "Not the rolling phase" guard and fatal-error.
+    const state = { ...createInitialState(2, [A, B]), phase: 'moving' as const };
+    const { state: passed } = processTurnPass(state);
+    expect(passed.phase).toBe('rolling');
+    expect(passed.currentPlayerId).toBe(B);
+  });
+});
+

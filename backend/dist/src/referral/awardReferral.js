@@ -85,7 +85,7 @@ export async function awardReferralOnWin(tx, { userId, netWin, matchId, gameType
         select: { walletAddress: true, username: true },
     });
     const friend = referred.username ?? shortAddress(referred.walletAddress);
-    await tx.ledgerEntry.create({
+    const ledgerEntry = await tx.ledgerEntry.create({
         data: {
             userId: referral.referrerId,
             type: 'referral',
@@ -112,6 +112,6 @@ export async function awardReferralOnWin(tx, { userId, netWin, matchId, gameType
         netWin: profit.toFixed(9),
         commission: commission.toFixed(9),
     });
-    return { referrerId: referral.referrerId, commission };
+    return { referrerId: referral.referrerId, commission, ledgerEntry };
 }
 //# sourceMappingURL=awardReferral.js.map

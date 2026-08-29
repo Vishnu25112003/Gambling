@@ -6,6 +6,7 @@ import { badRequest, insufficientFunds, notFound } from '../lib/errors.js';
 import { Decimal, fromLamports, isValidAmount, toAmountString, toDecimal, toLamports, } from '../lib/money.js';
 import { env } from '../config/env.js';
 import { createLogger } from '../lib/logger.js';
+import { emitLedgerEntryCreated } from '../lib/ledgerEvents.js';
 const log = createLogger('withdraw');
 /** Fallback when the RPC won't quote a fee: base cost of one signature. */
 const FALLBACK_FEE_LAMPORTS = 5000n;
@@ -122,10 +123,11 @@ async function performWithdrawal(userId, amount) {
             commitment,
             maxRetries: 3,
         });
-        await prisma.ledgerEntry.update({
+        const confirmedEntry = await prisma.ledgerEntry.update({
             where: { id: reservation.entryId },
             data: { txSignature: signature, status: 'confirmed', note: 'Withdrawal sent' },
         });
+        emitLedgerEntryCreated(confirmedEntry);
         log.info('withdrawal confirmed', {
             userId,
             signature,
@@ -143,12 +145,12 @@ async function performWithdrawal(userId, amount) {
     catch (err) {
         // The transfer never confirmed — give the money back. Doc 02: "On failure,
         // do NOT debit balance."
-        await prisma.$transaction(async (tx) => {
+        const failedEntry = await prisma.$transaction(async (tx) => {
             const restored = await tx.user.update({
                 where: { id: userId },
                 data: { availableBalance: { increment: requested } },
             });
-            await tx.ledgerEntry.update({
+            return tx.ledgerEntry.update({
                 where: { id: reservation.entryId },
                 data: {
                     status: 'failed',
@@ -158,6 +160,7 @@ async function performWithdrawal(userId, amount) {
                 },
             });
         });
+        emitLedgerEntryCreated(failedEntry);
         log.error('withdrawal failed and was reversed', { userId, error: err.message });
         throw badRequest('Withdrawal could not be completed on-chain. Your balance has not been changed.');
     }

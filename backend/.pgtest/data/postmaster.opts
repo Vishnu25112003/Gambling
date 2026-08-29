@@ -1,0 +1,1 @@
+/usr/bin/postgres "-D" ".pgtest/data" "-p" "5433" "-k" "/home/luffy/Projects/Gambling/backend/.pgtest"

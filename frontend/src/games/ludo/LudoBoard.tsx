@@ -150,6 +150,7 @@ function LudoBoardInner() {
   } | null>(null);
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
   const [isMyTurn, setIsMyTurn] = useState(false);
   const [waitingReason, setWaitingReason] = useState<string | null>(null);
 
@@ -289,6 +290,7 @@ function LudoBoardInner() {
       setLastMoveResult(null);
       setValidMoves([]);
       setRollingDice(false);
+      setPendingSubmit(false);
 
       if (data.currentPlayerId === user.id) {
         setIsMyTurn(true);
@@ -308,6 +310,7 @@ function LudoBoardInner() {
     }) => {
       setLastDice(data.diceValue);
       setRollingDice(false);
+      setPendingSubmit(false);
       if (data.state) setGameState(data.state);
       clearTimer();
     });
@@ -378,8 +381,20 @@ function LudoBoardInner() {
     });
 
     s.on(LUDO.ERROR, (data: { message: string }) => {
-      setError(data.message);
-      setPage('error');
+      // In a live match, surfacing a fatal full-screen error on every stray
+      // server event (e.g. a late/duplicate move that the server benignly
+      // ignored) would kick the player out of the match. Instead show an
+      // inline, auto-dismissing banner and request a fresh state sync so the
+      // board stays correct without leaving the game.
+      if (page === 'live') {
+        setError(data.message);
+        // Re-request authoritative state from the server (it broadcasts the
+        // latest state on every turn start; nudge the timer so the UI recovers).
+        setTimeout(() => setError(null), 3500);
+      } else {
+        setError(data.message);
+        setPage('error');
+      }
     });
 
     s.on('disconnect', () => {
@@ -443,10 +458,16 @@ function LudoBoardInner() {
   };
 
   const handleRollDice = () => {
+    if (pendingSubmit) return;
+    setPendingSubmit(true);
     setRollingDice(true);
     emit(LUDO.ROLL_DICE);
   };
-  const handleMoveToken = (tokenIndex: number) => emit(LUDO.MOVE_TOKEN, { tokenIndex });
+  const handleMoveToken = (tokenIndex: number) => {
+    if (pendingSubmit) return;
+    setPendingSubmit(true);
+    emit(LUDO.MOVE_TOKEN, { tokenIndex });
+  };
 
   const goHome = () => {
     clearTimer();
@@ -619,36 +640,44 @@ function LudoBoardInner() {
 
   return (
     <>
+
       <PageTitle
         title="Ludo"
         subtitle={isMyTurn ? 'Your turn — roll the dice!' : (waitingReason ?? 'Opponent\'s turn...')}
       />
-      <div className="mx-auto max-w-lg">
-        {/* Player bar */}
-        <Card className="mb-4 px-5 py-3">
-          <div className="flex items-center justify-between">
-            {players.map((p) => (
-              <div key={p.id} className="text-center">
-                <p className="text-[11px] text-muted">
-                  {p.id === myId ? 'You' : p.displayName ?? 'Player'}
-                </p>
-                <div className="flex items-center justify-center gap-1.5">
-                  <span
-                    className="size-2.5 rounded-full"
-                    style={{ background: LUDO_COLOR_VAR[p.color] }}
-                  />
-                  <p className="text-xl font-bold">{gameState?.totalSteps[p.id] ?? 0}</p>
-                </div>
-                <p className="text-[10px] text-faint">
-                  {gameState?.tokens[p.id]?.filter((t) => t.zone === 'home').length ?? 0}/4 home
-                </p>
-              </div>
-            ))}
-          </div>
-        </Card>
 
-        {/* Board */}
-        <div className="mb-4">
+      {/* Inline transient error banner (never kicks you out of the match) */}
+      {error && page === 'live' && (
+        <Card className="mb-4 border-red/40 bg-red/10 px-4 py-3 text-center text-sm text-red">
+          {error}
+        </Card>
+      )}
+
+      <div className="mx-auto flex max-w-4xl flex-col gap-4 lg:flex-row lg:items-start">
+        {/* Board (takes the flexible side; on desktop the panel sits to its right) */}
+        <div className="order-2 w-full lg:order-1 lg:flex-1">
+          <Card className="mb-4 px-5 py-3">
+            <div className="flex items-center justify-between">
+              {players.map((p) => (
+                <div key={p.id} className="text-center">
+                  <p className="text-[11px] text-muted">
+                    {p.id === myId ? 'You' : p.displayName ?? 'Player'}
+                  </p>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span
+                      className="size-2.5 rounded-full"
+                      style={{ background: LUDO_COLOR_VAR[p.color] }}
+                    />
+                    <p className="text-xl font-bold">{gameState?.totalSteps[p.id] ?? 0}</p>
+                  </div>
+                  <p className="text-[10px] text-faint">
+                    {gameState?.tokens[p.id]?.filter((t) => t.zone === 'home').length ?? 0}/4 home
+                  </p>
+                </div>
+              ))}
+            </div>
+          </Card>
+
           <LudoBoardGrid
             players={players}
             tokens={gameState?.tokens ?? {}}
@@ -658,72 +687,74 @@ function LudoBoardInner() {
           />
         </div>
 
-        {/* Dice + Action area */}
-        <Card className="mb-4 flex flex-col items-center px-6 py-8">
-          {/* Dice display */}
-          <div className="mb-4 flex items-center gap-4">
-            <DiceSpinner value={lastDice} rolling={rollingDice} />
-            {lastDice === 6 && !rollingDice && (
-              <span className="text-sm font-bold text-gold">+ Extra turn!</span>
+        {/* Right-hand dice + action panel */}
+        <div className="order-1 w-full lg:order-2 lg:w-72 lg:shrink-0">
+          <Card className="flex flex-col items-center px-6 py-8">
+            {/* Dice display */}
+            <div className="mb-4 flex items-center gap-4">
+              <DiceSpinner value={lastDice} rolling={rollingDice} size={80} />
+              {lastDice === 6 && !rollingDice && (
+                <span className="text-sm font-bold text-gold">+ Extra turn!</span>
+              )}
+            </div>
+
+            {/* Roll button or move selection */}
+            {isMyTurn && validMoves.length === 0 && !lastDice && (
+              <>
+                <p className="mb-3 text-sm text-muted">Tap to roll the dice</p>
+                <button
+                  type="button"
+                  disabled={pendingSubmit}
+                  onClick={handleRollDice}
+                  className="mb-2 flex h-20 w-20 items-center justify-center rounded-full border-2 border-green-solid bg-green-solid/20 text-green transition hover:bg-green-solid/30 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Dices className="size-8" />
+                </button>
+                <p className={`text-2xl font-extrabold ${timerColor}`}>{timeLeft}s</p>
+              </>
             )}
-          </div>
 
-          {/* Roll button or move selection */}
-          {isMyTurn && validMoves.length === 0 && !lastDice && (
-            <>
-              <p className="mb-3 text-sm text-muted">Tap to roll the dice</p>
-              <button
-                type="button"
-                onClick={handleRollDice}
-                className="mb-2 flex h-20 w-20 items-center justify-center rounded-full border-2 border-green-solid bg-green-solid/20 text-green transition hover:bg-green-solid/30"
-              >
-                <Dices className="size-8" />
-              </button>
-              <p className={`text-2xl font-extrabold ${timerColor}`}>{timeLeft}s</p>
-            </>
-          )}
+            {isMyTurn && validMoves.length > 0 && (
+              <>
+                <p className="mb-3 text-sm font-bold text-green">
+                  Choose a token to move ({lastDice})
+                </p>
+                <div className="flex flex-wrap justify-center gap-3">
+                  {validMoves.map((m) => (
+                    <button
+                      key={m.tokenIndex}
+                      type="button"
+                      disabled={pendingSubmit}
+                      onClick={() => handleMoveToken(m.tokenIndex)}
+                      className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-green-solid bg-green-solid/20 text-lg font-bold transition hover:bg-green-solid/30 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      T{m.tokenIndex + 1}
+                    </button>
+                  ))}
+                </div>
+                <p className={`mt-2 text-2xl font-extrabold ${timerColor}`}>{timeLeft}s</p>
+              </>
+            )}
 
-          {isMyTurn && validMoves.length > 0 && (
-            <>
-              <p className="mb-3 text-sm font-bold text-green">
-                Choose a token to move ({lastDice})
-              </p>
-              <div className="flex gap-3">
-                {validMoves.map((m) => (
-                  <button
-                    key={m.tokenIndex}
-                    type="button"
-                    onClick={() => handleMoveToken(m.tokenIndex)}
-                    className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-green-solid bg-green-solid/20 text-lg font-bold transition hover:bg-green-solid/30"
-                  >
-                    T{m.tokenIndex + 1}
-                  </button>
-                ))}
-              </div>
-              <p className={`mt-2 text-2xl font-extrabold ${timerColor}`}>{timeLeft}s</p>
-            </>
-          )}
-
-          {!isMyTurn && (
-            <>
+            {!isMyTurn && (
               <p className="text-sm text-muted">
                 {waitingReason ?? 'Waiting for opponent...'}
               </p>
-            </>
-          )}
+            )}
 
-          {/* Last move result */}
-          {lastMoveResult && (
-            <div className="mt-4 rounded-[10px] border border-line bg-bg2 px-4 py-2 text-center">
-              <p className="text-xs text-muted">
-                {getDisplayName(lastMoveResult.playerId)} moved token {lastMoveResult.tokenIndex + 1}
-                {lastMoveResult.captures.length > 0 && (
-                  <span className="text-gold"> — captured!</span>
-                )}
-              </p>
-            </div>
-          )}
-        </Card>
+            {/* Last move result */}
+            {lastMoveResult && (
+              <div className="mt-4 rounded-[10px] border border-line bg-bg2 px-4 py-2 text-center">
+                <p className="text-xs text-muted">
+                  {getDisplayName(lastMoveResult.playerId)} moved token {lastMoveResult.tokenIndex + 1}
+                  {lastMoveResult.captures.length > 0 && (
+                    <span className="text-gold"> — captured!</span>
+                  )}
+                </p>
+              </div>
+            )}
+          </Card>
+        </div>
       </div>
     </>
   );

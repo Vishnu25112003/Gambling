@@ -46,6 +46,7 @@ export const RESERVED_USERNAMES = new Set([
     'escrow',
     'wallet',
     'gamblinghub',
+    'infinitrespawn',
     'api',
     'auth',
     'login',

@@ -332,7 +332,7 @@ model Referral {
 ///
 /// See Gambling_Docs/Games/G01-Coin-Flip.md "The Round Record".
 model CoinFlipRound {
-  id          String @id @default(uuid()) @db.Uuid
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   matchId     String @db.Uuid
   match       Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
   roundNumber Int

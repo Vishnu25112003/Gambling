@@ -1,0 +1,100 @@
+2026-08-29 15:14:35.544 IST [460589] LOG:  starting PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 16.2.1 20260810, 64-bit
+2026-08-29 15:14:35.546 IST [460589] LOG:  listening on IPv6 address "::1", port 5433
+2026-08-29 15:14:35.546 IST [460589] LOG:  listening on IPv4 address "127.0.0.1", port 5433
+2026-08-29 15:14:35.548 IST [460589] FATAL:  could not create lock file "/run/postgresql/.s.PGSQL.5433.lock": Permission denied
+2026-08-29 15:14:35.551 IST [460589] LOG:  database system is shut down
+2026-08-29 15:14:46.505 IST [462457] LOG:  starting PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 16.2.1 20260810, 64-bit
+2026-08-29 15:14:46.506 IST [462457] LOG:  listening on IPv6 address "::1", port 5433
+2026-08-29 15:14:46.506 IST [462457] LOG:  listening on IPv4 address "127.0.0.1", port 5433
+2026-08-29 15:14:46.509 IST [462457] LOG:  listening on Unix socket "/home/luffy/Projects/Gambling/backend/.pgtest/.s.PGSQL.5433"
+2026-08-29 15:14:46.515 IST [462467] LOG:  database system was shut down at 2026-08-29 15:14:29 IST
+2026-08-29 15:14:46.521 IST [462457] LOG:  database system is ready to accept connections
+2026-08-29 15:16:00.160 IST [470757] ERROR:  null value in column "id" of relation "coin_flip_rounds" violates not-null constraint
+2026-08-29 15:16:00.160 IST [470757] DETAIL:  Failing row contains (null, cd18c995-75a7-49bb-9007-6c8ec33bd15e, 0, 8ab23577ae7bc4fc3480e3b7fc3a2e2903ce6efec7b053d8fd99bbca9265c422, f05dfee74a215a4e99c017ad046610f13bcb760f3b68da750a0b98a5775d2b48, null, null, null, 845e6820-a6ae-404e-a6c2-6a356302a177, 8269294e-ac9b-4ea9-9e71-c57e979d8ade, 2026-08-29 15:16:00.161).
+2026-08-29 15:16:00.160 IST [470757] STATEMENT:  
+	      INSERT INTO coin_flip_rounds ("matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
+	      VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
+	    
+2026-08-29 15:16:10.190 IST [470837] ERROR:  null value in column "id" of relation "coin_flip_rounds" violates not-null constraint
+2026-08-29 15:16:10.190 IST [470837] DETAIL:  Failing row contains (null, cd18c995-75a7-49bb-9007-6c8ec33bd15e, 1, 2bac9e918f7dc8e7294f1c6c0aae1884c9b64e15255b67c61cf22c3e50f101e3, b3320a51b9f1fb18f9af45ad905c2e12a900573dc7e38b018877ec648b651937, tails, null, no_call, 845e6820-a6ae-404e-a6c2-6a356302a177, 8269294e-ac9b-4ea9-9e71-c57e979d8ade, 2026-08-29 15:16:10.19).
+2026-08-29 15:16:10.190 IST [470837] STATEMENT:  
+	      INSERT INTO coin_flip_rounds ("matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
+	      VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
+	    
+2026-08-29 15:19:46.615 IST [462465] LOG:  checkpoint starting: time
+2026-08-29 15:21:24.940 IST [496593] ERROR:  insert or update on table "coin_flip_rounds" violates foreign key constraint "coin_flip_rounds_matchId_fkey"
+2026-08-29 15:21:24.940 IST [496593] DETAIL:  Key (matchId)=(3167b32a-7d07-4167-b003-2b7ad3f848ac) is not present in table "matches".
+2026-08-29 15:21:24.940 IST [496593] STATEMENT:  
+	      INSERT INTO coin_flip_rounds ("id", "matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
+	      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10)
+	    
+2026-08-29 15:21:33.711 IST [462465] LOG:  checkpoint complete: wrote 1066 buffers (6.5%), wrote 3 SLRU buffers; 1 WAL file(s) added, 0 removed, 0 recycled; write=106.966 s, sync=0.057 s, total=107.097 s; sync files=370, longest=0.003 s, average=0.001 s; distance=5079 kB, estimate=5079 kB; lsn=0/1C6C158, redo lsn=0/1C5BE88
+2026-08-29 15:22:17.965 IST [498315] ERROR:  duplicate key value violates unique constraint "coin_flip_rounds_matchId_roundNumber_key"
+2026-08-29 15:22:17.965 IST [498315] DETAIL:  Key ("matchId", "roundNumber")=(c66c6d11-42ae-4116-994a-5f7a452e7f24, 2) already exists.
+2026-08-29 15:22:17.965 IST [498315] STATEMENT:  
+	      INSERT INTO coin_flip_rounds ("id", "matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
+	      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10)
+	    
+2026-08-29 15:22:17.997 IST [498317] ERROR:  duplicate key value violates unique constraint "coin_flip_rounds_matchId_roundNumber_key"
+2026-08-29 15:22:17.997 IST [498317] DETAIL:  Key ("matchId", "roundNumber")=(c66c6d11-42ae-4116-994a-5f7a452e7f24, 2) already exists.
+2026-08-29 15:22:17.997 IST [498317] STATEMENT:  
+	      INSERT INTO coin_flip_rounds ("id", "matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
+	      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10)
+	    
+2026-08-29 15:23:00.705 IST [499731] ERROR:  duplicate key value violates unique constraint "coin_flip_rounds_matchId_roundNumber_key"
+2026-08-29 15:23:00.705 IST [499731] DETAIL:  Key ("matchId", "roundNumber")=(e9239258-df25-4b97-86f4-995eaa0b21d4, 2) already exists.
+2026-08-29 15:23:00.705 IST [499731] STATEMENT:  
+	      INSERT INTO coin_flip_rounds ("id", "matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
+	      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10)
+	    
+2026-08-29 15:23:00.735 IST [499738] ERROR:  duplicate key value violates unique constraint "coin_flip_rounds_matchId_roundNumber_key"
+2026-08-29 15:23:00.735 IST [499738] DETAIL:  Key ("matchId", "roundNumber")=(e9239258-df25-4b97-86f4-995eaa0b21d4, 2) already exists.
+2026-08-29 15:23:00.735 IST [499738] STATEMENT:  
+	      INSERT INTO coin_flip_rounds ("id", "matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
+	      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10)
+	    
+2026-08-29 15:23:43.828 IST [501042] ERROR:  duplicate key value violates unique constraint "coin_flip_rounds_matchId_roundNumber_key"
+2026-08-29 15:23:43.828 IST [501042] DETAIL:  Key ("matchId", "roundNumber")=(94d965af-be83-4ac4-91ad-c87bc73470ec, 2) already exists.
+2026-08-29 15:23:43.828 IST [501042] STATEMENT:  
+	      INSERT INTO coin_flip_rounds ("id", "matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
+	      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10)
+	    
+2026-08-29 15:23:43.830 IST [501043] ERROR:  duplicate key value violates unique constraint "coin_flip_rounds_matchId_roundNumber_key"
+2026-08-29 15:23:43.830 IST [501043] DETAIL:  Key ("matchId", "roundNumber")=(94d965af-be83-4ac4-91ad-c87bc73470ec, 2) already exists.
+2026-08-29 15:23:43.830 IST [501043] STATEMENT:  
+	      INSERT INTO coin_flip_rounds ("id", "matchId", "roundNumber", "commitHash", seed, result, call, cause, "spinnerId", "callerId")
+	      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10)
+	    
+2026-08-29 15:24:46.813 IST [462465] LOG:  checkpoint starting: time
+2026-08-29 15:24:50.670 IST [462465] LOG:  checkpoint complete: wrote 36 buffers (0.2%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=3.613 s, sync=0.200 s, total=3.857 s; sync files=33, longest=0.012 s, average=0.007 s; distance=143 kB, estimate=4585 kB; lsn=0/1C8ACB0, redo lsn=0/1C7FBE0
+2026-08-29 15:26:53.683 IST [508237] ERROR:  duplicate key value violates unique constraint "users_username_key"
+2026-08-29 15:26:53.683 IST [508237] DETAIL:  Key (username)=(taken) already exists.
+2026-08-29 15:26:53.683 IST [508237] STATEMENT:  UPDATE "public"."users" SET "username" = $1, "updatedAt" = $2 WHERE ("public"."users"."id" = $3 AND 1=1) RETURNING "public"."users"."id", "public"."users"."walletAddress", "public"."users"."availableBalance", "public"."users"."lockedBalance", "public"."users"."totalWagered", "public"."users"."netProfit", "public"."users"."gamesPlayed", "public"."users"."gamesWon", "public"."users"."username", "public"."users"."avatarUrl", "public"."users"."referralCode", "public"."users"."createdAt", "public"."users"."updatedAt", "public"."users"."lastLogin"
+2026-08-29 15:26:53.835 IST [508245] ERROR:  new row for relation "users" violates check constraint "users_username_shape"
+2026-08-29 15:26:53.835 IST [508245] DETAIL:  Failing row contains (ad12cb7b-40cf-448f-9dea-3a852c5a7e66, wallet-3-i4wx5l, 0.000000000, 0.000000000, 0.000000000, 0.000000000, 0, 2026-08-29 09:56:53.821, 2026-08-29 09:56:53.833, null, null, null, 0, Bad-Name!).
+2026-08-29 15:26:53.835 IST [508245] STATEMENT:  UPDATE "public"."users" SET "username" = $1, "updatedAt" = $2 WHERE ("public"."users"."id" = $3 AND 1=1) RETURNING "public"."users"."id", "public"."users"."walletAddress", "public"."users"."availableBalance", "public"."users"."lockedBalance", "public"."users"."totalWagered", "public"."users"."netProfit", "public"."users"."gamesPlayed", "public"."users"."gamesWon", "public"."users"."username", "public"."users"."avatarUrl", "public"."users"."referralCode", "public"."users"."createdAt", "public"."users"."updatedAt", "public"."users"."lastLogin"
+2026-08-29 15:27:00.361 IST [462465] LOG:  checkpoint starting: immediate force wait
+2026-08-29 15:27:00.493 IST [462465] LOG:  checkpoint complete: wrote 44 buffers (0.3%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.018 s, sync=0.097 s, total=0.132 s; sync files=41, longest=0.007 s, average=0.003 s; distance=6252 kB, estimate=6252 kB; lsn=0/229ADF8, redo lsn=0/229ADA0
+2026-08-29 15:27:10.359 IST [508803] ERROR:  new row for relation "users" violates check constraint "users_available_balance_non_negative"
+2026-08-29 15:27:10.359 IST [508803] DETAIL:  Failing row contains (968a0f4e-47f3-4c0a-833e-8f9e5a74617c, wallet-36-xwkkli, -0.000000001, 0.000000000, 0.000000000, 0.000000000, 0, 2026-08-29 09:57:10.352, 2026-08-29 09:57:10.358, null, null, null, 0, null).
+2026-08-29 15:27:10.359 IST [508803] STATEMENT:  UPDATE "public"."users" SET "availableBalance" = $1, "updatedAt" = $2 WHERE ("public"."users"."id" = $3 AND 1=1) RETURNING "public"."users"."id", "public"."users"."walletAddress", "public"."users"."availableBalance", "public"."users"."lockedBalance", "public"."users"."totalWagered", "public"."users"."netProfit", "public"."users"."gamesPlayed", "public"."users"."gamesWon", "public"."users"."username", "public"."users"."avatarUrl", "public"."users"."referralCode", "public"."users"."createdAt", "public"."users"."updatedAt", "public"."users"."lastLogin"
+2026-08-29 15:27:10.438 IST [508798] ERROR:  new row for relation "matches" violates check constraint "matches_fee_within_pot"
+2026-08-29 15:27:10.438 IST [508798] DETAIL:  Failing row contains (596a9406-b018-4ab7-87ea-7c44056fbff1, test, pooled, open, 0.500000000, 1.000000000, null, null, 2026-08-29 09:57:10.433, null).
+2026-08-29 15:27:10.438 IST [508798] STATEMENT:  UPDATE "public"."matches" SET "feeCollected" = $1, "pot" = $2 WHERE ("public"."matches"."id" = $3 AND 1=1) RETURNING "public"."matches"."id", "public"."matches"."gameType", "public"."matches"."mode"::text, "public"."matches"."status"::text, "public"."matches"."pot", "public"."matches"."feeCollected", "public"."matches"."gameState", "public"."matches"."result", "public"."matches"."createdAt", "public"."matches"."settledAt"
+2026-08-29 15:27:10.503 IST [508797] ERROR:  duplicate key value violates unique constraint "ledger_entries_txSignature_key"
+2026-08-29 15:27:10.503 IST [508797] DETAIL:  Key ("txSignature")=(sig-a) already exists.
+2026-08-29 15:27:10.503 IST [508797] STATEMENT:  INSERT INTO "public"."ledger_entries" ("id","txSignature","userId","type","status","amount","timestamp") VALUES ($1,$2,$3,CAST($4::text AS "public"."LedgerType"),CAST($5::text AS "public"."LedgerStatus"),$6,$7) RETURNING "public"."ledger_entries"."id", "public"."ledger_entries"."txSignature", "public"."ledger_entries"."userId", "public"."ledger_entries"."type"::text, "public"."ledger_entries"."status"::text, "public"."ledger_entries"."amount", "public"."ledger_entries"."balanceAfterAvailable", "public"."ledger_entries"."balanceAfterLocked", "public"."ledger_entries"."senderAddress", "public"."ledger_entries"."destinationAddress", "public"."ledger_entries"."matchId", "public"."ledger_entries"."gameType", "public"."ledger_entries"."note", "public"."ledger_entries"."meta", "public"."ledger_entries"."timestamp"
+2026-08-29 15:27:11.148 IST [462465] LOG:  checkpoint starting: immediate force wait
+2026-08-29 15:27:11.181 IST [462465] LOG:  checkpoint complete: wrote 6 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.008 s, sync=0.016 s, total=0.034 s; sync files=7, longest=0.004 s, average=0.003 s; distance=5807 kB, estimate=6207 kB; lsn=0/2846C78, redo lsn=0/2846C20
+2026-08-29 15:27:16.242 IST [509206] ERROR:  new row for relation "referrals" violates check constraint "referrals_no_self_referral"
+2026-08-29 15:27:16.242 IST [509206] DETAIL:  Failing row contains (80a1df50-f4a2-4f88-922d-4d40f7f5340d, c2158161-b75b-44b7-b233-3f84ea2f9d13, c2158161-b75b-44b7-b233-3f84ea2f9d13, pending, 500, 0.000000000, null, null, 2026-08-29 09:57:16.241, null).
+2026-08-29 15:27:16.242 IST [509206] STATEMENT:  INSERT INTO "public"."referrals" ("id","referrerId","referredUserId","status","commissionBps","earnedAmount","createdAt") VALUES ($1,$2,$3,CAST($4::text AS "public"."ReferralStatus"),$5,$6,$7) RETURNING "public"."referrals"."id", "public"."referrals"."referrerId", "public"."referrals"."referredUserId", "public"."referrals"."status"::text, "public"."referrals"."commissionBps", "public"."referrals"."earnedAmount", "public"."referrals"."matchId", "public"."referrals"."gameType", "public"."referrals"."createdAt", "public"."referrals"."earnedAt"
+2026-08-29 15:27:18.219 IST [462465] LOG:  checkpoint starting: immediate force wait
+2026-08-29 15:27:18.246 IST [462465] LOG:  checkpoint complete: wrote 6 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.005 s, sync=0.012 s, total=0.027 s; sync files=7, longest=0.003 s, average=0.002 s; distance=5400 kB, estimate=6127 kB; lsn=0/2D8CF00, redo lsn=0/2D8CEA8
+2026-08-29 15:27:38.575 IST [462457] LOG:  received fast shutdown request
+2026-08-29 15:27:38.576 IST [462457] LOG:  aborting any active transactions
+2026-08-29 15:27:38.578 IST [462457] LOG:  background worker "logical replication launcher" (PID 462474) exited with exit code 1
+2026-08-29 15:27:38.579 IST [462465] LOG:  shutting down
+2026-08-29 15:27:38.581 IST [462465] LOG:  checkpoint starting: shutdown immediate
+2026-08-29 15:27:38.597 IST [462465] LOG:  checkpoint complete: wrote 7 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.009 s, total=0.019 s; sync files=6, longest=0.002 s, average=0.002 s; distance=39 kB, estimate=5518 kB; lsn=0/2D96D48, redo lsn=0/2D96D48
+2026-08-29 15:27:38.625 IST [462457] LOG:  database system is shut down

@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { createLogger } from '../lib/logger.js';
 import coinFlipGame from './coin-flip/index.js';
+import ludoGame from './ludo/index.js';
+import mineCatcherGame from './mine-catcher/index.js';
+import trumpcardGame from './trumpcard/index.js';
 const log = createLogger('games');
 /**
  * ===========================================================================
@@ -28,6 +31,9 @@ const log = createLogger('games');
  */
 const modules = [
     coinFlipGame,
+    ludoGame,
+    mineCatcherGame,
+    trumpcardGame,
 ];
 const byId = new Map();
 export function registerGame(mod) {

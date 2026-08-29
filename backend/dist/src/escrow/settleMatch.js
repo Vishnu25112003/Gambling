@@ -3,6 +3,7 @@ import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { Decimal, PLATFORM_FEE_BPS, applyFeeBps, splitByWeight, toDecimal, } from '../lib/money.js';
 import { createLogger } from '../lib/logger.js';
 import { awardReferralOnWin } from '../referral/awardReferral.js';
+import { emitLedgerEntryCreated } from '../lib/ledgerEvents.js';
 const log = createLogger('escrow:settle');
 /**
  * Doc 03 — pay the winners, take the fee, unlock everything.
@@ -32,7 +33,10 @@ export async function settleMatch(matchId, winners, weights, options = {}) {
     if (winners.length !== weights.length) {
         throw badRequest('settleMatch requires one weight per winner.');
     }
-    return prisma.$transaction(async (tx) => {
+    // Collected inside the transaction and pushed over the socket only once it
+    // commits — a rolled-back settlement must never notify anyone.
+    const pushedEntries = [];
+    const result = await prisma.$transaction(async (tx) => {
         /**
          * Claim the match atomically.
          *
@@ -153,7 +157,7 @@ export async function settleMatch(matchId, winners, weights, options = {}) {
                 },
             });
             payouts.push({ userId: uid, payout });
-            await tx.ledgerEntry.create({
+            pushedEntries.push(await tx.ledgerEntry.create({
                 data: {
                     userId: uid,
                     type: 'settlement',
@@ -172,7 +176,7 @@ export async function settleMatch(matchId, winners, weights, options = {}) {
                         mode: match.mode,
                     },
                 },
-            });
+            }));
             /**
              * Doc 09 — if this player was invited by someone and just turned their
              * first profit, pay that referrer their cut.
@@ -182,12 +186,14 @@ export async function settleMatch(matchId, winners, weights, options = {}) {
              * than the payout, takes nothing from the pot, and leaves `feeCollected`
              * alone — see the header of awardReferral.ts for why.
              */
-            await awardReferralOnWin(tx, {
+            const referral = await awardReferralOnWin(tx, {
                 userId: uid,
                 netWin: payout.minus(totalStake),
                 matchId,
                 gameType: match.gameType,
             });
+            if (referral)
+                pushedEntries.push(referral.ledgerEntry);
         }
         if (feeCollected.greaterThan(0)) {
             // The fee has no destination user — the treasury already holds it, since
@@ -222,5 +228,7 @@ export async function settleMatch(matchId, winners, weights, options = {}) {
         });
         return { matchId, pot, feeCollected, payouts };
     });
+    pushedEntries.forEach(emitLedgerEntryCreated);
+    return result;
 }
 //# sourceMappingURL=settleMatch.js.map

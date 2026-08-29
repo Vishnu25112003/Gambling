@@ -13,8 +13,11 @@ export const CF_EVENTS = {
     LIST_MATCHES: 'cf:list',
     SPIN: 'cf:spin',
     CALL: 'cf:call',
+    REMATCH_REQUEST: 'cf:rematch:request',
     // Server → Client
     MATCH_STATE: 'cf:state',
+    REMATCH_WAITING: 'cf:rematch:waiting',
+    REMATCH_OFFERED: 'cf:rematch:offered',
     MATCH_CREATED: 'cf:created',
     MATCHES_LIST: 'cf:matches',
     ROUND_START: 'cf:round:start',
