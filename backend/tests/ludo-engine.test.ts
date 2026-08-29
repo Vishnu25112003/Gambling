@@ -95,3 +95,88 @@ describe('ludo engine — token blocking', () => {
     expect(moves).toContainEqual({ tokenIndex: 0, type: 'yard' });
   });
 });
+
+describe('ludo engine — dice roll & extra turn (processDiceRoll / processTokenMove)', () => {
+  const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
+
+  it('a 6 grants an extra turn on BOTH the first and second consecutive six', async () => {
+    const { createInitialState, processDiceRoll, processTokenMove } = await import(
+      '../src/games/ludo/engine.js'
+    );
+    let state = createInitialState(2, [A, B]);
+
+    // Force the dice so we control the roll. processDiceRoll uses Math.random,
+    // so stub it to always return 6 (=> value 6).
+    const originalRandom = Math.random;
+    Math.random = () => 0.99; // floor(0.99*6)+1 = 6
+
+    // Roll 1: 6 -> extra turn
+    let roll = processDiceRoll(state);
+    expect(roll.diceValue).toBe(6);
+    expect(roll.validMoves.length).toBeGreaterThan(0);
+    let move = processTokenMove(roll.state, 0); // yard token out
+    expect(move.getsExtraTurn).toBe(true);
+    expect(move.nextPlayerId).toBe(A);
+    state = move.state;
+
+    // Roll 2: another 6 -> must STILL be an extra turn (bug: returned false)
+    roll = processDiceRoll(state);
+    expect(roll.diceValue).toBe(6);
+    move = processTokenMove(roll.state, 1); // move a token on track
+    expect(move.getsExtraTurn).toBe(true);
+    expect(move.nextPlayerId).toBe(A);
+    state = move.state;
+
+    // Roll 3: third consecutive 6 -> forfeits turn (no extra turn, passes on)
+    roll = processDiceRoll(state);
+    expect(roll.diceValue).toBe(6);
+    expect(roll.mustPass).toBe(true);
+
+    Math.random = originalRandom;
+  });
+
+  it('a non-6 roll ends the turn (no extra turn) and passes to the next player', async () => {
+    const { createInitialState, processDiceRoll, processTokenMove } = await import(
+      '../src/games/ludo/engine.js'
+    );
+    const originalRandom = Math.random;
+    try {
+      // Stub random to return a non-6 (floor(0.4*6)+1 = 3).
+      Math.random = () => 0.4;
+
+      const state = createInitialState(2, [A, B]);
+      // Bring one token onto the track so a normal move is possible.
+      const ready = {
+        ...state,
+        tokens: {
+          ...state.tokens,
+          [A]: [{ zone: 'track', position: 0, homePosition: 0 }, ...state.tokens[A]!.slice(1)] as Token[],
+        },
+      };
+
+      const roll = processDiceRoll(ready);
+      expect(roll.diceValue).toBe(3);
+      expect(roll.validMoves.length).toBeGreaterThan(0);
+
+      const move = processTokenMove(roll.state, 0);
+      expect(move.getsExtraTurn).toBe(false);
+      expect(move.nextPlayerId).toBe(B);
+    } finally {
+      Math.random = originalRandom;
+    }
+  });
+
+  it('the dice value is uniformly random across many rolls (not fixed)', async () => {
+    const { createInitialState, processDiceRoll } = await import(
+      '../src/games/ludo/engine.js'
+    );
+    const state = createInitialState(2, [A, B]);
+    const seen = new Set<number>();
+    for (let i = 0; i < 200; i++) {
+      seen.add(processDiceRoll({ ...state, consecutiveSixes: 0 }).diceValue);
+    }
+    // With 200 random rolls we should see every face at least once.
+    expect(seen.size).toBe(6);
+  });
+});
+

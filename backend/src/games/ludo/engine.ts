@@ -583,8 +583,9 @@ export function processTokenMove(
   if (matchWinner) {
     newState.phase = 'match_over';
     nextPlayerId = state.currentPlayerId;
-  } else if (diceValue === 6 && state.consecutiveSixes < MAX_CONSECUTIVE_SIXES - 1) {
-    // Extra turn on rolling a 6 (unless it was the 3rd consecutive)
+  } else if (diceValue === 6 && state.consecutiveSixes < MAX_CONSECUTIVE_SIXES) {
+    // Extra turn on rolling a 6 (unless it was the 3rd consecutive six,
+    // which is already handled as a turn forfeit in processDiceRoll)
     getsExtraTurn = true;
     nextPlayerId = state.currentPlayerId;
   } else {

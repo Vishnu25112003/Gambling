@@ -169,11 +169,21 @@ export function EmptyState({
 }) {
   return (
     <Card radius={radius} className="px-6 py-14 text-center">
-      <div
-        className="mb-3.5 flex justify-center text-faint"
-        style={scaleIcon ? { transform: 'scale(1.7)' } : undefined}
-      >
-        {icon}
+      <div className="mb-3.5 flex justify-center text-faint">
+        {/*
+          Scale the icon itself, not the full-width flex wrapper. A 1.7× transform
+          on the wrapper stretched its box past both viewport edges on phones
+          (≈65px of horizontal overflow that pushed the whole page wide), because
+          the transform blows up the centered container while keeping it laid out
+          at 100% width. Scoping the scale to the inline icon keeps the wrapper at
+          its natural width and the visual size identical.
+        */}
+        <span
+          className="inline-flex"
+          style={scaleIcon ? { transform: 'scale(1.7)' } : undefined}
+        >
+          {icon}
+        </span>
       </div>
       <p className="mb-1.5 text-[15.5px] font-bold">{title}</p>
       <p className="text-[12.5px] text-muted">{body}</p>

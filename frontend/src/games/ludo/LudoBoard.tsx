@@ -11,6 +11,7 @@ import { formatSol } from '../../lib/format';
 import { ludoSetupConfig } from './ludoSetupConfig';
 import { LudoResult } from './LudoResult';
 import { LudoBoardGrid } from './LudoBoardGrid';
+import { DiceSpinner } from './DiceSpinner';
 import { LUDO_COLOR_VAR } from './boardGeometry';
 
 /**
@@ -141,6 +142,7 @@ function LudoBoardInner() {
   const [validMoves, setValidMoves] = useState<ValidMove[]>([]);
   const [timeLeft, setTimeLeft] = useState(0);
   const [lastDice, setLastDice] = useState<number | null>(null);
+  const [rollingDice, setRollingDice] = useState(false);
   const [lastMoveResult, setLastMoveResult] = useState<{
     playerId: string;
     tokenIndex: number;
@@ -237,11 +239,17 @@ function LudoBoardInner() {
       diceValue?: number;
       validMoves?: ValidMove[];
     }) => {
-      // Reconnection
-      if (data.state && data.message?.includes('Reconnected')) {
+      // Always apply the latest authoritative state when present. The backend
+      // now includes `state` on match-start, dice-rolled, token-moved, and
+      // 'moving' payloads — this keeps the board in sync everywhere.
+      if (data.state) {
         setGameState(data.state);
+      }
+
+      // Reconnection
+      if (data.message?.includes('Reconnected')) {
         setPage('live');
-        if (data.state.currentPlayerId === user.id) {
+        if (data.state?.currentPlayerId === user.id) {
           setIsMyTurn(true);
           startTimer(ROLL_TIMEOUT_MS);
         }
@@ -256,6 +264,12 @@ function LudoBoardInner() {
         }
         if (data.seatCount) setSeatCount(data.seatCount);
         setPage('live');
+      }
+
+      // enter 'moving' phase: store valid moves sent just to this client
+      if (data.phase === 'moving' && data.validMoves) {
+        setValidMoves(data.validMoves);
+        startTimer(MOVE_TIMEOUT_MS);
       }
 
       // Waiting for lobby fill
@@ -274,6 +288,7 @@ function LudoBoardInner() {
       setLastDice(null);
       setLastMoveResult(null);
       setValidMoves([]);
+      setRollingDice(false);
 
       if (data.currentPlayerId === user.id) {
         setIsMyTurn(true);
@@ -289,8 +304,11 @@ function LudoBoardInner() {
       playerId: string;
       diceValue: number;
       color: LudoColor;
+      state?: LudoState;
     }) => {
       setLastDice(data.diceValue);
+      setRollingDice(false);
+      if (data.state) setGameState(data.state);
       clearTimer();
     });
 
@@ -298,7 +316,9 @@ function LudoBoardInner() {
       phase?: string;
       diceValue?: number;
       validMoves?: ValidMove[];
+      state?: LudoState;
     }) => {
+      if (data.state) setGameState(data.state);
       if (data.phase === 'moving' && data.validMoves) {
         setValidMoves(data.validMoves);
         startTimer(MOVE_TIMEOUT_MS);
@@ -312,6 +332,7 @@ function LudoBoardInner() {
       newPosition: TokenState;
       totalSteps: number;
       captures: { playerId: string; tokenIndex: number }[];
+      state?: LudoState;
     }) => {
       setLastMoveResult({
         playerId: data.playerId,
@@ -319,22 +340,27 @@ function LudoBoardInner() {
         captures: data.captures,
       });
 
-      // Update local game state
-      setGameState((prev) => {
-        if (!prev) return prev;
-        const newTokens = { ...prev.tokens };
-        const playerTokens = [...(newTokens[data.playerId] ?? [])];
-        playerTokens[data.tokenIndex] = data.newPosition;
-        newTokens[data.playerId] = playerTokens;
-        return {
-          ...prev,
-          tokens: newTokens,
-          totalSteps: {
-            ...prev.totalSteps,
-            [data.playerId]: data.totalSteps,
-          },
-        };
-      });
+      // Apply authoritative state if present (full sync); otherwise patch locally.
+      if (data.state) {
+        setGameState(data.state);
+      } else {
+        // Update local game state
+        setGameState((prev) => {
+          if (!prev) return prev;
+          const newTokens = { ...prev.tokens };
+          const playerTokens = [...(newTokens[data.playerId] ?? [])];
+          playerTokens[data.tokenIndex] = data.newPosition;
+          newTokens[data.playerId] = playerTokens;
+          return {
+            ...prev,
+            tokens: newTokens,
+            totalSteps: {
+              ...prev.totalSteps,
+              [data.playerId]: data.totalSteps,
+            },
+          };
+        });
+      }
     });
 
     s.on(LUDO.MATCH_RESULT, (data: MatchResult) => {
@@ -416,7 +442,10 @@ function LudoBoardInner() {
     setPage('waiting');
   };
 
-  const handleRollDice = () => emit(LUDO.ROLL_DICE);
+  const handleRollDice = () => {
+    setRollingDice(true);
+    emit(LUDO.ROLL_DICE);
+  };
   const handleMoveToken = (tokenIndex: number) => emit(LUDO.MOVE_TOKEN, { tokenIndex });
 
   const goHome = () => {
@@ -633,14 +662,8 @@ function LudoBoardInner() {
         <Card className="mb-4 flex flex-col items-center px-6 py-8">
           {/* Dice display */}
           <div className="mb-4 flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-[12px] border-2 border-line bg-bg2">
-              {lastDice ? (
-                <span className="text-3xl font-extrabold">{lastDice}</span>
-              ) : (
-                <span className="text-2xl text-faint">?</span>
-              )}
-            </div>
-            {lastDice === 6 && (
+            <DiceSpinner value={lastDice} rolling={rollingDice} />
+            {lastDice === 6 && !rollingDice && (
               <span className="text-sm font-bold text-gold">+ Extra turn!</span>
             )}
           </div>

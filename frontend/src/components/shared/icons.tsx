@@ -343,6 +343,16 @@ export function BellIcon({ size = 17 }: { size?: number }) {
   );
 }
 
+export function PanelIcon({ size = 17 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} aria-hidden>
+      <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+      <path d="M9 4.5v15" />
+      <path d="M5.5 8.5h2M5.5 12h2M5.5 15.5h2" />
+    </svg>
+  );
+}
+
 export function SignOutIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden>
