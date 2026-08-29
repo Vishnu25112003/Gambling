@@ -557,6 +557,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
       // Broadcast match start to all players
       broadcastToMatch(newActiveMatch, LUDO_EVENTS.MATCH_STATE, {
         matchId,
+        state,
         players: playerIds.map((id) => ({
           id,
           displayName: nameMap.get(id),
@@ -634,6 +635,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
         playerId: userId,
         diceValue,
         color: match.state.colors[userId],
+        state: match.state,
       });
 
       if (mustPass) {
@@ -699,6 +701,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
           newPosition: moveState.tokens[userId]![move.tokenIndex],
           totalSteps: moveState.totalSteps[userId],
           captures: result.captured,
+          state: match.state,
         });
 
         if (matchWinner) {
@@ -738,6 +741,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
             phase: 'moving',
             diceValue,
             validMoves,
+            state: match.state,
             message: 'Choose which token to move',
           });
         }
@@ -832,6 +836,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
         newPosition: moveState.tokens[userId]![tokenIndex],
         totalSteps: moveState.totalSteps[userId],
         captures: result.captured,
+        state: match.state,
       });
 
       if (matchWinner) {

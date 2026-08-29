@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth } from '../../hooks/useAuth';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../hooks/useTheme';
+import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed';
 import { formatSol, shortAddress } from '../../lib/format';
 import { Avatar } from '../shared/Avatar';
 import {
@@ -13,6 +14,7 @@ import {
   LogoMark,
   MenuIcon,
   MoonIcon,
+  PanelIcon,
   SearchIcon,
   SignOutIcon,
   SunIcon,
@@ -56,7 +58,15 @@ function LogoBadge({ box, glyph }: { box: number; glyph: number }) {
   );
 }
 
-function NavRows({ onNavigate, fill = false }: { onNavigate?: () => void; fill?: boolean }) {
+function NavRows({
+  onNavigate,
+  fill = false,
+  collapsed = false,
+}: {
+  onNavigate?: () => void;
+  fill?: boolean;
+  collapsed?: boolean;
+}) {
   return (
     <>
       {NAV_ITEMS.map((item) => (
@@ -71,11 +81,14 @@ function NavRows({ onNavigate, fill = false }: { onNavigate?: () => void; fill?:
           className={fill ? 'block max-h-[46px] min-h-[34px] flex-1 basis-0' : 'block'}
         >
           {({ isActive }) => (
-            <span className={navRowClass(isActive, fill)}>
+            <span
+              className={`${navRowClass(isActive, fill)} ${collapsed ? 'justify-center px-0' : ''}`}
+              title={collapsed ? item.label : undefined}
+            >
               <span className="flex shrink-0">
                 <Icon name={item.icon} />
               </span>
-              <span>{item.label}</span>
+              {!collapsed && <span>{item.label}</span>}
             </span>
           )}
         </NavLink>
@@ -127,17 +140,20 @@ function SessionButton({ onDone, bare = false }: { onDone?: () => void; bare?: b
   );
 }
 
-function ThemeRow({ compact = false }: { compact?: boolean }) {
+function ThemeRow({ compact = false, collapsed = false }: { compact?: boolean; collapsed?: boolean }) {
   const { isDark, toggleTheme } = useTheme();
 
   if (compact) {
     return (
       <button
         onClick={toggleTheme}
-        className="flex w-full cursor-pointer items-center gap-3 rounded-[11px] border-none bg-transparent px-3 py-2.5 text-sm font-semibold text-muted"
+        title={collapsed ? (isDark ? 'Light mode' : 'Dark mode') : undefined}
+        className={`flex w-full cursor-pointer items-center gap-3 rounded-[11px] border-none bg-transparent px-3 py-2.5 text-sm font-semibold text-muted ${
+          collapsed ? 'justify-center px-0' : ''
+        }`}
       >
         <span className="flex">{isDark ? <SunIcon /> : <MoonIcon />}</span>
-        <span>{isDark ? 'Light mode' : 'Dark mode'}</span>
+        {!collapsed && <span>{isDark ? 'Light mode' : 'Dark mode'}</span>}
       </button>
     );
   }
@@ -175,42 +191,55 @@ function InviteCard() {
   );
 }
 
-function Sidebar() {
+function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   return (
-    <aside className="sticky top-0 flex h-screen max-h-screen w-[264px] shrink-0 flex-col gap-5 self-start overflow-y-auto border-r border-line2 bg-bg2 px-4 pt-[18px] pb-5">
-      <Link to="/" className="flex shrink-0 items-center gap-[11px] no-underline">
-        <LogoBadge box={38} glyph={20} />
-        <Wordmark />
-      </Link>
+    /*
+      Fixed, not sticky: the sidebar pins to the viewport edge and never
+      scrolls with the page. The inner nav scrolls independently (with a neat
+      slim scrollbar) only when its rows outgrow the leftover space.
+    */
+    <aside
+      className={`fixed inset-y-0 left-0 z-20 flex shrink-0 flex-col border-r border-line2 bg-bg2 px-3 pt-[18px] pb-5 transition-[width] duration-200 ease-out ${
+        collapsed ? 'w-[82px]' : 'w-[264px]'
+      }`}
+    >
+      <div className="flex shrink-0 items-center gap-[11px] no-underline">
+        <Link to="/" className="flex items-center gap-[11px] no-underline">
+          <LogoBadge box={38} glyph={20} />
+          {!collapsed && <Wordmark />}
+        </Link>
+      </div>
 
+      {/* A minimal, styled scrollbar for when the nav overflows its height. */}
       <nav
-        className="flex min-h-0 flex-1 flex-col gap-[3px] overflow-x-hidden overflow-y-auto pb-2"
-        style={{
-          maskImage:
-            'linear-gradient(to bottom,transparent 0,#000 10px,#000 calc(100% - 14px),transparent 100%)',
-        }}
+        className="nav-scroll mt-5 flex min-h-0 flex-1 flex-col gap-[3px] overflow-x-hidden overflow-y-auto pb-2"
       >
-        <NavRows />
+        <NavRows collapsed={collapsed} />
       </nav>
 
-      {/*
-        No session button here. On this breakpoint the top bar owns the session
-        entirely: "Connect Wallet" when signed out, and the account menu — which
-        carries Disconnect — when signed in. A second Disconnect in the sidebar
-        was the same action in two places.
+      {/* Collapse / expand toggle, pinned to the bottom above the footer. */}
+      <button
+        onClick={onToggle}
+        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        className={`flex min-h-[42px] cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-card text-[13px] font-semibold text-muted transition hover:text-text ${
+          collapsed ? 'justify-center px-0' : 'px-3.5'
+        }`}
+      >
+        <PanelIcon />
+        {!collapsed && <span>Collapse</span>}
+      </button>
 
-        The mobile drawer still has one, because the account menu has no room in
-        a mobile top bar and Settings offers no disconnect of its own; dropping
-        it there would leave no way off the account at all.
-      */}
-      <div className="mt-auto flex shrink-0 flex-col gap-3">
-        <InviteCard />
-        <ThemeRow />
-        <p className="text-[11.5px] leading-[1.5] text-faint">
-          © 2026 Infinit Respawn
-          <br />
-          All rights reserved.
-        </p>
+      <div className="mt-3 flex shrink-0 flex-col gap-3">
+        {!collapsed && <InviteCard />}
+        <ThemeRow compact={collapsed} collapsed={collapsed} />
+        {!collapsed && (
+          <p className="text-[11.5px] leading-[1.5] text-faint">
+            © 2026 Infinit Respawn
+            <br />
+            All rights reserved.
+          </p>
+        )}
       </div>
     </aside>
   );
@@ -323,7 +352,7 @@ function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
 
   return (
     <div className="sticky top-0 z-40 mb-4 border-b border-line2 bg-bg pt-3.5 pb-3">
-      <div className="mb-3.5 rounded-[9px] bg-banner p-[7px] text-center text-[12.5px] font-medium text-gold">
+      <div className="mb-3.5 max-w-full rounded-[9px] bg-banner p-[7px] text-center text-[12.5px] font-medium text-gold">
         Playing on Solana <span className="uppercase">{CLUSTER}</span> — test SOL only, no real
         money.
       </div>
@@ -395,6 +424,7 @@ function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
 export function DashboardShell() {
   const isMobile = useIsMobile();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const { pathname } = useLocation();
 
   // The drawer belongs to a viewport, not to a route — close it on both changes.
@@ -402,13 +432,13 @@ export function DashboardShell() {
 
   return (
     <div
-      className="flex min-h-screen"
+      className={`flex min-h-screen ${isMobile ? '' : collapsed ? 'pl-[82px]' : 'pl-[264px]'}`}
       style={{
         background:
           'radial-gradient(ellipse 900px 500px at 50% -10%, rgba(34,197,94,var(--page-glow)), transparent 60%), var(--bg)',
       }}
     >
-      {!isMobile && <Sidebar />}
+      {!isMobile && <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} />}
       {isMobile && <MobileDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />}
 
       <div className="min-w-0 flex-1 px-[clamp(14px,3vw,36px)] pb-[60px]">

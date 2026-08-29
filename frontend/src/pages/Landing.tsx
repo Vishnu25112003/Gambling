@@ -107,7 +107,13 @@ export function Landing() {
             <div className="flex size-[34px] items-center justify-center rounded-[9px] bg-[linear-gradient(135deg,var(--green-solid),var(--green-deep))]">
               <LogoMark size={18} />
             </div>
-            <span className="text-[clamp(16px,4vw,19px)] font-bold whitespace-nowrap">
+            {/*
+              The wordmark text is dropped below `sm` so the logo + theme toggle +
+              "Launch Dashboard" CTA always fit a phone's width. At 320px the three
+              still overflowed by ~77px with the text present; hiding it (the same
+              treatment GameShell uses) clears the overflow on every phone width.
+            */}
+            <span className="hidden text-[clamp(16px,4vw,19px)] font-bold whitespace-nowrap sm:inline">
               Infinit <span className="text-green">Respawn</span>
             </span>
           </div>

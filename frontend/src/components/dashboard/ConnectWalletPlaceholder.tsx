@@ -19,8 +19,18 @@ export function ConnectWalletPlaceholder({
 }) {
   return (
     <Card className="flex flex-col items-center justify-center gap-4 px-6 py-14 text-center">
-      <div className="flex justify-center text-faint" style={{ transform: 'scale(1.7)' }}>
-        <Icon name={icon} size={22} />
+      {/*
+        Scale the icon, not the full-width flex wrapper. The original applied
+        scale(1.7) to the wrapper, which stretched its box past both viewport
+        edges on phones (the same horizontal-overflow bug as EmptyState) because a
+        transform blows up the centered container while it stays laid out at 100%
+        width. Scoping the scale to the inline icon keeps the wrapper at its
+        natural width with identical visual size.
+      */}
+      <div className="flex justify-center text-faint">
+        <span className="inline-flex" style={{ transform: 'scale(1.7)' }}>
+          <Icon name={icon} size={22} />
+        </span>
       </div>
       <div>
         <p className="text-[15.5px] font-bold">Connect Wallet to view</p>
