@@ -15,6 +15,7 @@ export const CF_EVENTS = {
     CALL: 'cf:call',
     REMATCH_REQUEST: 'cf:rematch:request',
     // Server → Client
+    STAKE_REQUIRED: 'cf:stake:required',
     MATCH_STATE: 'cf:state',
     REMATCH_WAITING: 'cf:rematch:waiting',
     REMATCH_OFFERED: 'cf:rematch:offered',

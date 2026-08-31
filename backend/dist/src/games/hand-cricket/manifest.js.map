@@ -1,0 +1,1 @@
+{"version":3,"file":"manifest.js","sourceRoot":"","sources":["../../../../src/games/hand-cricket/manifest.ts"],"names":[],"mappings":"AAEA,MAAM,CAAC,MAAM,mBAAmB,GAAiB;IAC/C,EAAE,EAAE,cAAc;IAClB,IAAI,EAAE,cAAc;IACpB,OAAO,EAAE,oEAAoE;IAC7E,WAAW,EACT,0SAA0S;IAC5S,IAAI,EAAE,QAAQ;IACd,UAAU,EAAE,CAAC;IACb,UAAU,EAAE,CAAC;IACb,MAAM,EAAE,MAAM;IACd,IAAI,EAAE,IAAI;CACX,CAAC"}
