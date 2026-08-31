@@ -47,7 +47,13 @@ export const Coin3D = forwardRef<Coin3DHandle, Coin3DProps>(function Coin3D({ sp
         viewRef.current?.setSpinning(on);
       },
       landOn(face, durationMs = 1100) {
-        rotationRef.current += spins * 360 + (face === 'tails' ? 180 : 0);
+        // Re-base on the last full 360° turn before adding this round's
+        // offset — otherwise a "tails" round's +180 lingers in the running
+        // total and silently flips the face shown on every later round
+        // that doesn't also land on tails, even though the offset it adds
+        // is always relative to whatever face was already showing.
+        const base = Math.floor(rotationRef.current / 360) * 360;
+        rotationRef.current = base + spins * 360 + (face === 'tails' ? 180 : 0);
         viewRef.current?.setSpinning(false);
         viewRef.current?.setTarget(rotationRef.current, durationMs);
       },
