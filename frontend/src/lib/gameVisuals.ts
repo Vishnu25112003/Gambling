@@ -40,6 +40,12 @@ const BY_NAME: Record<string, GameVisual> = {
     art: '/games/Trumpcard.png',
   },
   crash: { icon: 'rocket', tint: 'rgba(59,130,246,0.14)', tone: '#60a5fa' },
+  'hand cricket': {
+    icon: 'cards',
+    tint: 'rgba(249,115,22,0.14)',
+    tone: '#f97316',
+    art: '/games/Handcricket.png',
+  },
   blackjack: { icon: 'cards', tint: 'rgba(34,197,94,0.14)', tone: 'var(--green)' },
 };
 

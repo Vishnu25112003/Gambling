@@ -18,7 +18,7 @@ Classic hand cricket. Two players each get one innings at bat. Each ball, both t
 
 ## Status
 - **Phase:** Devnet/testnet
-- **% Complete:** 0% — designed, not yet coded
+- **% Complete:** 100% — implemented, pending manual end-to-end playtest (see Implementation Plan)
 - **Contract Status:** Off-chain only — uses the shared escrow layer
 - **Inherits:** Rules 1, 3 and 4 of `../10-Game-Common-Rules.md` unchanged — including the Free Bet 1v1 minimum-stake floor, which is exactly what this game needs given its strictly winner-take-all payout. **Overrides the generic disconnect rule** with its own 3-lives anti-stall system (see below) — the only redefinition this file makes.
 
@@ -82,30 +82,44 @@ Separate from the cricket "out" mechanic — this is a stall/disconnect safeguar
 backend/src/games/hand-cricket/
 ├── index.ts        # default-exports the GameModule
 ├── manifest.ts     # id: 'hand-cricket', mode: 'pooled', 2 players, status
+├── types.ts        # HandCricketState, InningsRecord, HC_EVENTS
 ├── engine.ts       # pure rules — ball resolution, innings swap, Super Over, lives (no I/O)
 └── socket.ts       # realtime: simultaneous-pick timer, ball reveal, forfeit updates
 frontend/src/games/hand-cricket/
-├── HandCricketSetup.tsx   # host setup — rounds (balls/innings), bet mode, amount
-├── HandCricketBoard.tsx   # number-pick UI, ball-by-ball reveal, score display, timer
-└── HandCricketResult.tsx  # result screen: outcome, payout breakdown
+├── handCricketSetupConfig.ts  # feeds the shared GameSetupWizard (balls per innings)
+├── HandCricketBoard.tsx       # page-state-machine: lobby/create/waiting/live/result
+├── HandCricketPickBoard.tsx   # number-pick UI, ball-by-ball reveal, score display, timer
+└── HandCricketResult.tsx      # result screen: outcome, payout breakdown
 ```
+As-built note: there is no separate `HandCricketSetup.tsx` — by the time this
+game was built, Trumpcard's spec pass had already generalized the shared
+`GameSetupWizard` to take a small per-game config object instead, and every
+game (including this one) folds setup/lobby/live/result into one
+page-state-machine `*Board.tsx`. See `Games/G04-Trumpcard.md`.
+
 Registered with one line in `backend/src/games/registry.ts`.
 See `backend/src/games/README.md` for the hard rule: a game gets money
 behaviour **only** from the escrow adapter.
 
 ## Implementation Plan (TODO)
 ```
-[ ] Build lobby browser + create flow
+[x] Build lobby browser + create flow
     - List already-hosted open lobbies for this game
     - Create New Game -> Random/Friends Play selector (Rule 4)
     - Rounds (balls per innings) input, bet mode selector (Rule 3) + amount
+    -> Built via the shared GameSetupWizard off handCricketSetupConfig.ts,
+       the same config-driven pattern Mine Catcher/Trumpcard use — no
+       bespoke HandCricketSetup.tsx screen (that split was superseded
+       before this game was built; see frontend/src/games/hand-cricket/).
 
-[ ] Build opponent join flow
+[x] Build opponent join flow
     - Random Play: instant join, first-come-first-served
     - Friends Play: room code entry + both players ready-up
     - On match start: call lockBalance() for both players
+    -> backend/src/games/hand-cricket/socket.ts: CREATE_MATCH/JOIN_MATCH,
+       mirrors Mine Catcher's public-listing + room-code handlers.
 
-[ ] Build innings engine
+[x] Build innings engine
     - Randomly select who bats first
     - Each ball: both players submit a 1-6 pick within 10 sec
     - Compare picks: match = out (end innings), no match = add batter's
@@ -114,8 +128,11 @@ behaviour **only** from the escrow adapter.
       "out" or when balls run out
     - After first innings ends, swap roles and run the second innings
       identically
+    -> backend/src/games/hand-cricket/engine.ts (pure functions) +
+       socket.ts's per-ball timer/pipeline; unit tests in
+       backend/tests/hand-cricket-engine.test.ts.
 
-[ ] Build lives system
+[x] Build lives system
     - Track 3 lives per player
     - No pick within 10 sec -> decrement 1 life (stall)
     - Disconnect + failed reconnect (15 sec) -> decrement 1 life
@@ -124,22 +141,32 @@ behaviour **only** from the escrow adapter.
         - If yes: platform keeps the pot (settlement mechanism undecided,
           see Open Questions)
         - If no: standard forfeit resolution, settleMatch() pays the opponent
+    -> decrementLife/markDisconnected/markReconnected ported from Mine
+       Catcher's engine.ts verbatim, including the dual-unreachable check.
 
-[ ] Build match resolution
+[x] Build match resolution
     - After both innings complete, compare total runs
     - Equal scores -> trigger Super Over: 6 balls per side, same out/runs
       rules, higher score wins
     - If Super Over also ties -> split pot evenly, no further Super Overs
     - Call settleMatch() with the result
+    -> checkMatchEnd()'s 4-branch decision + socket.ts's settleMatch(),
+       generalized to accept multiple winners so the even-split case calls
+       settleMatch(match, [p1,p2], [1,1]).
 
-[ ] Build the result screen
+[x] Build the result screen
     - Winner, run totals per innings, payout breakdown (stake, pot, 5% fee, net)
     - No leaderboard -- a 1v1 match has nothing to rank
     - Rematch button wires to the hub's Rule 4 rematch handshake; suppressed
       on a forfeit or dual-unreachable ending
+    -> frontend/src/games/hand-cricket/HandCricketResult.tsx.
 
-[ ] Build leaderboard + profile history update
+[x] Build leaderboard + profile history update
     - After settlement, update both players' win/loss/earnings history
+    -> No game-specific code needed: backend/src/profile/history.ts derives
+       win/loss/earnings generically from Match/MatchParticipant rows for
+       any gameType, so this comes for free from calling settleMatch()
+       correctly — same as every other game.
 ```
 
 ## Reference
@@ -172,4 +199,4 @@ behaviour **only** from the escrow adapter.
 - `Games/G03-Mine-Catcher.md` — the game that first established the combined lives-system override and the dual-unreachable open question this game reuses
 
 ## Last Updated
-2026-08-25 — Restructured onto the standard game template and numbered as Game 05, from the original unstructured `game_ideas/Game-HandCricket.md`. No content changes to the designed flow itself; the two flagged assumptions (disconnect merge, dual-unreachable) carried forward as open questions rather than resolved.
+2026-08-31 — **Implemented end-to-end.** Backend: `backend/src/games/hand-cricket/{types,engine,socket,manifest,index}.ts` — pure engine functions for simultaneous ball-pick resolution, innings swap, Super Over, and a 3-lives/dual-unreachable system ported from Mine Catcher's engine.ts almost verbatim; registered in `backend/src/games/registry.ts`. Unit tests in `backend/tests/hand-cricket-engine.test.ts`. Frontend: `frontend/src/games/hand-cricket/{handCricketSetupConfig.ts,HandCricketBoard.tsx,HandCricketPickBoard.tsx,HandCricketResult.tsx}` — setup uses the shared `GameSetupWizard` off a small config object rather than the bespoke `HandCricketSetup.tsx` this doc's file tree above still shows (that split was superseded by Trumpcard's generalization of the wizard before this game was built); routed at `/dashboard/play/hand-cricket` in `frontend/src/App.tsx`. The previously-unwired `frontend/public/games/Handcricket.png` art is now wired into the dashboard tile via `frontend/src/lib/gameVisuals.ts`. Both flagged assumptions (disconnect merging into the lives pool, dual-unreachable platform-keeps-the-pot) were carried into the implementation as-is, matching Mine Catcher, rather than resolved. Status moved to In Progress / 100%, pending a manual end-to-end playtest (two browser sessions) since no live dev environment was available in this session to run one.

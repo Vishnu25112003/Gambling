@@ -4,6 +4,55 @@ Dated changelog of decisions and milestones. Newest entry on top.
 
 ---
 
+## 2026-08-31 — Hand Cricket (Game 05) implemented end-to-end
+
+Backend (`backend/src/games/hand-cricket/{index,manifest,engine,socket,types}.ts`)
+and frontend (`frontend/src/games/hand-cricket/*`) built and registered — the
+game is playable at `/dashboard/play/hand-cricket`. Built directly against
+`Games/G05-Hand-Cricket.md`'s existing spec, copying Mine Catcher's 3-lives /
+dual-unreachable disconnect override almost verbatim (the doc's own stated
+precedent) and Trumpcard's config-driven `GameSetupWizard` setup pattern.
+
+**Done:**
+- Full game engine: simultaneous 1-6 ball-pick submission and resolution
+  (matching picks = out, otherwise the batter's number is added as runs),
+  innings-end detection, innings swap with batter/bowler roles reversed, a
+  4-branch match-end decision (runs decide it, tie -> Super Over, Super Over
+  decides it, Super Over also ties -> even split), and a 6-ball Super Over
+  with a fresh random first-batter draw. Unit tests in
+  `backend/tests/hand-cricket-engine.test.ts`.
+- Lives/disconnect system ported verbatim from Mine Catcher's `engine.ts`
+  (`decrementLife`/`markDisconnected`/`markReconnected`), including the
+  dual-unreachable check — matching this doc's own instruction to reuse that
+  pattern rather than design a new one.
+- Realtime socket flow mirrors Mine Catcher's structure (in-memory match map,
+  public-listing/room-code maps, rematch handshake, `guard`/`guardSync`
+  wrappers) with one new piece Mine Catcher didn't need: a per-ball 10s timer
+  that, on timeout, decrements life for whichever player(s) didn't pick and
+  **discards and retries the ball** rather than fabricating a pick for them.
+  `settleMatch()` was generalized to accept multiple winners so the
+  Super-Over-tied-split case can pay both players evenly via
+  `settleMatch(match, [p1,p2], [1,1])` — no new escrow function was needed.
+- Frontend: a page-state-machine board (lobby/create/waiting/live/result,
+  same shape as `MineCatcherBoard.tsx`), a number-pick board with a 10s
+  countdown and a brief post-ball reveal, and a result screen with an
+  innings-by-innings scoreboard.
+- **No bespoke `HandCricketSetup.tsx` was built**, despite the doc's own file
+  tree still showing one — setup is a small `handCricketSetupConfig.ts`
+  object (one `extraStep`: balls per innings) fed into the shared
+  `GameSetupWizard`, the pattern Trumpcard's spec pass already generalized
+  the wizard to support. The doc's "Where This Lives" section was updated to
+  match.
+- Wired the previously-unused, already-committed `frontend/public/games/Handcricket.png`
+  art into the dashboard tile via a new `'hand cricket'` entry in
+  `frontend/src/lib/gameVisuals.ts`.
+- No server-side Free-Bet minimum-stake enforcement was added — `escrow.lockBalance()`
+  doesn't enforce this for any game today (Mine Catcher only stores/displays
+  `minBet`), so Hand Cricket follows the same existing, unenforced
+  convention rather than being the first game to add it.
+- Not yet done in this session: a live two-browser manual playtest (no dev
+  environment/database was running) — see the doc's Status block.
+
 ## 2026-08-28 — Trumpcard (Game 04) implemented end-to-end
 
 Backend (`backend/src/games/trumpcard/{index,manifest,engine,socket,types}.ts`)
