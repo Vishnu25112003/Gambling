@@ -76,6 +76,53 @@ function broadcastToMatch(match, event, payload) {
         }
     }
 }
+/** Random Play listing, shaped for the wire — same mapping the LIST_MATCHES
+ * handler and every re-broadcast below need, kept in one place so they can't
+ * drift apart. */
+function publicMatchesFor(viewerUserId) {
+    return [...publicMatches.values()]
+        .filter((m) => !m.private) // Friends Play is code-only
+        .filter((m) => m.hostUserId !== viewerUserId) // don't show your own
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, 20)
+        .map((m) => ({
+        matchId: m.matchId,
+        hostName: m.hostName,
+        stake: String(m.stake),
+        rounds: m.rounds,
+        betMode: m.betMode,
+        minBet: m.minBet != null ? String(m.minBet) : null,
+    }));
+}
+/** Every socket that has ever asked for the Random Play list — see LIST_MATCHES. */
+const LOBBY_ROOM = 'cf:lobby';
+/**
+ * Push a fresh Random Play listing to every socket currently sitting on the
+ * lobby.
+ *
+ * LIST_MATCHES used to only answer on request (at connect), so a match
+ * created or claimed while someone was already sitting on the lobby page
+ * never reached them — the list only ever updated on their *next* connect,
+ * which in practice meant "after a manual refresh". Call this any time
+ * `publicMatches` changes (a new listing, one being claimed by a joiner, or
+ * an abandoned one expiring) so every open lobby view stays live.
+ *
+ * Scoped to LOBBY_ROOM rather than every connected socket — this namespace
+ * (`io.of('/')`) is shared by every game plus the account-wide balance
+ * socket, so broadcasting unscoped would spam everyone on the platform with
+ * an event only the coin-flip lobby screen listens for.
+ */
+function broadcastMatchesList() {
+    const io = getIoRef();
+    if (!io)
+        return;
+    for (const sock of io.sockets.values()) {
+        if (!sock.rooms.has(LOBBY_ROOM))
+            continue;
+        const viewerUserId = sock.data.userId;
+        sock.emit(CF_EVENTS.MATCHES_LIST, { matches: publicMatchesFor(viewerUserId ?? '') });
+    }
+}
 // We need a reference to the io server — set during registerSocket.
 let ioRef = null;
 function getIoRef() {
@@ -415,21 +462,11 @@ export function registerCoinFlipSocket(namespace, socket) {
         }
     }
     // --- LIST_MATCHES: return public Random Play matches ---
-    socket.on(CF_EVENTS.LIST_MATCHES, async (data) => {
-        const listed = [...publicMatches.values()]
-            .filter((m) => !m.private) // Friends Play is code-only
-            .filter((m) => m.hostUserId !== userId) // don't show your own
-            .sort((a, b) => b.createdAt - a.createdAt)
-            .slice(0, 20)
-            .map((m) => ({
-            matchId: m.matchId,
-            hostName: m.hostName,
-            stake: String(m.stake),
-            rounds: m.rounds,
-            betMode: m.betMode,
-            minBet: m.minBet != null ? String(m.minBet) : null,
-        }));
-        socket.emit(CF_EVENTS.MATCHES_LIST, { matches: listed });
+    socket.on(CF_EVENTS.LIST_MATCHES, async () => {
+        // Marks this socket as "watching the lobby" so broadcastMatchesList()
+        // knows to push it future updates — see LOBBY_ROOM.
+        void socket.join(LOBBY_ROOM);
+        socket.emit(CF_EVENTS.MATCHES_LIST, { matches: publicMatchesFor(userId) });
     });
     // --- CREATE_MATCH: host publishes a new match ---
     socket.on(CF_EVENTS.CREATE_MATCH, async (data) => {
@@ -476,6 +513,9 @@ export function registerCoinFlipSocket(namespace, socket) {
                 });
                 socket.emit(CF_EVENTS.MATCH_CREATED, { matchId });
                 log.info('random match created', { matchId, host: userId, stake: stakeAmount, rounds: roundCount });
+                // Push the new listing to everyone already sitting on the lobby —
+                // otherwise it only ever shows up for them on their next reconnect.
+                broadcastMatchesList();
             }
             else {
                 // Friends Play — generate room code
@@ -499,6 +539,8 @@ export function registerCoinFlipSocket(namespace, socket) {
                 socket.emit(CF_EVENTS.MATCH_CREATED, { matchId, roomCode: code });
                 log.info('friends match created', { matchId, host: userId, code, stake: stakeAmount });
             }
+            // The host has moved to their waiting room, not the browse list.
+            void socket.leave(LOBBY_ROOM);
         }
         catch (err) {
             log.error('create_match error', { userId, err });
@@ -574,23 +616,58 @@ export function registerCoinFlipSocket(namespace, socket) {
             // Get game settings from gameState
             const gs = (dbMatch.gameState ?? {});
             const roundCount = gs.totalRounds ?? 5;
-            const stakeAmount = Number(dbMatch.participants[0]?.lockedAmount ?? 0) > 0
+            // The host's own declared stake — always locked as-is, regardless of bet mode.
+            const hostStakeAmount = Number(dbMatch.participants[0]?.lockedAmount ?? 0) > 0
                 ? Number(dbMatch.participants[0]?.stakeTotal ?? 0.1)
                 : publicMatches.get(matchId)?.stake ?? 0.1;
             const betMode = gs.betMode ?? 'fixed';
-            // Validate minimum bet (Free Bet mode)
-            if (betMode === 'free' && gs.minBet && Number(gs.minBet) > 0) {
-                // Joiner must meet the minimum — check their balance is at least minBet
-                // (actual lock validation happens in lockBalance)
+            const minBet = gs.minBet != null ? Number(gs.minBet) : null;
+            // Free Bet mode: the joiner picks their own amount (Rule 3), independent
+            // of the host's. Rather than assuming the host's stake for them, bounce
+            // back and ask — the client shows a stake picker and resubmits JOIN_MATCH
+            // with `stake` set. Nothing has been locked or consumed yet at this
+            // point, so this bounce is side-effect-free and safe to repeat.
+            let joinerStakeAmount = hostStakeAmount;
+            if (betMode === 'free') {
+                if (data.stake == null) {
+                    socket.emit(CF_EVENTS.STAKE_REQUIRED, {
+                        matchId,
+                        hostName: publicMatches.get(matchId)?.hostName ?? 'Player',
+                        rounds: roundCount,
+                        minBet: minBet != null ? String(minBet) : null,
+                    });
+                    return;
+                }
+                const chosen = Number(data.stake);
+                if (!Number.isFinite(chosen) || chosen <= 0) {
+                    socket.emit(CF_EVENTS.ERROR, { message: 'Stake must be a positive amount' });
+                    return;
+                }
+                if (minBet != null && chosen < minBet) {
+                    socket.emit(CF_EVENTS.ERROR, { message: `Stake must be at least ${minBet} SOL` });
+                    return;
+                }
+                joinerStakeAmount = chosen;
             }
-            // Lock both stakes
-            const stakeDecimal = new (await import('../../lib/money.js')).Decimal(stakeAmount);
+            // Lock both stakes — same amount in Fixed mode, each player's own in Free mode.
+            const { Decimal } = await import('../../lib/money.js');
             const hostParticipant = dbMatch.participants[0];
             if (hostParticipant) {
                 // Host already has a participant row — lock their stake
-                await escrow.lockBalance(hostParticipant.userId, stakeDecimal, matchId);
+                await escrow.lockBalance(hostParticipant.userId, new Decimal(hostStakeAmount), matchId);
             }
-            await escrow.lockBalance(userId, stakeDecimal, matchId);
+            try {
+                await escrow.lockBalance(userId, new Decimal(joinerStakeAmount), matchId);
+            }
+            catch (lockErr) {
+                // Give the joiner a real reason (e.g. insufficient balance) instead of
+                // the generic catch-all below — they may still want to pick a
+                // different amount rather than being bounced to the lobby.
+                socket.emit(CF_EVENTS.ERROR, {
+                    message: lockErr instanceof Error ? lockErr.message : 'Failed to lock stake',
+                });
+                return;
+            }
             // Add joiner as participant (lockBalance does this via upsert)
             const playerIds = [dbMatch.participants[0]?.userId ?? userId, userId];
             // Ensure order: host first, joiner second
@@ -611,6 +688,14 @@ export function registerCoinFlipSocket(namespace, socket) {
                 clearTimeout(graceTimer);
                 listingGraceTimers.delete(matchId);
             }
+            // Claimed — drop it off everyone else's lobby view immediately instead
+            // of leaving a stale "Join" button up until their next reconnect.
+            broadcastMatchesList();
+            // The joiner (and, if still connected, the host) have both moved off
+            // the browse list and into this match.
+            void socket.leave(LOBBY_ROOM);
+            if (hostSocketId)
+                void getIoRef()?.sockets.get(hostSocketId)?.leave(LOBBY_ROOM);
             // Remove joiner from any waiting queue
             for (const [key, waiting] of waitingQueue) {
                 if (waiting.userId === userId)
@@ -621,8 +706,8 @@ export function registerCoinFlipSocket(namespace, socket) {
             if (hostSocketId)
                 socketIds[playerIds[0]] = hostSocketId;
             socketIds[userId] = socket.id;
-            await beginMatch(matchId, playerIds, { rounds: roundCount, betMode, minBet: gs.minBet ?? null, stake: stakeAmount }, socketIds);
-            log.info('match joined', { matchId, playerIds, stake: stakeAmount });
+            await beginMatch(matchId, playerIds, { rounds: roundCount, betMode, minBet: gs.minBet ?? null, stake: hostStakeAmount }, socketIds);
+            log.info('match joined', { matchId, playerIds, hostStake: hostStakeAmount, joinerStake: joinerStakeAmount });
         }
         catch (err) {
             log.error('join_match error', { userId, err });
@@ -844,6 +929,7 @@ export function registerCoinFlipSocket(namespace, socket) {
                                 if (mid === matchId)
                                     roomCodes.delete(code);
                             }
+                            broadcastMatchesList();
                         }
                     }, LISTING_GRACE_MS);
                     listingGraceTimers.set(matchId, timer);
