@@ -6,7 +6,9 @@ import { tokenStore } from '../../api/client';
 import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
 import { GameSetupWizard, GameJoinByCode, GameWaitingRoom, type GameSetupConfig } from '../../components/shared/gameSetup';
+import { StakeAmountStep } from '../../components/shared/gameSetup/StakeAmountStep';
 import { formatSol } from '../../lib/format';
+import { gameVisual } from '../../lib/gameVisuals';
 import { CoinFlipLiveCard } from './CoinFlipLiveCard';
 import type { Coin3DHandle } from './Coin3D';
 
@@ -23,6 +25,7 @@ const CF = {
   MATCH_STATE: 'cf:state',
   MATCH_CREATED: 'cf:created',
   MATCHES_LIST: 'cf:matches',
+  STAKE_REQUIRED: 'cf:stake:required',
   ROUND_START: 'cf:round:start',
   COMMIT_HASH: 'cf:commit',
   SPIN_STARTED: 'cf:spin:started',
@@ -70,9 +73,19 @@ type Page =
   | 'waiting'
   | 'waiting_friends'
   | 'join_code'
+  | 'stake_select'
   | 'live'
   | 'match_result'
   | 'error';
+
+/** Sent by the server when JOIN_MATCH hits a Free Bet match without a chosen
+ * stake yet — see the STAKE_REQUIRED handler below. */
+interface StakeRequiredInfo {
+  matchId: string;
+  hostName: string;
+  rounds: number;
+  minBet: string | null;
+}
 
 type DiscoveryMode = 'random' | 'friends';
 type BetMode = 'fixed' | 'free';
@@ -160,6 +173,11 @@ function CoinFlipBoardInner() {
   const [betMode, setBetMode] = useState<BetMode>('fixed');
   const [stake, setStake] = useState('0.1');
   const [roomCode, setRoomCode] = useState<string | null>(null);
+
+  // --- Join flow (Free Bet stake picker) ---
+  const [joinStakeInfo, setJoinStakeInfo] = useState<StakeRequiredInfo | null>(null);
+  const [joinStake, setJoinStake] = useState('0.1');
+  const [stakeError, setStakeError] = useState<string | null>(null);
 
   // --- Live game ---
   const [myId, setMyId] = useState<string | null>(user?.id ?? null);
@@ -265,6 +283,15 @@ function CoinFlipBoardInner() {
       } else {
         setPage('waiting');
       }
+    });
+
+    s.on(CF.STAKE_REQUIRED, (data: StakeRequiredInfo) => {
+      // The match we tried to join is Free Bet — the server needs our own
+      // stake before it'll actually lock anything and start the match.
+      setJoinStakeInfo(data);
+      setJoinStake(data.minBet ?? '0.1');
+      setStakeError(null);
+      setPage('stake_select');
     });
 
     s.on(CF.MATCH_STATE, (data: {
@@ -388,6 +415,13 @@ function CoinFlipBoardInner() {
         setRematchStatus('idle');
         return;
       }
+      // A rejected stake (below minimum, insufficient balance) shouldn't
+      // knock the player out to the generic error page — let them see why
+      // and try a different amount without losing their place in line.
+      if (pageRef.current === 'stake_select') {
+        setStakeError(data.message);
+        return;
+      }
       setError(data.message);
       setPage('error');
     });
@@ -452,6 +486,17 @@ function CoinFlipBoardInner() {
     setPage('waiting');
   };
 
+  const handleConfirmStake = () => {
+    if (!joinStakeInfo) return;
+    const amount = Number(joinStake);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    setStakeError(null);
+    // Stay on the stake_select page — MATCH_STATE/ROUND_START moves us to
+    // 'live' on success, and the ERROR handler above keeps us here (with a
+    // message) on rejection, so the player can just try a different amount.
+    emit(CF.JOIN_MATCH, { matchId: joinStakeInfo.matchId, stake: amount });
+  };
+
   const handleSpin = () => emit(CF.SPIN);
   const handleCall = (call: 'heads' | 'tails') => emit(CF.CALL, { call });
 
@@ -477,6 +522,8 @@ function CoinFlipBoardInner() {
     setRoomCode(null);
     setError(null);
     setRematchStatus('idle');
+    setJoinStakeInfo(null);
+    setStakeError(null);
     // Reconnect
     const token = tokenStore.get();
     if (!token || !user) return;
@@ -563,6 +610,56 @@ function CoinFlipBoardInner() {
   // --- Friends Play: Join with code ---
   if (page === 'join_code') {
     return <GameJoinByCode onJoin={handleJoinByCode} onBack={() => setPage('lobby')} />;
+  }
+
+  // --- Free Bet joiner: pick a stake before the match can start ---
+  if (page === 'stake_select' && joinStakeInfo) {
+    const accentColor = gameVisual({ name: 'Coin Flip' }).tone;
+    const stakeNum = Number(joinStake) || 0;
+    const minBetNum = joinStakeInfo.minBet != null ? Number(joinStakeInfo.minBet) : 0;
+    const canAfford = balance === null || stakeNum <= Number(balance);
+    const meetsMinimum = stakeNum >= minBetNum;
+    return (
+      <>
+        <PageTitle title="Choose Your Bet" subtitle={`Joining ${joinStakeInfo.hostName}'s Free Bet match — ${joinStakeInfo.rounds} rounds.`} />
+        <Card className="mx-auto max-w-sm px-6 py-6">
+          {joinStakeInfo.minBet && (
+            <p className="mb-4 text-xs text-muted">
+              Minimum stake: <span className="font-bold text-text">{formatSol(joinStakeInfo.minBet)} SOL</span>
+            </p>
+          )}
+          <StakeAmountStep
+            balance={balance}
+            stake={joinStake}
+            onStakeChange={setJoinStake}
+            accentColor={accentColor}
+            canAfford={canAfford}
+          />
+          {!meetsMinimum && (
+            <p className="mb-1 text-xs text-red">Must be at least {formatSol(joinStakeInfo.minBet ?? '0')} SOL.</p>
+          )}
+          {stakeError && <p className="mb-1 text-xs text-red">{stakeError}</p>}
+          <Button
+            variant="primary"
+            size="lg"
+            className="mt-3 w-full"
+            disabled={!joinStake || stakeNum <= 0 || !canAfford || !meetsMinimum}
+            onClick={handleConfirmStake}
+            style={{ background: accentColor }}
+          >
+            Join Match
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-3 w-full"
+            onClick={() => { setJoinStakeInfo(null); setStakeError(null); setPage('lobby'); }}
+          >
+            Back to Lobby
+          </Button>
+        </Card>
+      </>
+    );
   }
 
   // --- Create match ---
