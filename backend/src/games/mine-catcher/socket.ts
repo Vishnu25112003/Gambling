@@ -820,8 +820,17 @@ export function registerMineCatcherSocket(namespace: Namespace, socket: Socket):
         return;
       }
 
-      // Start turn timer for next attacker
+      // Tell both clients whose turn it is now — without this, only the
+      // server-side state advances and both boards stay stuck on the
+      // previous turn (the mover's clicks get rejected as "not your turn",
+      // the other player's board stays disabled forever).
       if (match.state.currentAttacker) {
+        broadcastToMatch(match, MC_EVENTS.TURN_START, {
+          currentAttacker: match.state.currentAttacker,
+          turnStartedAt: match.state.turnStartedAt,
+        });
+
+        // Start turn timer for next attacker
         startTurnTimer(match, match.state.currentAttacker);
       }
     } catch (err) {

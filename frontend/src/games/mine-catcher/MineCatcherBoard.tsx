@@ -188,13 +188,15 @@ export function MineCatcherBoard() {
       if (data.state) {
         const myBoard = data.state.boards[myId];
         if (myBoard) {
-          setOpponentCells(myBoard.revealed);
           setMyFoundCount(data.state.foundCounts[myId] ?? 0);
           setMyBreakCount(data.state.breakCounts[myId] ?? 0);
         }
         const oppId = opponentIdRef.current;
         const oppBoard = data.state.boards[oppId];
         if (oppBoard) {
+          // opponentCells is "the opponent's board as revealed to me" — it
+          // must come from the opponent's board, not my own.
+          setOpponentCells(oppBoard.revealed);
           setOpponentFoundCount(data.state.foundCounts[oppId] ?? 0);
         }
         setMyLives(data.state.lives[myId] ?? 3);
