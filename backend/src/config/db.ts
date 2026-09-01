@@ -99,7 +99,7 @@ export async function connectDb(): Promise<void> {
   log.error(
     `database is missing ${pending.length} migration(s): ${pending.join(', ')}\n` +
       '  Every query touching the new columns will fail until they are applied.\n' +
-      '  Run: npm run prisma:migrate',
+      '  Run: npm run prisma:deploy',
   );
   throw new Error(`unapplied migrations: ${pending.join(', ')}`);
 }
