@@ -4,6 +4,7 @@ import coinFlipGame from './coin-flip/index.js';
 import ludoGame from './ludo/index.js';
 import mineCatcherGame from './mine-catcher/index.js';
 import trumpcardGame from './trumpcard/index.js';
+import handCricketGame from './hand-cricket/index.js';
 const log = createLogger('games');
 /**
  * ===========================================================================
@@ -34,6 +35,7 @@ const modules = [
     ludoGame,
     mineCatcherGame,
     trumpcardGame,
+    handCricketGame,
 ];
 const byId = new Map();
 export function registerGame(mod) {
