@@ -8,6 +8,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useGames } from '../../hooks/useGames';
 import { useLeaderboard } from '../../hooks/useLeaderboard';
 import { formatSol, formatSolSigned, shortAddress } from '../../lib/format';
+import type { GameManifest } from '../../types';
 
 interface Chip {
   label: string;
@@ -141,9 +142,18 @@ function WelcomeCard() {
  * to zero when there is no session.
  */
 export function Overview() {
-  const { user, balance } = useAuth();
-  const { games, loading: gamesLoading } = useGames();
+  const { isAuthenticated, user, balance, signIn } = useAuth();
+  const { games, loading: gamesLoading, isPlaceholder } = useGames();
   const { entries, loading: boardLoading } = useLeaderboard(5);
+  const navigate = useNavigate();
+
+  const handlePlay = (game: GameManifest) => {
+    if (!isAuthenticated) {
+      void signIn();
+      return;
+    }
+    navigate(`/dashboard/play/${game.id}`);
+  };
 
   const netProfit = user?.netProfit ?? '0';
   const chips: Chip[] = [
@@ -176,6 +186,9 @@ export function Overview() {
       icon: 'chart',
     },
   ];
+
+  // Limit to top 4 games for the dashboard overview
+  const topGames = games.slice(0, 4);
 
   return (
     <>
@@ -214,9 +227,27 @@ export function Overview() {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 xl:grid-cols-4">
-              {games.map((g) => (
-                <GameTile key={g.id} game={g} />
-              ))}
+              {topGames.map((g, index) => {
+                // Responsive visibility:
+                // Index 0, 1: Shown on all screen sizes (2 columns on mobile)
+                // Index 2: Shown from sm and up (3 columns on tablet/medium)
+                // Index 3: Shown from xl and up (4 columns on desktop)
+                const responsiveVisibility =
+                  index === 3
+                    ? 'hidden xl:block'
+                    : index === 2
+                      ? 'hidden sm:block'
+                      : 'block';
+
+                return (
+                  <div key={g.id} className={responsiveVisibility}>
+                    <GameTile
+                      game={g}
+                      onClick={isPlaceholder ? undefined : handlePlay}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>

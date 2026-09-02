@@ -159,12 +159,17 @@ export const YARD_ORIGIN: Record<LudoColor, Cell> = {
   blue: { row: 9, col: 0 },
 };
 
-/** 4 dot slots per yard (2x2), relative to YARD_ORIGIN. */
+/**
+ * 4 dot slots per yard (2x2), relative to YARD_ORIGIN. Fractional (not
+ * centered on whole cells) so they land inside the yard's inset nest
+ * rounded-square — matches the Ludo Royale design handoff's own socket
+ * math exactly.
+ */
 const YARD_SLOT_OFFSETS: Cell[] = [
-  { row: 1, col: 1 },
-  { row: 1, col: 4 },
-  { row: 4, col: 1 },
-  { row: 4, col: 4 },
+  { row: 1.75, col: 1.75 },
+  { row: 1.75, col: 3.25 },
+  { row: 3.25, col: 1.75 },
+  { row: 3.25, col: 3.25 },
 ];
 
 export const YARD_SLOTS: Record<LudoColor, Cell[]> = (
@@ -226,6 +231,14 @@ export function getCellForToken(color: LudoColor, token: BoardToken, tokenIndex:
   }
   const globalIndex = getGlobalPosition(color, token.position);
   return RING_PATH[globalIndex];
+}
+
+/** One board cell as a percentage of the 15x15 square (100/15). */
+export const CELL_PCT = 100 / BOARD_SIZE;
+
+/** Convert a cell-index (row or col, fractional allowed) to a CSS percentage string. */
+export function pct(index: number): string {
+  return `${(index * CELL_PCT).toFixed(4)}%`;
 }
 
 /** Direction (as a unit vector) each color's very first track cell points, for the entry arrow. */

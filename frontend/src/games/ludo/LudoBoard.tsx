@@ -11,8 +11,26 @@ import { formatSol } from '../../lib/format';
 import { ludoSetupConfig } from './ludoSetupConfig';
 import { LudoResult } from './LudoResult';
 import { LudoBoardGrid } from './LudoBoardGrid';
-import { DiceSpinner } from './DiceSpinner';
-import { LUDO_COLOR_VAR } from './boardGeometry';
+import { PlayerPod } from './PlayerPod';
+import { HOME_COLUMN_LENGTH } from './boardGeometry';
+
+/** Die-face rotation table (matches the Ludo Royale design's Dice3D). */
+const DIEBASE: Record<number, [number, number]> = {
+  1: [0, 0],
+  2: [90, 0],
+  3: [0, -90],
+  4: [0, 90],
+  5: [-90, 0],
+  6: [0, -180],
+};
+
+/** Each seat's resting cube tilt before it has ever rolled — matches the design. */
+const IDLE_TILT: Record<LudoColor, { x: number; y: number }> = {
+  red: { x: -18, y: 24 },
+  green: { x: -18, y: -24 },
+  yellow: { x: 16, y: 24 },
+  blue: { x: 16, y: -24 },
+};
 
 /**
  * Mirror of backend LUDO_EVENTS — keep in sync with backend/src/games/ludo/types.ts
@@ -153,6 +171,12 @@ function LudoBoardInner() {
   const [pendingSubmit, setPendingSubmit] = useState(false);
   const [isMyTurn, setIsMyTurn] = useState(false);
   const [waitingReason, setWaitingReason] = useState<string | null>(null);
+
+  // --- Dice cube rotation (cosmetic — the settled face always mirrors the
+  // server's authoritative `lastDice`; this just makes it spin) ---
+  const [lastDiceColor, setLastDiceColor] = useState<LudoColor | null>(null);
+  const [diceRot, setDiceRot] = useState<Record<LudoColor, { x: number; y: number }>>(() => ({ ...IDLE_TILT }));
+  const spinCounts = useRef<Record<LudoColor, number>>({ red: 0, green: 0, yellow: 0, blue: 0 });
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -309,6 +333,7 @@ function LudoBoardInner() {
       state?: LudoState;
     }) => {
       setLastDice(data.diceValue);
+      setLastDiceColor(data.color);
       setRollingDice(false);
       setPendingSubmit(false);
       if (data.state) setGameState(data.state);
@@ -409,6 +434,32 @@ function LudoBoardInner() {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, clearTimer, startTimer]);
+
+  // Settle the rolled color's die on its final face once the server's value
+  // (and which color rolled it) is known.
+  useEffect(() => {
+    if (lastDice == null || !lastDiceColor) return;
+    spinCounts.current[lastDiceColor] += 1;
+    const spin = spinCounts.current[lastDiceColor];
+    const base = DIEBASE[lastDice];
+    setDiceRot((prev) => ({
+      ...prev,
+      [lastDiceColor]: { x: 360 * (spin * 2) + base[0], y: 360 * (spin * 3) + base[1] },
+    }));
+  }, [lastDice, lastDiceColor]);
+
+  // While waiting on the server's roll, keep my own die tumbling.
+  useEffect(() => {
+    const myColor = gameState && myId ? gameState.colors[myId] : undefined;
+    if (!rollingDice || !myColor) return;
+    const id = setInterval(() => {
+      setDiceRot((prev) => {
+        const cur = prev[myColor] ?? IDLE_TILT[myColor];
+        return { ...prev, [myColor]: { x: cur.x + 53, y: cur.y + 79 } };
+      });
+    }, 90);
+    return () => clearInterval(id);
+  }, [rollingDice, gameState, myId]);
 
   // --- Fetch balance ---
   useEffect(() => {
@@ -637,13 +688,50 @@ function LudoBoardInner() {
 
   // --- Live game board ---
   const timerColor = timeLeft <= 3 ? 'text-red' : timeLeft <= 5 ? 'text-gold' : 'text-green';
+  const canRollNow = isMyTurn && !pendingSubmit && !rollingDice && validMoves.length === 0;
+  const playerByColor = new Map(players.map((p) => [p.color, p] as const));
+
+  const renderPod = (color: LudoColor, side: 'top' | 'bottom', reversed: boolean) => {
+    const p = playerByColor.get(color);
+    if (!p) return null;
+    const isMe = p.id === myId;
+    const finished =
+      gameState?.tokens[p.id]?.filter((t) => t.zone === 'home' && t.homePosition >= HOME_COLUMN_LENGTH).length ?? 0;
+    const active = gameState?.currentPlayerId === p.id;
+    const rot = diceRot[color] ?? IDLE_TILT[color];
+    return (
+      <PlayerPod
+        color={color}
+        name={isMe ? 'You' : getDisplayName(p.id)}
+        finishedCount={finished}
+        active={!!active}
+        canRoll={isMe && canRollNow}
+        reversed={reversed}
+        side={side}
+        diceTransform={`rotateX(${rot.x}deg) rotateY(${rot.y}deg)`}
+        onRoll={handleRollDice}
+      />
+    );
+  };
+
+  const statusText =
+    validMoves.length > 0
+      ? `Rolled ${lastDice} — pick a pawn`
+      : isMyTurn
+        ? 'Your turn — tap your dice'
+        : (waitingReason ?? "Opponent's turn...");
+
+  const footerHint = isMyTurn
+    ? validMoves.length > 0
+      ? `Choose a token to move (${lastDice})`
+      : 'Tap your dice to roll'
+    : (waitingReason ?? 'Match in progress');
 
   return (
     <>
-
       <PageTitle
         title="Ludo"
-        subtitle={isMyTurn ? 'Your turn — roll the dice!' : (waitingReason ?? 'Opponent\'s turn...')}
+        subtitle={isMyTurn ? 'Your turn — roll the dice!' : (waitingReason ?? "Opponent's turn...")}
       />
 
       {/* Inline transient error banner (never kicks you out of the match) */}
@@ -653,114 +741,70 @@ function LudoBoardInner() {
         </Card>
       )}
 
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 rounded-[22px] bg-[radial-gradient(120%_70%_at_50%_0%,#1b3f86_0%,#0d224e_48%,#071022_100%)] p-3 shadow-[0_18px_40px_rgba(0,0,0,.3)] lg:flex-row lg:items-start">
-        {/* Board (takes the flexible side; on desktop the panel sits to its right) */}
-        <div className="order-2 w-full lg:order-1 lg:flex-1">
-          <div className="mb-3 flex items-center justify-between gap-3 rounded-[12px] bg-white/[.08] px-4 py-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,.12)]">
-            <span className="font-serif text-[15px] tracking-wide text-[#ffd97a]">Ludo Royale</span>
-            <span className="text-right text-[11px] text-[#bcd0f0]">
-              {isMyTurn ? 'Your turn — choose a move' : (waitingReason ?? 'Match in progress')}
-            </span>
+      <div
+        className="mx-auto flex w-full max-w-[470px] flex-col gap-2 rounded-[22px] p-3 sm:max-w-[600px]"
+        style={{
+          background: 'radial-gradient(120% 70% at 50% 0%,#1b3f86 0%,#0d224e 45%,#071022 100%)',
+          boxShadow: '0 18px 40px rgba(0,0,0,.3)',
+        }}
+      >
+        {/* Status strip */}
+        <div
+          className="flex items-center justify-between gap-2 rounded-xl px-3 py-[7px]"
+          style={{
+            background: 'linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.04))',
+            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.1)',
+          }}
+        >
+          <span className="font-serif text-[15px] tracking-wide text-[#ffd97a]">Ludo Royale</span>
+          <span className="min-w-0 flex-1 truncate text-right text-[11.5px] text-[#bcd0f0]">{statusText}</span>
+        </div>
+
+        {/* Top pods (red, green) */}
+        <div className="grid grid-cols-2 items-start gap-2.5">
+          <div className="justify-self-start">{renderPod('red', 'top', false)}</div>
+          <div className="justify-self-end">{renderPod('green', 'top', true)}</div>
+        </div>
+
+        <LudoBoardGrid
+          players={players}
+          tokens={gameState?.tokens ?? {}}
+          myId={myId}
+          validMoves={validMoves}
+          onMoveToken={handleMoveToken}
+        />
+
+        {/* Bottom pods (blue, yellow) */}
+        <div className="grid grid-cols-2 items-end gap-2.5">
+          <div className="justify-self-start">{renderPod('blue', 'bottom', false)}</div>
+          <div className="justify-self-end">{renderPod('yellow', 'bottom', true)}</div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-2.5">
+          <span className={`text-[11px] ${isMyTurn && timeLeft > 0 ? timerColor : 'text-[#8fa6cd]'}`}>
+            {footerHint}
+            {isMyTurn && timeLeft > 0 ? ` · ${timeLeft}s` : ''}
+          </span>
+          <button
+            type="button"
+            onClick={goHome}
+            className="shrink-0 rounded-full px-3.5 py-[7px] text-[11.5px] font-semibold text-[#cfe0ff] transition hover:bg-white/[.14]"
+            style={{ background: 'rgba(255,255,255,.07)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.14)' }}
+          >
+            Leave Match
+          </button>
+        </div>
+
+        {/* Last move result */}
+        {lastMoveResult && (
+          <div className="rounded-[10px] border border-line bg-bg2 px-4 py-2 text-center">
+            <p className="text-xs text-muted">
+              {getDisplayName(lastMoveResult.playerId)} moved token {lastMoveResult.tokenIndex + 1}
+              {lastMoveResult.captures.length > 0 && <span className="text-gold"> — captured!</span>}
+            </p>
           </div>
-          <Card className="mb-3 border-white/10 bg-white/[.07] px-5 py-3 text-[#e8eefb] shadow-[inset_0_0_0_1px_rgba(255,255,255,.06)]">
-            <div className="flex items-center justify-between">
-              {players.map((p) => (
-                <div key={p.id} className="text-center">
-                  <p className="text-[11px] text-[#bcd0f0]">
-                    {p.id === myId ? 'You' : p.displayName ?? 'Player'}
-                  </p>
-                  <div className="flex items-center justify-center gap-1.5">
-                    <span
-                      className="size-2.5 rounded-full"
-                      style={{ background: LUDO_COLOR_VAR[p.color] }}
-                    />
-                    <p className="text-xl font-bold">{gameState?.totalSteps[p.id] ?? 0}</p>
-                  </div>
-                  <p className="text-[10px] text-[#8fa6cd]">
-                    {gameState?.tokens[p.id]?.filter((t) => t.zone === 'home').length ?? 0}/4 home
-                  </p>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <LudoBoardGrid
-            players={players}
-            tokens={gameState?.tokens ?? {}}
-            myId={myId}
-            validMoves={validMoves}
-            onMoveToken={handleMoveToken}
-          />
-        </div>
-
-        {/* Right-hand dice + action panel */}
-        <div className="order-1 w-full lg:order-2 lg:w-72 lg:shrink-0">
-          <Card className="flex flex-col items-center border-white/10 bg-white/[.08] px-6 py-8 text-[#e8eefb] shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)]">
-            {/* Dice display */}
-            <div className="mb-4 flex items-center gap-4">
-              <DiceSpinner value={lastDice} rolling={rollingDice} size={80} />
-              {lastDice === 6 && !rollingDice && (
-                <span className="text-sm font-bold text-gold">+ Extra turn!</span>
-              )}
-            </div>
-
-            {/* Roll button or move selection */}
-            {isMyTurn && validMoves.length === 0 && !lastDice && (
-              <>
-                <p className="mb-3 text-sm text-[#bcd0f0]">Tap to roll the dice</p>
-                <button
-                  type="button"
-                  disabled={pendingSubmit}
-                  onClick={handleRollDice}
-                  className="mb-2 flex h-20 w-20 items-center justify-center rounded-full border-2 border-[#84e2a3] bg-[#2fb257]/30 text-[#dfffea] shadow-[0_0_18px_rgba(79,208,124,.25)] transition hover:bg-[#2fb257]/45 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Dices className="size-8" />
-                </button>
-                <p className={`text-2xl font-extrabold ${timerColor}`}>{timeLeft}s</p>
-              </>
-            )}
-
-            {isMyTurn && validMoves.length > 0 && (
-              <>
-                <p className="mb-3 text-sm font-bold text-green">
-                  Choose a token to move ({lastDice})
-                </p>
-                <div className="flex flex-wrap justify-center gap-3">
-                  {validMoves.map((m) => (
-                    <button
-                      key={m.tokenIndex}
-                      type="button"
-                      disabled={pendingSubmit}
-                      onClick={() => handleMoveToken(m.tokenIndex)}
-                      className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-green-solid bg-green-solid/20 text-lg font-bold transition hover:bg-green-solid/30 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      T{m.tokenIndex + 1}
-                    </button>
-                  ))}
-                </div>
-                <p className={`mt-2 text-2xl font-extrabold ${timerColor}`}>{timeLeft}s</p>
-              </>
-            )}
-
-            {!isMyTurn && (
-              <p className="text-sm text-[#bcd0f0]">
-                {waitingReason ?? 'Waiting for opponent...'}
-              </p>
-            )}
-
-            {/* Last move result */}
-            {lastMoveResult && (
-              <div className="mt-4 rounded-[10px] border border-line bg-bg2 px-4 py-2 text-center">
-                <p className="text-xs text-muted">
-                  {getDisplayName(lastMoveResult.playerId)} moved token {lastMoveResult.tokenIndex + 1}
-                  {lastMoveResult.captures.length > 0 && (
-                    <span className="text-gold"> — captured!</span>
-                  )}
-                </p>
-              </div>
-            )}
-          </Card>
-        </div>
+        )}
       </div>
     </>
   );
