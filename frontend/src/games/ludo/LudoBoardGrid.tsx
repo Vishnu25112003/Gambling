@@ -1,28 +1,28 @@
-import type { CSSProperties } from 'react';
 import { Star } from 'lucide-react';
 import {
-  BOARD_SIZE,
   CENTER_POINT,
   COLOR_START_OFFSET,
   HOME_COLUMNS,
-  LUDO_COLOR_VAR,
+  HOME_COLUMN_LENGTH,
   RING_PATH,
-  SAFE_SQUARES,
   YARD_ORIGIN,
   YARD_SLOTS,
   getCellForToken,
-  getEntryDirection,
+  pct,
   type BoardToken,
   type Cell,
   type LudoColor,
 } from './boardGeometry';
 
 /**
- * Classic 15x15 Ludo board — four colored yards, a cross-shaped path, one
- * colored home lane per arm, and a center pinwheel — reproducing the
- * standard board template. Purely additive: token pieces are tappable when
- * it's a valid move, but the existing T1-T4 button row in LudoBoard.tsx
- * stays as a reliable fallback underneath.
+ * Classic 15x15 Ludo board, positioned entirely with board-relative
+ * percentages (1 cell = 100/15%) rather than CSS grid — this reproduces the
+ * Ludo Royale design handoff (`Ludo Board.dc.html`) layer-for-layer: home
+ * bases, yard nests + foot-rest sockets, striped home lanes, start-cell
+ * arrows, safe stars, the center pinwheel, per-color score plates, and
+ * layered (glow/shadow/body/head) pawns. Geometry itself still comes
+ * exclusively from boardGeometry, so visuals cannot drift from the server's
+ * game rules.
  */
 
 interface PlayerInfo {
@@ -45,23 +45,83 @@ interface LudoBoardGridProps {
 }
 
 const ALL_COLORS: LudoColor[] = ['red', 'green', 'yellow', 'blue'];
+const ORDER: LudoColor[] = ['red', 'green', 'yellow', 'blue'];
 
 const key = (c: Cell) => `${c.row},${c.col}`;
 
-const SAFE_CELL_KEYS = new Set([...SAFE_SQUARES].map((idx) => key(RING_PATH[idx])));
-
-/** The outer board corner each yard hugs, for asymmetric rounding. */
-const YARD_ROUNDING: Record<LudoColor, string> = {
-  red: '18px 4px 4px 4px',
-  green: '4px 18px 4px 4px',
-  yellow: '4px 4px 18px 4px',
-  blue: '4px 4px 4px 18px',
+// One non-start safe square per arm (SAFE_SQUARES minus the 4 start cells),
+// colored by the *next* color around the ring — mirrors the design exactly.
+const SAFE_STAR_HEX: Record<LudoColor, string> = {
+  red: '#c9282f',
+  green: '#128a3f',
+  yellow: '#c99400',
+  blue: '#1a5f9e',
 };
 
-function gridArea(row: number, col: number, rowSpan = 1, colSpan = 1): CSSProperties {
+const YARD_GRADIENT: Record<LudoColor, string> = {
+  red: 'linear-gradient(145deg, #f4676c, #c9282f)',
+  green: 'linear-gradient(145deg, #4fd07c, #128a3f)',
+  yellow: 'linear-gradient(145deg, #ffd95c, #e0a100)',
+  blue: 'linear-gradient(145deg, #5fa9f0, #1a5f9e)',
+};
+
+const HOME_STRIPE_HEX: Record<LudoColor, string> = {
+  red: '#e8494f',
+  green: '#2fb257',
+  yellow: '#f2b301',
+  blue: '#3b8fdd',
+};
+
+const NEST_RING: Record<LudoColor, string> = {
+  red: 'rgba(160,30,36,.4)',
+  green: 'rgba(18,110,50,.4)',
+  yellow: 'rgba(181,126,0,.45)',
+  blue: 'rgba(26,85,143,.4)',
+};
+
+const SOCKET_RING: Record<LudoColor, string> = {
+  red: 'rgba(160,30,36,.42)',
+  green: 'rgba(18,110,50,.42)',
+  yellow: 'rgba(160,110,0,.45)',
+  blue: 'rgba(26,85,143,.42)',
+};
+
+/** Fixed board-margin plate position per color — matches the design 1:1. */
+const MEDAL_POS: Record<LudoColor, { left: string; top: string }> = {
+  red: { left: '8%', top: '33.4%' },
+  green: { left: '68%', top: '33.4%' },
+  blue: { left: '8%', top: '60.6%' },
+  yellow: { left: '68%', top: '60.6%' },
+};
+
+const PAWN_SHADE: Record<LudoColor, { light: string; mid: string; dark: string }> = {
+  red: { light: '#ff8f92', mid: '#e8434b', dark: '#a11d24' },
+  green: { light: '#84e2a3', mid: '#2fb257', dark: '#12692f' },
+  yellow: { light: '#ffd66b', mid: '#e8a900', dark: '#7d5400' },
+  blue: { light: '#9ccdf7', mid: '#4a9ae4', dark: '#17518a' },
+};
+
+const START_GLYPH: Record<LudoColor, { char: string; fg: string }> = {
+  red: { char: '▸', fg: '#fff' },
+  green: { char: '▾', fg: '#fff' },
+  yellow: { char: '◂', fg: '#6b4c00' },
+  blue: { char: '▴', fg: '#fff' },
+};
+
+/** Bounding rect (as board percentages) of a color's 5-cell striped home lane — everything but the final, hub-adjacent cell. */
+function homeLaneRect(color: LudoColor) {
+  const cells = HOME_COLUMNS[color].slice(0, HOME_COLUMN_LENGTH - 1);
+  const rows = cells.map((c) => c.row);
+  const cols = cells.map((c) => c.col);
+  const minRow = Math.min(...rows);
+  const minCol = Math.min(...cols);
+  const horizontal = new Set(rows).size === 1;
   return {
-    gridRow: `${row + 1} / span ${rowSpan}`,
-    gridColumn: `${col + 1} / span ${colSpan}`,
+    left: pct(minCol),
+    top: pct(minRow),
+    width: horizontal ? pct(cells.length) : pct(1),
+    height: horizontal ? pct(1) : pct(cells.length),
+    horizontal,
   };
 }
 
@@ -71,37 +131,38 @@ interface TokenOccupant {
   tokenIndex: number;
   isMine: boolean;
   isMovable: boolean;
+  isYard: boolean;
 }
 
-const CLUSTER_OFFSETS = [
-  { x: -22, y: -22 },
-  { x: 22, y: -22 },
-  { x: -22, y: 22 },
-  { x: 22, y: 22 },
-];
-
-// These richer finishes come from the imported Ludo Royale handoff. Geometry
-// still comes exclusively from boardGeometry, so visuals cannot drift from
-// the server's game rules.
-const YARD_GRADIENT: Record<LudoColor, string> = {
-  red: 'linear-gradient(145deg, #f4676c, #c9282f)',
-  green: 'linear-gradient(145deg, #4fd07c, #128a3f)',
-  yellow: 'linear-gradient(145deg, #ffd95c, #e0a100)',
-  blue: 'linear-gradient(145deg, #5fa9f0, #1a5f9e)',
-};
-
-const PAWN_GRADIENT: Record<LudoColor, string> = {
-  red: 'radial-gradient(circle at 33% 25%, #fff 0 5%, #ff8f92 25%, #e8434b 60%, #a11d24 100%)',
-  green: 'radial-gradient(circle at 33% 25%, #fff 0 5%, #84e2a3 25%, #2fb257 60%, #12692f 100%)',
-  yellow: 'radial-gradient(circle at 33% 25%, #fff 0 5%, #ffd66b 25%, #e8a900 60%, #7d5400 100%)',
-  blue: 'radial-gradient(circle at 33% 25%, #fff 0 5%, #9ccdf7 25%, #4a9ae4 60%, #17518a 100%)',
-};
+/** Same clustering breakpoints as the design's `cluster(n)`: offsets are fractions of one board cell. */
+function cluster(n: number): { off: [number, number][]; size: number } {
+  if (n <= 1) return { off: [[0, 0]], size: 74 };
+  if (n === 2) return { off: [[-0.19, 0.05], [0.19, -0.05]], size: 56 };
+  if (n === 3) return { off: [[-0.22, 0.08], [0, -0.1], [0.22, 0.08]], size: 48 };
+  if (n === 4)
+    return {
+      off: [
+        [-0.19, -0.09],
+        [0.19, -0.09],
+        [-0.19, 0.13],
+        [0.19, 0.13],
+      ],
+      size: 44,
+    };
+  const off: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    off.push([Math.cos(a) * 0.2, Math.sin(a) * 0.16]);
+  }
+  return { off, size: 38 };
+}
 
 export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }: LudoBoardGridProps) {
   const movableIndexes = new Set(validMoves.map((m) => m.tokenIndex));
+  const playerByColor = new Map(players.map((p) => [p.color, p]));
 
   // Group every player's tokens by the cell they currently occupy.
-  const occupantsByCell = new Map<string, TokenOccupant[]>();
+  const occupantsByCell = new Map<string, { cell: Cell; occupants: TokenOccupant[] }>();
   for (const player of players) {
     const playerTokens = tokens[player.id] ?? [];
     playerTokens.forEach((token, tokenIndex) => {
@@ -113,149 +174,351 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
         tokenIndex,
         isMine: player.id === myId,
         isMovable: player.id === myId && movableIndexes.has(tokenIndex),
+        isYard: token.zone === 'yard',
       };
-      const list = occupantsByCell.get(cellKey) ?? [];
-      list.push(occupant);
-      occupantsByCell.set(cellKey, list);
+      const entry = occupantsByCell.get(cellKey) ?? { cell, occupants: [] };
+      entry.occupants.push(occupant);
+      occupantsByCell.set(cellKey, entry);
     });
+  }
+
+  // Board-completion percent per color, for the score plates.
+  const scoreByColor: Partial<Record<LudoColor, number>> = {};
+  for (const player of players) {
+    const playerTokens = tokens[player.id] ?? [];
+    const prog = playerTokens.reduce((sum, t) => {
+      if (t.zone === 'yard') return sum;
+      if (t.zone === 'track') return sum + (t.position + 1);
+      return sum + 51 + t.homePosition;
+    }, 0);
+    scoreByColor[player.color] = Math.round((prog / (4 * 57)) * 100);
   }
 
   return (
     <div
-      className="relative mx-auto aspect-square w-full max-w-2xl overflow-hidden rounded-[12px] border-[10px] border-[#294dba] bg-[#fbf6e9] shadow-[0_18px_34px_rgba(0,0,0,.5),inset_0_0_0_1px_rgba(255,214,110,.45)]"
+      className="w-full rounded-2xl p-2.5"
       style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)`,
-        gridTemplateRows: `repeat(${BOARD_SIZE}, 1fr)`,
-        backgroundImage:
-          'linear-gradient(to right, rgba(40,45,70,.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(40,45,70,.18) 1px, transparent 1px)',
-        backgroundSize: `${100 / BOARD_SIZE}% ${100 / BOARD_SIZE}%`,
+        background: 'linear-gradient(150deg,#3f6bd8,#17307a 45%,#0c1c4d)',
+        boxShadow:
+          '0 18px 34px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.28), inset 0 0 0 1.5px rgba(255,214,110,.35)',
       }}
     >
-      {/* Yards */}
-      {ALL_COLORS.map((color) => {
-        const origin = YARD_ORIGIN[color];
-        return (
-          <div
-            key={color}
-            style={{
-              ...gridArea(origin.row, origin.col, 6, 6),
-              background: YARD_GRADIENT[color],
-              borderRadius: YARD_ROUNDING[color],
-            }}
-            className="relative m-0 border border-black/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,.12)]"
-          >
-            <div className="absolute inset-[20%] rounded-[10px] bg-[#fbf6e9] shadow-[inset_0_0_0_2px_rgba(0,0,0,.16),0_2px_6px_rgba(0,0,0,.22)]" />
-          </div>
-        );
-      })}
-
-      {/* Center pinwheel — one solid block; the ring path's corner cells
-          border it rather than passing through it (see boardGeometry.ts). */}
-      <div style={gridArea(CENTER_POINT.row - 1, CENTER_POINT.col - 1, 3, 3)}>
+      <div
+        className="relative aspect-square w-full overflow-hidden rounded-lg bg-[#fbf6e9]"
+        style={{
+          containerType: 'inline-size',
+          boxShadow: 'inset 0 0 0 2px rgba(10,20,50,.45), inset 0 0 30px rgba(120,90,40,.12)',
+        }}
+      >
+        {/* Grid line overlay */}
         <div
-          className="size-full"
+          className="absolute inset-0"
           style={{
-            background: 'conic-gradient(from -45deg, #128a3f 0deg 90deg, #e0a100 90deg 180deg, #1a5f9e 180deg 270deg, #c9282f 270deg 360deg)',
+            backgroundImage:
+              'linear-gradient(to right, rgba(40,45,70,.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(40,45,70,.18) 1px, transparent 1px)',
+            backgroundSize: `${pct(1)} ${pct(1)}`,
           }}
         />
-      </div>
 
-      {/* Path cells */}
-      {RING_PATH.map((cell) => {
-        const cellKey = key(cell);
-        return (
-          <div
-            key={cellKey}
-            style={{ ...gridArea(cell.row, cell.col), background: '#fbf6e9' }}
-            className="flex items-center justify-center border border-slate-700/20"
-          >
-            {SAFE_CELL_KEYS.has(cellKey) && <Star className="size-[48%] fill-current text-[#b8860b]" />}
-          </div>
-        );
-      })}
-
-      {/* Home column cells */}
-      {ALL_COLORS.map((color) =>
-        HOME_COLUMNS[color].map((cell, i) => (
-          <div
-            key={`${color}-home-${i}`}
-            style={{ ...gridArea(cell.row, cell.col), background: YARD_GRADIENT[color] }}
-            className="border border-black/20"
-          />
-        )),
-      )}
-
-      {/* Entry direction arrows */}
-      {ALL_COLORS.map((color) => {
-        const cell = RING_PATH[COLOR_START_OFFSET[color]];
-        const { dRow, dCol } = getEntryDirection(color);
-        const angle = (Math.atan2(dRow, dCol) * 180) / Math.PI;
-        return (
-          <div
-            key={`arrow-${color}`}
-            style={gridArea(cell.row, cell.col)}
-            className="pointer-events-none z-10 flex items-center justify-center"
-          >
-            <span
-              style={{ color: '#fff', transform: `rotate(${angle}deg)` }}
-              className="block text-[10px] leading-none"
-            >
-              ▶
-            </span>
-          </div>
-        );
-      })}
-
-      {/* Yard dot slots (empty pockets) */}
-      {ALL_COLORS.map((color) =>
-        YARD_SLOTS[color].map((cell, i) => (
-          <div
-            key={`${color}-slot-${i}`}
-            style={gridArea(cell.row, cell.col)}
-            className="z-10 flex items-center justify-center"
-          >
+        {/* Home bases */}
+        {ALL_COLORS.map((color) => {
+          const o = YARD_ORIGIN[color];
+          return (
             <div
-              className="size-[55%] rounded-full border-2 opacity-45"
-              style={{ borderColor: LUDO_COLOR_VAR[color] }}
+              key={color}
+              className="absolute"
+              style={{
+                left: pct(o.col),
+                top: pct(o.row),
+                width: pct(6),
+                height: pct(6),
+                background: YARD_GRADIENT[color],
+                boxShadow: 'inset 0 0 0 2px rgba(0,0,0,.16)',
+              }}
             />
-          </div>
-        )),
-      )}
+          );
+        })}
 
-      {/* Tokens */}
-      {[...occupantsByCell.entries()].map(([cellKey, occupants]) => {
-        const [row, col] = cellKey.split(',').map(Number);
-        return (
-          <div key={`tokens-${cellKey}`} style={gridArea(row, col)} className="z-20 flex items-center justify-center">
-            <div className="relative size-full">
+        {/* Yard nests */}
+        {ALL_COLORS.map((color) => {
+          const o = YARD_ORIGIN[color];
+          return (
+            <div
+              key={`nest-${color}`}
+              className="absolute rounded-[2.6cqi]"
+              style={{
+                left: pct(o.col + 1.2),
+                top: pct(o.row + 1.2),
+                width: pct(3.6),
+                height: pct(3.6),
+                background: '#fbf6e9',
+                boxShadow: `inset 0 0 0 1.5px ${NEST_RING[color]}, 0 2px 6px rgba(0,0,0,.22)`,
+              }}
+            />
+          );
+        })}
+
+        {/* Yard foot-rest sockets */}
+        {ALL_COLORS.map((color) =>
+          YARD_SLOTS[color].map((cell, i) => (
+            <div
+              key={`socket-${color}-${i}`}
+              className="absolute"
+              style={{ left: pct(cell.col), top: pct(cell.row), width: pct(1), height: pct(1) }}
+            >
+              <div
+                className="absolute rounded-full"
+                style={{
+                  left: '17%',
+                  right: '17%',
+                  bottom: '5%',
+                  height: '19%',
+                  boxShadow: `inset 0 0 0 1.5px ${SOCKET_RING[color]}`,
+                }}
+              />
+            </div>
+          )),
+        )}
+
+        {/* Home lanes (striped) */}
+        {ALL_COLORS.map((color) => {
+          const r = homeLaneRect(color);
+          const stripe = HOME_STRIPE_HEX[color];
+          return (
+            <div
+              key={`lane-${color}`}
+              className="absolute"
+              style={{
+                left: r.left,
+                top: r.top,
+                width: r.width,
+                height: r.height,
+                boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.22)',
+                background: r.horizontal
+                  ? `repeating-linear-gradient(to right, ${stripe} 0, ${stripe} calc(20% - 1px), rgba(0,0,0,.2) calc(20% - 1px), rgba(0,0,0,.2) 20%)`
+                  : `repeating-linear-gradient(to bottom, ${stripe} 0, ${stripe} calc(20% - 1px), rgba(0,0,0,.2) calc(20% - 1px), rgba(0,0,0,.2) 20%)`,
+              }}
+            />
+          );
+        })}
+
+        {/* Start cells */}
+        {ALL_COLORS.map((color) => {
+          const cell = RING_PATH[COLOR_START_OFFSET[color]];
+          const glyph = START_GLYPH[color];
+          return (
+            <div
+              key={`start-${color}`}
+              className="absolute flex items-center justify-center"
+              style={{
+                left: pct(cell.col),
+                top: pct(cell.row),
+                width: pct(1),
+                height: pct(1),
+                background: YARD_GRADIENT[color],
+                boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.28)',
+              }}
+            >
+              <span style={{ color: glyph.fg, fontSize: '2.2cqi' }}>{glyph.char}</span>
+            </div>
+          );
+        })}
+
+        {/* Safe stars (one per arm, colored by the next color around the ring) */}
+        {ORDER.map((color, i) => {
+          const idx = (COLOR_START_OFFSET[color] + 8) % RING_PATH.length;
+          const cell = RING_PATH[idx];
+          const starColor = SAFE_STAR_HEX[ORDER[(i + 1) % 4]];
+          return (
+            <div
+              key={`safe-${color}`}
+              className="absolute flex items-center justify-center"
+              style={{
+                left: pct(cell.col),
+                top: pct(cell.row),
+                width: pct(1),
+                height: pct(1),
+                color: starColor,
+                animation: `floatStar 3s ease-in-out ${i * 0.6}s infinite`,
+              }}
+            >
+              <Star className="size-[55%] fill-current" />
+            </div>
+          );
+        })}
+
+        {/* Center pinwheel */}
+        <div
+          className="absolute"
+          style={{
+            left: pct(CENTER_POINT.col - 1),
+            top: pct(CENTER_POINT.row - 1),
+            width: pct(3),
+            height: pct(3),
+            boxShadow: 'inset 0 0 0 2px rgba(0,0,0,.25), 0 0 18px rgba(0,0,0,.1)',
+          }}
+        >
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(90deg,#c9282f,#f4676c)', clipPath: 'polygon(0 0,50% 50%,0 100%)' }}
+          />
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(180deg,#4fd07c,#128a3f)', clipPath: 'polygon(0 0,100% 0,50% 50%)' }}
+          />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'linear-gradient(270deg,#e0a100,#ffd95c)',
+              clipPath: 'polygon(100% 0,100% 100%,50% 50%)',
+            }}
+          />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'linear-gradient(0deg,#1a5f9e,#5fa9f0)',
+              clipPath: 'polygon(0 100%,100% 100%,50% 50%)',
+            }}
+          />
+        </div>
+
+        {/* Score plates — only for colors actually in this match */}
+        {ALL_COLORS.filter((c) => playerByColor.has(c)).map((color) => {
+          const player = playerByColor.get(color)!;
+          const isMe = player.id === myId;
+          const pos = MEDAL_POS[color];
+          const sh = PAWN_SHADE[color];
+          return (
+            <div
+              key={`plate-${color}`}
+              className="absolute z-[9] flex items-center justify-center gap-[5%] rounded-full"
+              style={{
+                left: pos.left,
+                top: pos.top,
+                width: '24%',
+                height: '6%',
+                background: isMe ? 'linear-gradient(180deg,#fffef7,#f6ead0)' : 'rgba(255,255,255,.9)',
+                boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,.55), 0 1px 3px rgba(0,0,0,.3)',
+              }}
+            >
+              <div
+                className="shrink-0 rounded-full"
+                style={{
+                  width: '2.4cqi',
+                  height: '2.4cqi',
+                  background: `radial-gradient(circle at 32% 28%, #ffffffcc, ${sh.mid} 65%)`,
+                }}
+              />
+              <div
+                className="font-serif leading-none"
+                style={{ fontSize: 'max(11px,3cqi)', color: isMe ? sh.dark : '#5c5245' }}
+              >
+                {scoreByColor[color] ?? 0}%
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Tokens */}
+        {[...occupantsByCell.entries()].map(([cellKey, { cell, occupants }]) => {
+          const total = occupants.length;
+          const cl = cluster(total);
+          return (
+            <div
+              key={`tokens-${cellKey}`}
+              className="absolute"
+              style={{ left: pct(cell.col), top: pct(cell.row), width: pct(1), height: pct(1) }}
+            >
               {occupants.map((o, i) => {
-                const offset = occupants.length > 1 ? CLUSTER_OFFSETS[i % 4] : { x: 0, y: 0 };
-                const scale = occupants.length > 1 ? 0.62 : 0.85;
+                const off = cl.off[i] ?? [0, 0];
+                const sizePct = o.isYard ? 64 : cl.size;
+                const lift = total > 1 ? '2%' : '6%';
+                const sh = PAWN_SHADE[o.color];
+                const glow = o.isMovable ? '#ffffff' : 'transparent';
+                const z = 20 + Math.round((cell.row + off[1]) * 4);
                 return (
                   <button
                     key={`${o.playerId}-${o.tokenIndex}`}
                     type="button"
+                    aria-label={o.isMine ? `Move token ${o.tokenIndex + 1}` : undefined}
                     disabled={!o.isMovable}
                     onClick={() => o.isMovable && onMoveToken(o.tokenIndex)}
-                    aria-label={o.isMine ? `Move token ${o.tokenIndex + 1}` : undefined}
-                    className={`absolute top-1/2 left-1/2 aspect-[.78] rounded-[45%_45%_42%_42%] border-2 border-white/80 shadow-[inset_-2px_-3px_4px_rgba(0,0,0,.32),0_2px_3px_rgba(0,0,0,.35)] transition ${
-                      o.isMovable
-                        ? 'cursor-pointer ring-2 ring-white/80 ring-offset-1 ring-offset-transparent animate-pulse'
-                        : 'cursor-default'
-                    }`}
+                    className="absolute border-none bg-transparent p-0"
                     style={{
-                      width: `${scale * 100}%`,
-                      background: PAWN_GRADIENT[o.color],
-                      transform: `translate(-50%, -50%) translate(${offset.x}%, ${offset.y}%)`,
+                      left: `${50 + off[0] * 100}%`,
+                      top: `${50 + off[1] * 100}%`,
+                      width: `${sizePct}%`,
+                      aspectRatio: 0.78,
+                      transform: 'translate(-50%,-50%)',
+                      marginBottom: lift,
+                      zIndex: z,
+                      cursor: o.isMovable ? 'pointer' : 'default',
                     }}
-                  />
+                  >
+                    <div className="relative size-full">
+                      <div
+                        className="absolute rounded-full"
+                        style={{
+                          left: '-10%',
+                          right: '-10%',
+                          bottom: '-8%',
+                          height: '34%',
+                          boxShadow: `0 0 0 2.5px ${glow}`,
+                          animation: 'pulseRing 1.1s ease-in-out infinite',
+                          opacity: o.isMovable ? 1 : 0,
+                        }}
+                      />
+                      <div
+                        className="absolute rounded-full"
+                        style={{
+                          left: 0,
+                          right: '-6%',
+                          bottom: 0,
+                          height: '20%',
+                          background: 'rgba(0,0,0,.28)',
+                          filter: 'blur(2px)',
+                        }}
+                      />
+                      <div
+                        className="absolute rounded-full"
+                        style={{
+                          left: '1%',
+                          right: '1%',
+                          bottom: '1%',
+                          height: '20%',
+                          background: `linear-gradient(180deg,${sh.light},${sh.dark})`,
+                          boxShadow: 'inset 0 -2px 3px rgba(0,0,0,.3), inset 0 2px 2px rgba(255,255,255,.35)',
+                        }}
+                      />
+                      <div
+                        className="absolute rounded-[8%_8%_40%_40%]"
+                        style={{
+                          left: '15%',
+                          right: '15%',
+                          bottom: '9%',
+                          height: '26%',
+                          background: `linear-gradient(90deg,${sh.dark} 0%,${sh.light} 38%,${sh.mid} 72%,${sh.dark})`,
+                          clipPath: 'polygon(28% 0,72% 0,100% 100%,0 100%)',
+                        }}
+                      />
+                      <div
+                        className="absolute aspect-square rounded-full"
+                        style={{
+                          left: '14%',
+                          right: '14%',
+                          top: 0,
+                          background: `radial-gradient(circle at 33% 27%, rgba(255,255,255,.95) 0 6%, ${sh.light} 32%, ${sh.mid} 62%, ${sh.dark} 95%)`,
+                          boxShadow: 'inset -1.5px -2.5px 4px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.28)',
+                        }}
+                      />
+                    </div>
+                  </button>
                 );
               })}
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
