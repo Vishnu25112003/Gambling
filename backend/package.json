@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node dist/src/index.js",
-    "build": "npx prisma generate && npx tsc -p tsconfig.json",
+    "build": "npx prisma generate && npx prisma migrate deploy && npx tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
