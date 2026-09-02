@@ -80,6 +80,23 @@ const CLUSTER_OFFSETS = [
   { x: 22, y: 22 },
 ];
 
+// These richer finishes come from the imported Ludo Royale handoff. Geometry
+// still comes exclusively from boardGeometry, so visuals cannot drift from
+// the server's game rules.
+const YARD_GRADIENT: Record<LudoColor, string> = {
+  red: 'linear-gradient(145deg, #f4676c, #c9282f)',
+  green: 'linear-gradient(145deg, #4fd07c, #128a3f)',
+  yellow: 'linear-gradient(145deg, #ffd95c, #e0a100)',
+  blue: 'linear-gradient(145deg, #5fa9f0, #1a5f9e)',
+};
+
+const PAWN_GRADIENT: Record<LudoColor, string> = {
+  red: 'radial-gradient(circle at 33% 25%, #fff 0 5%, #ff8f92 25%, #e8434b 60%, #a11d24 100%)',
+  green: 'radial-gradient(circle at 33% 25%, #fff 0 5%, #84e2a3 25%, #2fb257 60%, #12692f 100%)',
+  yellow: 'radial-gradient(circle at 33% 25%, #fff 0 5%, #ffd66b 25%, #e8a900 60%, #7d5400 100%)',
+  blue: 'radial-gradient(circle at 33% 25%, #fff 0 5%, #9ccdf7 25%, #4a9ae4 60%, #17518a 100%)',
+};
+
 export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }: LudoBoardGridProps) {
   const movableIndexes = new Set(validMoves.map((m) => m.tokenIndex));
 
@@ -105,11 +122,14 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
 
   return (
     <div
-      className="relative mx-auto aspect-square w-full max-w-lg overflow-hidden rounded-[16px] border border-line bg-bg2"
+      className="relative mx-auto aspect-square w-full max-w-2xl overflow-hidden rounded-[12px] border-[10px] border-[#294dba] bg-[#fbf6e9] shadow-[0_18px_34px_rgba(0,0,0,.5),inset_0_0_0_1px_rgba(255,214,110,.45)]"
       style={{
         display: 'grid',
         gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)`,
         gridTemplateRows: `repeat(${BOARD_SIZE}, 1fr)`,
+        backgroundImage:
+          'linear-gradient(to right, rgba(40,45,70,.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(40,45,70,.18) 1px, transparent 1px)',
+        backgroundSize: `${100 / BOARD_SIZE}% ${100 / BOARD_SIZE}%`,
       }}
     >
       {/* Yards */}
@@ -120,12 +140,12 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
             key={color}
             style={{
               ...gridArea(origin.row, origin.col, 6, 6),
-              background: LUDO_COLOR_VAR[color],
+              background: YARD_GRADIENT[color],
               borderRadius: YARD_ROUNDING[color],
             }}
-            className="relative m-1"
+            className="relative m-0 border border-black/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,.12)]"
           >
-            <div className="absolute inset-[14%] rounded-[10px] bg-bg2/90" />
+            <div className="absolute inset-[20%] rounded-[10px] bg-[#fbf6e9] shadow-[inset_0_0_0_2px_rgba(0,0,0,.16),0_2px_6px_rgba(0,0,0,.22)]" />
           </div>
         );
       })}
@@ -136,7 +156,7 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
         <div
           className="size-full"
           style={{
-            background: `conic-gradient(from -45deg, ${LUDO_COLOR_VAR.green} 0deg 90deg, ${LUDO_COLOR_VAR.yellow} 90deg 180deg, ${LUDO_COLOR_VAR.blue} 180deg 270deg, ${LUDO_COLOR_VAR.red} 270deg 360deg)`,
+            background: 'conic-gradient(from -45deg, #128a3f 0deg 90deg, #e0a100 90deg 180deg, #1a5f9e 180deg 270deg, #c9282f 270deg 360deg)',
           }}
         />
       </div>
@@ -147,10 +167,10 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
         return (
           <div
             key={cellKey}
-            style={{ ...gridArea(cell.row, cell.col), background: 'var(--bg2)' }}
-            className="flex items-center justify-center border border-line/40"
+            style={{ ...gridArea(cell.row, cell.col), background: '#fbf6e9' }}
+            className="flex items-center justify-center border border-slate-700/20"
           >
-            {SAFE_CELL_KEYS.has(cellKey) && <Star className="size-2 fill-faint text-faint" />}
+            {SAFE_CELL_KEYS.has(cellKey) && <Star className="size-[48%] fill-current text-[#b8860b]" />}
           </div>
         );
       })}
@@ -160,8 +180,8 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
         HOME_COLUMNS[color].map((cell, i) => (
           <div
             key={`${color}-home-${i}`}
-            style={{ ...gridArea(cell.row, cell.col), background: LUDO_COLOR_VAR[color] }}
-            className="border border-line/40"
+            style={{ ...gridArea(cell.row, cell.col), background: YARD_GRADIENT[color] }}
+            className="border border-black/20"
           />
         )),
       )}
@@ -178,7 +198,7 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
             className="pointer-events-none z-10 flex items-center justify-center"
           >
             <span
-              style={{ color: LUDO_COLOR_VAR[color], transform: `rotate(${angle}deg)` }}
+              style={{ color: '#fff', transform: `rotate(${angle}deg)` }}
               className="block text-[10px] leading-none"
             >
               ▶
@@ -196,7 +216,7 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
             className="z-10 flex items-center justify-center"
           >
             <div
-              className="size-[55%] rounded-full border-2 opacity-40"
+              className="size-[55%] rounded-full border-2 opacity-45"
               style={{ borderColor: LUDO_COLOR_VAR[color] }}
             />
           </div>
@@ -219,14 +239,14 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
                     disabled={!o.isMovable}
                     onClick={() => o.isMovable && onMoveToken(o.tokenIndex)}
                     aria-label={o.isMine ? `Move token ${o.tokenIndex + 1}` : undefined}
-                    className={`absolute top-1/2 left-1/2 aspect-square rounded-full border-2 border-bg shadow-sm transition ${
+                    className={`absolute top-1/2 left-1/2 aspect-[.78] rounded-[45%_45%_42%_42%] border-2 border-white/80 shadow-[inset_-2px_-3px_4px_rgba(0,0,0,.32),0_2px_3px_rgba(0,0,0,.35)] transition ${
                       o.isMovable
                         ? 'cursor-pointer ring-2 ring-white/80 ring-offset-1 ring-offset-transparent animate-pulse'
                         : 'cursor-default'
                     }`}
                     style={{
                       width: `${scale * 100}%`,
-                      background: LUDO_COLOR_VAR[o.color],
+                      background: PAWN_GRADIENT[o.color],
                       transform: `translate(-50%, -50%) translate(${offset.x}%, ${offset.y}%)`,
                     }}
                   />

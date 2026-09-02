@@ -653,14 +653,20 @@ function LudoBoardInner() {
         </Card>
       )}
 
-      <div className="mx-auto flex max-w-4xl flex-col gap-4 lg:flex-row lg:items-start">
+      <div className="mx-auto flex max-w-5xl flex-col gap-4 rounded-[22px] bg-[radial-gradient(120%_70%_at_50%_0%,#1b3f86_0%,#0d224e_48%,#071022_100%)] p-3 shadow-[0_18px_40px_rgba(0,0,0,.3)] lg:flex-row lg:items-start">
         {/* Board (takes the flexible side; on desktop the panel sits to its right) */}
         <div className="order-2 w-full lg:order-1 lg:flex-1">
-          <Card className="mb-4 px-5 py-3">
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-[12px] bg-white/[.08] px-4 py-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,.12)]">
+            <span className="font-serif text-[15px] tracking-wide text-[#ffd97a]">Ludo Royale</span>
+            <span className="text-right text-[11px] text-[#bcd0f0]">
+              {isMyTurn ? 'Your turn — choose a move' : (waitingReason ?? 'Match in progress')}
+            </span>
+          </div>
+          <Card className="mb-3 border-white/10 bg-white/[.07] px-5 py-3 text-[#e8eefb] shadow-[inset_0_0_0_1px_rgba(255,255,255,.06)]">
             <div className="flex items-center justify-between">
               {players.map((p) => (
                 <div key={p.id} className="text-center">
-                  <p className="text-[11px] text-muted">
+                  <p className="text-[11px] text-[#bcd0f0]">
                     {p.id === myId ? 'You' : p.displayName ?? 'Player'}
                   </p>
                   <div className="flex items-center justify-center gap-1.5">
@@ -670,7 +676,7 @@ function LudoBoardInner() {
                     />
                     <p className="text-xl font-bold">{gameState?.totalSteps[p.id] ?? 0}</p>
                   </div>
-                  <p className="text-[10px] text-faint">
+                  <p className="text-[10px] text-[#8fa6cd]">
                     {gameState?.tokens[p.id]?.filter((t) => t.zone === 'home').length ?? 0}/4 home
                   </p>
                 </div>
@@ -689,7 +695,7 @@ function LudoBoardInner() {
 
         {/* Right-hand dice + action panel */}
         <div className="order-1 w-full lg:order-2 lg:w-72 lg:shrink-0">
-          <Card className="flex flex-col items-center px-6 py-8">
+          <Card className="flex flex-col items-center border-white/10 bg-white/[.08] px-6 py-8 text-[#e8eefb] shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)]">
             {/* Dice display */}
             <div className="mb-4 flex items-center gap-4">
               <DiceSpinner value={lastDice} rolling={rollingDice} size={80} />
@@ -701,12 +707,12 @@ function LudoBoardInner() {
             {/* Roll button or move selection */}
             {isMyTurn && validMoves.length === 0 && !lastDice && (
               <>
-                <p className="mb-3 text-sm text-muted">Tap to roll the dice</p>
+                <p className="mb-3 text-sm text-[#bcd0f0]">Tap to roll the dice</p>
                 <button
                   type="button"
                   disabled={pendingSubmit}
                   onClick={handleRollDice}
-                  className="mb-2 flex h-20 w-20 items-center justify-center rounded-full border-2 border-green-solid bg-green-solid/20 text-green transition hover:bg-green-solid/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mb-2 flex h-20 w-20 items-center justify-center rounded-full border-2 border-[#84e2a3] bg-[#2fb257]/30 text-[#dfffea] shadow-[0_0_18px_rgba(79,208,124,.25)] transition hover:bg-[#2fb257]/45 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Dices className="size-8" />
                 </button>
@@ -737,7 +743,7 @@ function LudoBoardInner() {
             )}
 
             {!isMyTurn && (
-              <p className="text-sm text-muted">
+              <p className="text-sm text-[#bcd0f0]">
                 {waitingReason ?? 'Waiting for opponent...'}
               </p>
             )}
