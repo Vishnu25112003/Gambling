@@ -195,3 +195,104 @@ describe('ludo engine — turn pass phase regression', () => {
   });
 });
 
+describe('ludo engine — a 6 with zero valid moves keeps the turn (bug fix)', () => {
+  it('processSixNoMoves keeps the same current player and returns to rolling', async () => {
+    const { createInitialState, processSixNoMoves } = await import('../src/games/ludo/engine.js');
+    const state = { ...createInitialState(2, [A, B]), phase: 'rolling' as const, currentDice: 6 as const };
+    const result = processSixNoMoves(state);
+    expect(result.currentPlayerId).toBe(A);
+    expect(result.phase).toBe('rolling');
+    expect(result.currentDice).toBeNull();
+  });
+
+  it('a 6 legitimately yields zero valid moves when the start square is opponent-blocked', () => {
+    // Yellow (offset 26) blocks red's own start square (global 0) with two tokens.
+    const aTokens: Token[] = [yard(), yard(), yard(), yard()];
+    const bTokens: Token[] = [track(26), track(26), yard(), yard()];
+    const allTokens = { [A]: aTokens, [B]: bTokens };
+    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
+
+    const moves = getValidMoves(aTokens, 6, 'red', allTokens, [A, B], colors);
+    expect(moves).toEqual([]);
+  });
+});
+
+describe('ludo engine — points economy (replaces totalSteps for ranking/payouts)', () => {
+  it('processTokenMove adds +1 point per step moved', async () => {
+    const { createInitialState, processTokenMove } = await import('../src/games/ludo/engine.js');
+    let state = createInitialState(2, [A, B]);
+    state = {
+      ...state,
+      tokens: { ...state.tokens, [A]: [track(0), yard(), yard(), yard()] },
+      currentDice: 4,
+    };
+    const { state: after } = processTokenMove(state, 0);
+    expect(after.points[A]).toBe(4);
+    expect(after.totalSteps[A]).toBe(4);
+  });
+
+  it('a capture gives the mover +10 and the victim -10', async () => {
+    const { createInitialState, processTokenMove } = await import('../src/games/ludo/engine.js');
+    let state = createInitialState(2, [A, B]);
+    // Red at track(5) rolling 5 lands on global 10; yellow (offset 26) at
+    // trackPosition 36 also sits on global 10 — an unblocked single token.
+    state = {
+      ...state,
+      tokens: {
+        ...state.tokens,
+        [A]: [track(5), yard(), yard(), yard()],
+        [B]: [track(36), yard(), yard(), yard()],
+      },
+      currentDice: 5,
+    };
+    const { state: after, result } = processTokenMove(state, 0);
+    expect(result.captured).toEqual([{ playerId: B, tokenIndex: 0 }]);
+    // +5 for the steps moved, +10 for the capture.
+    expect(after.points[A]).toBe(15);
+    expect(after.points[B]).toBe(-10);
+  });
+
+  it('reaching final home gives +50 on top of the steps moved', async () => {
+    const { createInitialState, processTokenMove } = await import('../src/games/ludo/engine.js');
+    let state = createInitialState(2, [A, B]);
+    state = {
+      ...state,
+      tokens: { ...state.tokens, [A]: [{ zone: 'home', position: 0, homePosition: 4 }, yard(), yard(), yard()] },
+      currentDice: 2,
+    };
+    const { state: after, result } = processTokenMove(state, 0);
+    expect(result.reachedHome).toBe(true);
+    expect(after.points[A]).toBe(52); // 2 steps + 50 home bonus
+  });
+
+  it('rankPlayers and calculatePayoutWeights rank by points, not totalSteps', async () => {
+    const { createInitialState, rankPlayers, calculatePayoutWeights } = await import(
+      '../src/games/ludo/engine.js'
+    );
+    let state = createInitialState(2, [A, B]);
+    // A has more totalSteps but fewer points (got captured); B has fewer
+    // steps but more points (captured A). Ranking must follow points.
+    state = {
+      ...state,
+      totalSteps: { [A]: 40, [B]: 10 },
+      points: { [A]: -10, [B]: 20 },
+    };
+    const rankings = rankPlayers(state, []);
+    const first = rankings.find((r) => r.rank === 1)!;
+    expect(first.playerId).toBe(B);
+    expect(first.points).toBe(20);
+
+    const weights = calculatePayoutWeights(rankings, 2);
+    expect(weights).toEqual([{ userId: B, weight: 100 }]);
+  });
+});
+
+describe('ludo engine — lives', () => {
+  it('createInitialState seeds every player at MAX_LIVES', async () => {
+    const { createInitialState, MAX_LIVES } = await import('../src/games/ludo/engine.js');
+    const state = createInitialState(2, [A, B]);
+    expect(state.lives[A]).toBe(MAX_LIVES);
+    expect(state.lives[B]).toBe(MAX_LIVES);
+  });
+});
+

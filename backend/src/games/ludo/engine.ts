@@ -32,6 +32,17 @@ export const ROLL_TIMEOUT_MS = 15_000;
 /** Timeout for a player to choose which token to move after rolling (ms). */
 export const MOVE_TIMEOUT_MS = 10_000;
 
+/** Lives a player starts a match with; missing a 15s roll window costs one. */
+export const MAX_LIVES = 3;
+
+/** How long the client shows its "Your Turn" popup before the roll timer visibly starts.
+ * The server delays arming a fresh roll timer by this long too, so the two stay in sync. */
+export const TURN_BANNER_MS = 2_500;
+
+/** Points economy (Gambling_Docs/Games/G02-Ludo.md): +1/step, +10 capturing / -10 captured, +50 reaching home. */
+export const POINTS_PER_CAPTURE = 10;
+export const POINTS_PER_HOME = 50;
+
 // --- Payout table (overrides Rule 2) ----------------------------------------
 
 /**
@@ -387,10 +398,14 @@ export function createInitialState(
   const colors = assignColors(playerIds, seatCount);
   const tokens: Record<string, Token[]> = {};
   const totalSteps: Record<string, number> = {};
+  const points: Record<string, number> = {};
+  const lives: Record<string, number> = {};
 
   for (const id of playerIds) {
     tokens[id] = createTokens();
     totalSteps[id] = 0;
+    points[id] = 0;
+    lives[id] = MAX_LIVES;
   }
 
   return {
@@ -399,6 +414,8 @@ export function createInitialState(
     colors,
     tokens,
     totalSteps,
+    points,
+    lives,
     currentPlayerId: playerIds[0]!,
     phase: 'rolling',
     currentDice: null,
@@ -433,28 +450,29 @@ export function checkMatchEnd(state: LudoState): string | null {
 }
 
 /**
- * Rank all players by total steps moved (more steps = higher rank).
- * Tied players share the same rank.
- * Forfeit players are excluded.
+ * Rank all players by points (the scoring economy: steps + captures + home
+ * bonuses — see POINTS_PER_CAPTURE/POINTS_PER_HOME). Tied players share the
+ * same rank. Forfeit players are excluded. `totalSteps` is still carried
+ * along purely as a secondary display stat.
  */
 export function rankPlayers(
   state: LudoState,
   forfeitedPlayers: string[],
-): { playerId: string; rank: number; totalSteps: number }[] {
+): { playerId: string; rank: number; totalSteps: number; points: number }[] {
   const active = state.playerIds.filter((id) => !forfeitedPlayers.includes(id));
   const ranked = active
-    .map((id) => ({ playerId: id, totalSteps: state.totalSteps[id] ?? 0 }))
-    .sort((a, b) => b.totalSteps - a.totalSteps);
+    .map((id) => ({ playerId: id, totalSteps: state.totalSteps[id] ?? 0, points: state.points[id] ?? 0 }))
+    .sort((a, b) => b.points - a.points);
 
   let currentRank = 1;
-  const result: { playerId: string; rank: number; totalSteps: number }[] = [];
+  const result: { playerId: string; rank: number; totalSteps: number; points: number }[] = [];
 
   for (let i = 0; i < ranked.length; i++) {
     const entry = ranked[i]!;
-    if (i > 0 && entry.totalSteps === ranked[i - 1]!.totalSteps) {
-      result.push({ playerId: entry.playerId, rank: result[i - 1]!.rank, totalSteps: entry.totalSteps });
+    if (i > 0 && entry.points === ranked[i - 1]!.points) {
+      result.push({ playerId: entry.playerId, rank: result[i - 1]!.rank, totalSteps: entry.totalSteps, points: entry.points });
     } else {
-      result.push({ playerId: entry.playerId, rank: currentRank, totalSteps: entry.totalSteps });
+      result.push({ playerId: entry.playerId, rank: currentRank, totalSteps: entry.totalSteps, points: entry.points });
       currentRank++;
     }
   }
@@ -468,7 +486,7 @@ export function rankPlayers(
  * Ties are handled by splitting that place's share evenly.
  */
 export function calculatePayoutWeights(
-  rankings: { playerId: string; rank: number; totalSteps: number }[],
+  rankings: { playerId: string; rank: number }[],
   seatCount: number,
 ): { userId: string; weight: number }[] {
   const payoutInfo = PAYOUT_TABLE[seatCount];
@@ -566,10 +584,23 @@ export function processTokenMove(
     [playerId]: (state.totalSteps[playerId] ?? 0) + moveResult.stepsMoved,
   };
 
+  // Points economy: +1 per step moved, +10/-10 on a capture, +50 reaching
+  // home. This — not totalSteps — is what ranking and payouts are based on.
+  const newPoints = { ...state.points };
+  newPoints[playerId] = (newPoints[playerId] ?? 0) + moveResult.stepsMoved;
+  for (const capture of moveResult.captured) {
+    newPoints[playerId] = (newPoints[playerId] ?? 0) + POINTS_PER_CAPTURE;
+    newPoints[capture.playerId] = (newPoints[capture.playerId] ?? 0) - POINTS_PER_CAPTURE;
+  }
+  if (moveResult.reachedHome) {
+    newPoints[playerId] = (newPoints[playerId] ?? 0) + POINTS_PER_HOME;
+  }
+
   const newState: LudoState = {
     ...state,
     tokens: newTokens,
     totalSteps: newTotalSteps,
+    points: newPoints,
     currentDice: null,
   };
 
@@ -620,6 +651,23 @@ export function processTurnPass(state: LudoState): {
       turnNumber: state.turnNumber + 1,
     },
     nextPlayerId,
+  };
+}
+
+/**
+ * A 6 was rolled but yields zero valid moves (e.g. the player's own start
+ * square is already blocked by two of their own tokens) — unlike an ordinary
+ * dead roll, this keeps the turn with the same player instead of passing it,
+ * so the player isn't punished for a roll they had no legal use for. This is
+ * distinct from the "three consecutive 6s" forfeit (processDiceRoll already
+ * turns that into a real turn pass before this would ever be reached).
+ */
+export function processSixNoMoves(state: LudoState): LudoState {
+  return {
+    ...state,
+    currentDice: null,
+    phase: 'rolling',
+    turnNumber: state.turnNumber + 1,
   };
 }
 

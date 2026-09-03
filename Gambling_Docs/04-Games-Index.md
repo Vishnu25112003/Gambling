@@ -4,6 +4,8 @@ Master status table for every game in the hub, and the numbering scheme every ga
 
 **Before adding a game, read `10-Game-Common-Rules.md`.** Its four rules — platform fee, payout split, betting mode, and match discovery — apply to every game automatically. A game file documents only what is specific to that game (its odds table, its win condition, its board state, its own timers); it never restates a fee, a payout split, or a lobby flow.
 
+**Turn-based games should also read `12-Game-UI-Conventions.md`.** It specifies the shared Turn Notification popup + countdown convention (first adopted by Ludo) — a presentation convention, not a money rule, but every turn-based game should implement it the same way rather than inventing its own "it's your turn" signal.
+
 ## Naming & Numbering
 
 Every game gets a number, assigned here, in the order it is added. The number never changes and is never reused, even if a game is dropped.

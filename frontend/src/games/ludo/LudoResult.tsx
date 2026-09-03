@@ -13,7 +13,7 @@ interface LudoResultProps {
   won: boolean;
   stake: string;
   payout: string;
-  rankings: { playerId: string; rank: number; totalSteps: number }[];
+  rankings: { playerId: string; rank: number; totalSteps: number; points: number }[];
   seatCount: number;
   myId: string;
   pot: string;
@@ -70,7 +70,10 @@ export function LudoResult({
                 {r.playerId === myId ? 'You' : (playerNames[r.playerId] ?? 'Player')}
               </span>
             </div>
-            <span className="text-sm font-bold">{r.totalSteps} steps</span>
+            <div className="text-right">
+              <span className="text-sm font-bold">{r.points} pts</span>
+              <p className="text-[10px] text-muted">{r.totalSteps} steps</p>
+            </div>
           </div>
         ))}
       </div>

@@ -4,11 +4,14 @@ import {
   COLOR_START_OFFSET,
   HOME_COLUMNS,
   HOME_COLUMN_LENGTH,
+  NATIVE_SLOT,
   RING_PATH,
   YARD_ORIGIN,
   YARD_SLOTS,
   getCellForToken,
   pct,
+  rotateBoxForViewer,
+  rotateForViewer,
   type BoardToken,
   type Cell,
   type LudoColor,
@@ -42,6 +45,8 @@ interface LudoBoardGridProps {
   myId: string | null;
   validMoves: ValidMove[];
   onMoveToken: (tokenIndex: number) => void;
+  /** 0-3 — rotates the whole board so the viewer's own color renders bottom-left. */
+  viewerRotation: number;
 }
 
 const ALL_COLORS: LudoColor[] = ['red', 'green', 'yellow', 'blue'];
@@ -86,12 +91,16 @@ const SOCKET_RING: Record<LudoColor, string> = {
   blue: 'rgba(26,85,143,.42)',
 };
 
-/** Fixed board-margin plate position per color — matches the design 1:1. */
-const MEDAL_POS: Record<LudoColor, { left: string; top: string }> = {
-  red: { left: '8%', top: '33.4%' },
-  green: { left: '68%', top: '33.4%' },
-  blue: { left: '8%', top: '60.6%' },
-  yellow: { left: '68%', top: '60.6%' },
+/**
+ * Fixed board-margin plate position, keyed by native screen SLOT
+ * (0=TL,1=TR,2=BR,3=BL) rather than color, so it rotates with the viewer —
+ * these are hand-tuned literals with no cell to derive them from.
+ */
+const MEDAL_POS_BY_SLOT: Record<number, { left: string; top: string }> = {
+  0: { left: '8%', top: '33.4%' }, // was red (TL)
+  1: { left: '68%', top: '33.4%' }, // was green (TR)
+  2: { left: '68%', top: '60.6%' }, // was yellow (BR)
+  3: { left: '8%', top: '60.6%' }, // was blue (BL)
 };
 
 const PAWN_SHADE: Record<LudoColor, { light: string; mid: string; dark: string }> = {
@@ -109,8 +118,8 @@ const START_GLYPH: Record<LudoColor, { char: string; fg: string }> = {
 };
 
 /** Bounding rect (as board percentages) of a color's 5-cell striped home lane — everything but the final, hub-adjacent cell. */
-function homeLaneRect(color: LudoColor) {
-  const cells = HOME_COLUMNS[color].slice(0, HOME_COLUMN_LENGTH - 1);
+function homeLaneRect(color: LudoColor, k: number) {
+  const cells = HOME_COLUMNS[color].slice(0, HOME_COLUMN_LENGTH - 1).map((c) => rotateForViewer(c, k));
   const rows = cells.map((c) => c.row);
   const cols = cells.map((c) => c.col);
   const minRow = Math.min(...rows);
@@ -157,7 +166,8 @@ function cluster(n: number): { off: [number, number][]; size: number } {
   return { off, size: 38 };
 }
 
-export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }: LudoBoardGridProps) {
+export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken, viewerRotation }: LudoBoardGridProps) {
+  const k = viewerRotation;
   const movableIndexes = new Set(validMoves.map((m) => m.tokenIndex));
   const playerByColor = new Map(players.map((p) => [p.color, p]));
 
@@ -166,7 +176,7 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
   for (const player of players) {
     const playerTokens = tokens[player.id] ?? [];
     playerTokens.forEach((token, tokenIndex) => {
-      const cell = getCellForToken(player.color, token, tokenIndex);
+      const cell = rotateForViewer(getCellForToken(player.color, token, tokenIndex), k);
       const cellKey = key(cell);
       const occupant: TokenOccupant = {
         playerId: player.id,
@@ -222,16 +232,16 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
 
         {/* Home bases */}
         {ALL_COLORS.map((color) => {
-          const o = YARD_ORIGIN[color];
+          const box = rotateBoxForViewer(YARD_ORIGIN[color], 6, 6, k);
           return (
             <div
               key={color}
               className="absolute"
               style={{
-                left: pct(o.col),
-                top: pct(o.row),
-                width: pct(6),
-                height: pct(6),
+                left: pct(box.origin.col),
+                top: pct(box.origin.row),
+                width: pct(box.w),
+                height: pct(box.h),
                 background: YARD_GRADIENT[color],
                 boxShadow: 'inset 0 0 0 2px rgba(0,0,0,.16)',
               }}
@@ -242,15 +252,16 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
         {/* Yard nests */}
         {ALL_COLORS.map((color) => {
           const o = YARD_ORIGIN[color];
+          const box = rotateBoxForViewer({ row: o.row + 1.2, col: o.col + 1.2 }, 3.6, 3.6, k);
           return (
             <div
               key={`nest-${color}`}
               className="absolute rounded-[2.6cqi]"
               style={{
-                left: pct(o.col + 1.2),
-                top: pct(o.row + 1.2),
-                width: pct(3.6),
-                height: pct(3.6),
+                left: pct(box.origin.col),
+                top: pct(box.origin.row),
+                width: pct(box.w),
+                height: pct(box.h),
                 background: '#fbf6e9',
                 boxShadow: `inset 0 0 0 1.5px ${NEST_RING[color]}, 0 2px 6px rgba(0,0,0,.22)`,
               }}
@@ -260,29 +271,32 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
 
         {/* Yard foot-rest sockets */}
         {ALL_COLORS.map((color) =>
-          YARD_SLOTS[color].map((cell, i) => (
-            <div
-              key={`socket-${color}-${i}`}
-              className="absolute"
-              style={{ left: pct(cell.col), top: pct(cell.row), width: pct(1), height: pct(1) }}
-            >
+          YARD_SLOTS[color].map((slot, i) => {
+            const cell = rotateForViewer(slot, k);
+            return (
               <div
-                className="absolute rounded-full"
-                style={{
-                  left: '17%',
-                  right: '17%',
-                  bottom: '5%',
-                  height: '19%',
-                  boxShadow: `inset 0 0 0 1.5px ${SOCKET_RING[color]}`,
-                }}
-              />
-            </div>
-          )),
+                key={`socket-${color}-${i}`}
+                className="absolute"
+                style={{ left: pct(cell.col), top: pct(cell.row), width: pct(1), height: pct(1) }}
+              >
+                <div
+                  className="absolute rounded-full"
+                  style={{
+                    left: '17%',
+                    right: '17%',
+                    bottom: '5%',
+                    height: '19%',
+                    boxShadow: `inset 0 0 0 1.5px ${SOCKET_RING[color]}`,
+                  }}
+                />
+              </div>
+            );
+          }),
         )}
 
         {/* Home lanes (striped) */}
         {ALL_COLORS.map((color) => {
-          const r = homeLaneRect(color);
+          const r = homeLaneRect(color, k);
           const stripe = HOME_STRIPE_HEX[color];
           return (
             <div
@@ -304,7 +318,7 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
 
         {/* Start cells */}
         {ALL_COLORS.map((color) => {
-          const cell = RING_PATH[COLOR_START_OFFSET[color]];
+          const cell = rotateForViewer(RING_PATH[COLOR_START_OFFSET[color]], k);
           const glyph = START_GLYPH[color];
           return (
             <div
@@ -319,7 +333,9 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
                 boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.28)',
               }}
             >
-              <span style={{ color: glyph.fg, fontSize: '2.2cqi' }}>{glyph.char}</span>
+              <span style={{ color: glyph.fg, fontSize: '2.2cqi', transform: `rotate(${k * 90}deg)`, display: 'inline-block' }}>
+                {glyph.char}
+              </span>
             </div>
           );
         })}
@@ -327,7 +343,7 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
         {/* Safe stars (one per arm, colored by the next color around the ring) */}
         {ORDER.map((color, i) => {
           const idx = (COLOR_START_OFFSET[color] + 8) % RING_PATH.length;
-          const cell = RING_PATH[idx];
+          const cell = rotateForViewer(RING_PATH[idx], k);
           const starColor = SAFE_STAR_HEX[ORDER[(i + 1) % 4]];
           return (
             <div
@@ -347,7 +363,7 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
           );
         })}
 
-        {/* Center pinwheel */}
+        {/* Center pinwheel — rotates as one rigid unit; CENTER_POINT maps onto itself */}
         <div
           className="absolute"
           style={{
@@ -356,6 +372,7 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
             width: pct(3),
             height: pct(3),
             boxShadow: 'inset 0 0 0 2px rgba(0,0,0,.25), 0 0 18px rgba(0,0,0,.1)',
+            transform: `rotate(${k * 90}deg)`,
           }}
         >
           <div
@@ -386,7 +403,8 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken }
         {ALL_COLORS.filter((c) => playerByColor.has(c)).map((color) => {
           const player = playerByColor.get(color)!;
           const isMe = player.id === myId;
-          const pos = MEDAL_POS[color];
+          const slot = (NATIVE_SLOT[color] + k) % 4;
+          const pos = MEDAL_POS_BY_SLOT[slot];
           const sh = PAWN_SHADE[color];
           return (
             <div

@@ -18,7 +18,7 @@ This project hosts multiple gambling games (list TBD) inside one hub. Instead of
 1. **Every game is a separate, self-contained module** — same plugin pattern as Trumpcard Hub. No shared game logic between games.
 2. **Adapter/interface pattern for money logic.** Games never touch the database or treasury wallet directly — they only call shared functions (`lockBalance`, `settleMatch`, `refundMatch`, `forfeitPlayer`). This means the deposit/withdraw method can be upgraded later (treasury model → real on-chain program) by changing one implementation, not every game.
 3. **Chain is touched rarely.** Betting, escrow, and settlement all happen off-chain in PostgreSQL/Socket.IO for speed. The blockchain is only touched at deposit and withdrawal.
-4. **Reusable frontend components** — shared UI (wallet balance display, bet slip, leaderboard row, etc.) built once, reused across every game's page.
+4. **Reusable frontend components** — shared UI (wallet balance display, bet slip, leaderboard row, etc.) built once, reused across every game's page. This includes shared in-match UX conventions, not just static widgets — see `12-Game-UI-Conventions.md` for the Turn Notification popup every turn-based game should use.
 5. **One source of truth per rule.** Fees, payout splits, betting modes and match discovery are defined once in `10-Game-Common-Rules.md` and applied by the escrow layer (discovery by the hub lobby, which runs before escrow). No game — and no other doc — restates a rate or a split; it links to doc 10 instead.
 
 ## Status
@@ -48,6 +48,7 @@ Online real-money gambling (games of chance for stakes) is currently restricted 
 - `02-Deposit-Withdraw.md` — treasury model, deposit detection, withdrawal flow
 - `03-Escrow.md` — bet locking, settlement, disconnect/crash rules — the *mechanism* that moves money
 - `10-Game-Common-Rules.md` — the *policy* escrow enforces: platform fee, payout splits, betting modes, and (Rule 4) how two players find each other. Single source of truth for every rate and split in the project.
+- `12-Game-UI-Conventions.md` — shared in-match UX conventions every turn-based game should implement (currently: the Turn Notification popup + countdown). Not a money rule — a presentation one.
 
 **Games**
 - `04-Games-Index.md` — master list and status of all games
