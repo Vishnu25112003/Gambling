@@ -1,6 +1,6 @@
-import { Frown, Trophy } from 'lucide-react';
-import { Card, Button } from '../../components/shared/ui';
+import { Button } from '../../components/shared/ui';
 import { formatSol } from '../../lib/format';
+import { MINE_COUNT } from './mineCatcherTheme';
 
 interface MineCatcherResultProps {
   won: boolean;
@@ -18,6 +18,18 @@ interface MineCatcherResultProps {
   onBackToGames?: () => void;
 }
 
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const shotLine = (found: number, misses: number) => {
+  const shots = found + misses;
+  return `${plural(shots, 'shot')} · ${shots ? Math.round((found / shots) * 100) : 0}% acc`;
+};
+
+/**
+ * Reskin of the "Field cleared" result screen from `Mine Catcher.dc.html` —
+ * same glowing headline + two-up stat cards, layered with the payout
+ * breakdown and disconnect messaging the design didn't need to model (it
+ * had no real stakes attached).
+ */
 export function MineCatcherResult({
   won,
   myId,
@@ -37,58 +49,55 @@ export function MineCatcherResult({
   const myPayout = payouts.find((p) => p.userId === myId)?.payout ?? '0';
 
   const endCauseLabel = endCause === 'race_won'
-    ? 'Found all 10 mines first'
+    ? `Found all ${MINE_COUNT} mines first`
     : endCause === 'lives_forfeit'
       ? 'Opponent ran out of lives'
       : endCause === 'dual_unreachable'
         ? 'Both players disconnected'
         : '';
 
-  return (
-    <Card className="mx-auto max-w-sm px-6 py-10 text-center">
-      {won ? (
-        <Trophy className="mx-auto mb-3 size-12 text-gold" />
-      ) : (
-        <Frown className="mx-auto mb-3 size-12 text-muted" />
-      )}
-      <p className="mb-1 text-xl font-extrabold">
-        {won ? 'You won!' : winnerId ? 'You lost.' : 'No winner.'}
-      </p>
-      <p className="mb-6 text-sm text-muted">{endCauseLabel}</p>
+  const winColor = winnerId === myId || !winnerId ? 'var(--green)' : 'var(--red)';
+  const winGlow = winnerId === myId || !winnerId ? 'rgba(74,222,128,.35)' : 'rgba(248,113,113,.4)';
+  const headline = won ? 'Victory' : winnerId ? 'Defeat' : 'No winner';
 
-      {/* Scoreboard */}
-      <div className="mb-6 rounded-[12px] border border-line bg-bg2 px-4 py-3">
-        <div className="flex items-center justify-between border-b border-line py-2">
-          <span className="text-xs text-muted">Player</span>
-          <div className="flex gap-4 text-xs text-muted">
-            <span>Found</span>
-            <span>Breaks</span>
-            <span>Lives</span>
+  return (
+    <div className="mx-auto w-full max-w-[560px] text-center" style={{ fontFamily: "'Chakra Petch',Inter,sans-serif" }}>
+      <div className="font-mono text-[10px] tracking-[.3em] text-muted uppercase">Field cleared</div>
+      <div
+        className="mt-3 text-[52px] leading-none font-bold tracking-[.04em] uppercase"
+        style={{ color: winColor, textShadow: `0 0 44px ${winGlow}` }}
+      >
+        {headline}
+      </div>
+      <div className="mt-1.5 text-[13px] text-muted">{endCauseLabel}</div>
+
+      <div className="my-7 grid grid-cols-2 gap-2.5 text-left">
+        <div className="rounded-[6px] border border-line bg-[linear-gradient(#0c120d,#080d09)] px-4 py-4">
+          <div className="font-mono text-[10px] tracking-[.18em] text-muted uppercase">You</div>
+          <div className="mt-1.5 font-mono text-2xl font-extrabold text-green">
+            {foundCounts[myId] ?? 0}
+            <span className="text-[13px] text-faint">/{MINE_COUNT}</span>
+          </div>
+          <div className="mt-1 font-mono text-[10px] text-muted">
+            {shotLine(foundCounts[myId] ?? 0, breakCounts[myId] ?? 0)} · {lives[myId] ?? 0} lives left
           </div>
         </div>
-        <div className={`flex items-center justify-between py-2 ${myId === winnerId ? 'text-green' : ''}`}>
-          <span className="text-sm font-bold">You</span>
-          <div className="flex gap-4 text-sm font-bold">
-            <span>{foundCounts[myId] ?? 0}/10</span>
-            <span className="text-muted">{breakCounts[myId] ?? 0}</span>
-            <span>{lives[myId] ?? 0}</span>
+        <div className="rounded-[6px] border border-red/15 bg-[linear-gradient(#0c120d,#080d09)] px-4 py-4">
+          <div className="font-mono text-[10px] tracking-[.18em] text-muted uppercase">
+            {opponentId ? (playerNames[opponentId] ?? 'Opponent') : 'Opponent'}
+          </div>
+          <div className="mt-1.5 font-mono text-2xl font-extrabold text-red">
+            {foundCounts[opponentId] ?? 0}
+            <span className="text-[13px] text-faint">/{MINE_COUNT}</span>
+          </div>
+          <div className="mt-1 font-mono text-[10px] text-muted">
+            {shotLine(foundCounts[opponentId] ?? 0, breakCounts[opponentId] ?? 0)} · {lives[opponentId] ?? 0} lives left
           </div>
         </div>
-        {opponentId && (
-          <div className={`flex items-center justify-between py-2 ${opponentId === winnerId ? 'text-green' : ''}`}>
-            <span className="text-sm font-bold">{playerNames[opponentId] ?? 'Opponent'}</span>
-            <div className="flex gap-4 text-sm font-bold">
-              <span>{foundCounts[opponentId] ?? 0}/10</span>
-              <span className="text-muted">{breakCounts[opponentId] ?? 0}</span>
-              <span>{lives[opponentId] ?? 0}</span>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Payout breakdown */}
       {pot && (
-        <div className="mb-6 rounded-[12px] border border-line bg-bg2 px-4 py-3">
+        <div className="mb-6 rounded-[6px] border border-line bg-[linear-gradient(#0c120d,#080d09)] px-4 py-3 text-left">
           <div className="flex justify-between text-xs">
             <span className="text-muted">Stake</span>
             <span className="font-bold">{formatSol(payouts[0]?.payout ?? '0')} SOL</span>
@@ -113,8 +122,8 @@ export function MineCatcherResult({
       )}
 
       {endCause === 'dual_unreachable' && (
-        <div className="mb-6 rounded-[12px] border border-yellow/30 bg-yellow/10 px-4 py-3">
-          <p className="text-xs text-yellow">
+        <div className="mb-6 rounded-[6px] border border-gold/30 bg-gold/10 px-4 py-3 text-left">
+          <p className="text-xs text-gold">
             Both players were unreachable at the same time. The platform retains the pot per game rules.
           </p>
         </div>
@@ -122,9 +131,14 @@ export function MineCatcherResult({
 
       <div className="space-y-2">
         {onRematch && endCause !== 'dual_unreachable' && (
-          <Button variant="primary" className="w-full" onClick={onRematch}>
-            Rematch
-          </Button>
+          <button
+            type="button"
+            onClick={onRematch}
+            className="w-full rounded-[6px] py-4 text-[14px] font-bold tracking-[.16em] text-[#06170d] uppercase"
+            style={{ background: 'linear-gradient(#a8f07a,#5fc23c)', boxShadow: '0 6px 0 #35761f' }}
+          >
+            Run it back
+          </button>
         )}
         {onBackToGames && (
           <Button variant="ghost" size="sm" className="w-full" onClick={onBackToGames}>
@@ -132,6 +146,6 @@ export function MineCatcherResult({
           </Button>
         )}
       </div>
-    </Card>
+    </div>
   );
 }
