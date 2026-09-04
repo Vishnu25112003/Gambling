@@ -88,6 +88,7 @@ export const HC_EVENTS = {
   MATCH_STATE: 'hc:state',
   MATCH_CREATED: 'hc:created',
   MATCHES_LIST: 'hc:matches',
+  STAKE_REQUIRED: 'hc:stake:required',
   INNINGS_STARTED: 'hc:innings:started',
   BALL_STARTED: 'hc:ball:started',
   BALL_RESULT: 'hc:ball:result',

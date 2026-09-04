@@ -517,7 +517,7 @@ export function registerHandCricketSocket(namespace: Namespace, socket: Socket):
   });
 
   // --- JOIN_MATCH ---
-  socket.on(HC_EVENTS.JOIN_MATCH, async (data: { matchId?: string; roomCode?: string }) => {
+  socket.on(HC_EVENTS.JOIN_MATCH, async (data: { matchId?: string; roomCode?: string; stake?: number }) => {
     try {
       let matchId: string | undefined;
       let usedRoomCode: string | undefined;
@@ -581,13 +581,40 @@ export function registerHandCricketSocket(namespace: Namespace, socket: Socket):
       const ballsPerInnings = gs.ballsPerInnings ?? 6;
       const stakeAmount = publicMatches.get(matchId)?.stake ?? 0.1;
       const betMode = gs.betMode ?? 'fixed';
+      const minBet = gs.minBet ?? publicMatches.get(matchId)?.minBet ?? null;
 
-      const stakeDecimal = new Decimal(stakeAmount);
+      // Free Bet: the joiner picks their own stake before anything is locked
+      // or the participant row created — bouncing back here is side-effect-
+      // free and safe for the client to repeat with a chosen amount. Same
+      // pattern as Ludo's JOIN_MATCH.
+      let joinerStake = stakeAmount;
+      if (betMode === 'free') {
+        const submitted = data.stake;
+        if (submitted == null) {
+          socket.emit(HC_EVENTS.STAKE_REQUIRED, {
+            matchId,
+            hostName: publicMatches.get(matchId)?.hostName ?? 'Player',
+            minBet: minBet != null ? String(minBet) : null,
+          });
+          return;
+        }
+        const chosen = Number(submitted);
+        if (!Number.isFinite(chosen) || chosen <= 0) {
+          socket.emit(HC_EVENTS.ERROR, { message: 'Stake must be a positive amount' });
+          return;
+        }
+        if (minBet != null && chosen < minBet) {
+          socket.emit(HC_EVENTS.ERROR, { message: `Stake must be at least ${minBet} SOL` });
+          return;
+        }
+        joinerStake = chosen;
+      }
+
       const hostParticipant = dbMatch.participants[0];
       if (hostParticipant) {
-        await escrow.lockBalance(hostParticipant.userId, stakeDecimal, matchId);
+        await escrow.lockBalance(hostParticipant.userId, new Decimal(stakeAmount), matchId);
       }
-      await escrow.lockBalance(userId, stakeDecimal, matchId);
+      await escrow.lockBalance(userId, new Decimal(joinerStake), matchId);
 
       const playerIds = [dbMatch.participants[0]?.userId ?? userId, userId] as [string, string];
       if (dbMatch.participants[0] && dbMatch.participants[0].userId !== playerIds[0]) {

@@ -17,6 +17,10 @@ export interface FinishedInningsSummary {
 
 interface HandCricketPickBoardProps {
   isSuperOver: boolean;
+  /** Whichever player created the match — fixed for its whole lifetime, so
+   * the blue/red hands and scorecards can stay put instead of swapping
+   * sides depending on who's looking at the screen. */
+  isHost: boolean;
   myRole: 'batting' | 'bowling';
   myRuns: number;
   opponentRuns: number;
@@ -28,6 +32,9 @@ interface HandCricketPickBoardProps {
   opponentLives: number;
   mySubmitted: boolean;
   reveal: BallReveal | null;
+  /** Set for 2.5s between a resolved ball and the next one starting — see
+   * HandCricketBoard's BALL_STARTED handler. */
+  nextRoundNumber: number | null;
   onPick: (n: 1 | 2 | 3 | 4 | 5 | 6) => void;
 }
 
@@ -45,6 +52,7 @@ const LUCKIEST = "'Luckiest Guy', cursive";
  */
 export function HandCricketPickBoard({
   isSuperOver,
+  isHost,
   myRole,
   myRuns,
   opponentRuns,
@@ -56,9 +64,11 @@ export function HandCricketPickBoard({
   opponentLives,
   mySubmitted,
   reveal,
+  nextRoundNumber,
   onPick,
 }: HandCricketPickBoardProps) {
   const isBatting = myRole === 'batting';
+  const otherRole: 'batting' | 'bowling' = isBatting ? 'bowling' : 'batting';
   const locked = mySubmitted || reveal !== null;
   const shaking = mySubmitted && !reveal;
 
@@ -70,8 +80,21 @@ export function HandCricketPickBoard({
     setMyPick(null);
   }, [ballNumber, isSuperOver]);
 
-  const leftPose = reveal ? (isBatting ? reveal.batterPick : reveal.bowlerPick) : (myPick ?? 0);
-  const rightPose = reveal ? (isBatting ? reveal.bowlerPick : reveal.batterPick) : 0;
+  const myPickPose = reveal ? (isBatting ? reveal.batterPick : reveal.bowlerPick) : (myPick ?? 0);
+  const opponentPickPose = reveal ? (isBatting ? reveal.bowlerPick : reveal.batterPick) : 0;
+
+  // Host is always the blue/left hand and card, the joiner always red/right
+  // — fixed by who created the match, not by who's currently looking.
+  const leftPose = isHost ? myPickPose : opponentPickPose;
+  const rightPose = isHost ? opponentPickPose : myPickPose;
+  const hostLabel = isHost ? 'You' : 'Opponent';
+  const joinerLabel = isHost ? 'Opponent' : 'You';
+  const hostRuns = isHost ? myRuns : opponentRuns;
+  const joinerRuns = isHost ? opponentRuns : myRuns;
+  const hostRole = isHost ? myRole : otherRole;
+  const joinerRole = isHost ? otherRole : myRole;
+  const hostLives = isHost ? myLives : opponentLives;
+  const joinerLives = isHost ? opponentLives : myLives;
 
   const timerColor = pickTimeLeft <= 3 ? '#ff8f92' : pickTimeLeft <= 6 ? '#ffe9a8' : '#cfe8ff';
 
@@ -138,19 +161,19 @@ export function HandCricketPickBoard({
         )}
 
         <div className="flex w-full items-stretch justify-between gap-2.5">
-          <ScoreCard label="You" runs={myRuns} role={isBatting ? 'batting' : 'bowling'} tone="blue" />
+          <ScoreCard label={hostLabel} runs={hostRuns} role={hostRole} tone="blue" />
           <div
             className="flex items-center"
             style={{ fontFamily: LUCKIEST, fontSize: 18, color: '#fff', textShadow: '0 3px 0 #1a3f7a' }}
           >
             VS
           </div>
-          <ScoreCard label="Opponent" runs={opponentRuns} role={!isBatting ? 'batting' : 'bowling'} tone="red" />
+          <ScoreCard label={joinerLabel} runs={joinerRuns} role={joinerRole} tone="red" />
         </div>
 
         <div className="flex w-full items-center justify-between px-1">
-          <LivesRow lives={myLives} />
-          <LivesRow lives={opponentLives} reversed />
+          <LivesRow lives={hostLives} />
+          <LivesRow lives={joinerLives} reversed />
         </div>
 
         <div
@@ -221,6 +244,31 @@ export function HandCricketPickBoard({
                   ? `You made ${myRuns}. Now defend it.`
                   : `They made ${opponentRuns}. Bowled them out.`}
               </div>
+            </div>
+          </div>
+        )}
+
+        {nextRoundNumber !== null && (
+          <div
+            className="absolute inset-0 flex items-center justify-center p-6"
+            style={{ background: 'rgba(9,24,44,.78)' }}
+          >
+            <div
+              className="flex w-full flex-col items-center gap-2 text-center"
+              style={{
+                animation: 'hcPopIn .35s ease-out',
+                maxWidth: 340,
+                padding: '22px 26px',
+                borderRadius: 26,
+                background: 'linear-gradient(#ffffff,#e8f3ff)',
+                border: '6px solid #1a3f7a',
+                boxShadow: '0 12px 0 #102b52',
+              }}
+            >
+              <div style={{ fontFamily: LUCKIEST, fontSize: 26, color: '#12305e', lineHeight: 1.1 }}>
+                Round {nextRoundNumber}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#4a6f96' }}>Get ready for the next ball…</div>
             </div>
           </div>
         )}
