@@ -23,6 +23,10 @@ interface HandCricketResultProps {
   feeCollected: string | null;
   payouts: { userId: string; payout: string }[];
   playerNames?: Record<string, string>;
+  /** 'waiting': this player already asked for a rematch and is waiting on
+   * the opponent. 'offered': the opponent asked first — accepting sends
+   * the same REMATCH_REQUEST. */
+  rematchStatus: 'idle' | 'waiting' | 'offered';
   onRematch?: () => void;
   onBackToGames?: () => void;
 }
@@ -43,6 +47,7 @@ export function HandCricketResult({
   feeCollected,
   payouts,
   playerNames = {},
+  rematchStatus,
   onRematch,
   onBackToGames,
 }: HandCricketResultProps) {
@@ -142,10 +147,25 @@ export function HandCricketResult({
         </div>
       )}
 
+      {rematchStatus === 'offered' && (
+        <div className="mb-3 rounded-[12px] border border-green-solid/30 bg-green-solid/10 px-4 py-3">
+          <p className="text-xs text-green">Your opponent wants a rematch!</p>
+        </div>
+      )}
+
       <div className="space-y-2">
         {onRematch && !rematchSuppressed && (
-          <Button variant="primary" className="w-full" onClick={onRematch}>
-            Rematch
+          <Button
+            variant="primary"
+            className="w-full"
+            onClick={onRematch}
+            disabled={rematchStatus === 'waiting'}
+          >
+            {rematchStatus === 'waiting'
+              ? 'Waiting for opponent…'
+              : rematchStatus === 'offered'
+                ? 'Accept Rematch'
+                : 'Rematch'}
           </Button>
         )}
         {onBackToGames && (

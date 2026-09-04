@@ -21,6 +21,8 @@ const HC = {
   LIST_MATCHES: 'hc:list',
   PICK_NUMBER: 'hc:pick',
   REMATCH_REQUEST: 'hc:rematch:request',
+  REMATCH_WAITING: 'hc:rematch:waiting',
+  REMATCH_OFFERED: 'hc:rematch:offered',
   MATCH_STATE: 'hc:state',
   MATCH_CREATED: 'hc:created',
   MATCHES_LIST: 'hc:matches',
@@ -138,34 +140,47 @@ export function HandCricketBoard() {
   // Result state
   const [result, setResult] = useState<MatchResult | null>(null);
   const [rematchAvailable, setRematchAvailable] = useState(false);
+  const [rematchStatus, setRematchStatus] = useState<'idle' | 'waiting' | 'offered'>('idle');
 
   const myId = user?.id ?? '';
   // players[0] is always the match creator — see backend JOIN_MATCH, which
   // keeps dbMatch.participants[0] (the host) first when building playerIds.
   const isHost = players.length > 0 && players[0]?.id === myId;
 
-  // Mirrored into a ref so the socket-connection effect (which must stay
-  // mounted for the lifetime of a match) can read the current live-run
-  // totals without tearing the socket down when they change — same pattern
-  // as Mine Catcher's opponentIdRef/boardSizeRef.
+  // runsRef/revealRef mirror the equivalent state into refs the socket
+  // handlers can read synchronously. They're updated directly inside the
+  // handlers below — NOT via a useEffect keyed on the state — because the
+  // server routinely emits the next event (BALL_STARTED / INNINGS_STARTED /
+  // SUPER_OVER_STARTED / MATCH_RESULT) in the very same tick as the one
+  // that produced this state, before React has run any effects. An
+  // effect-mirrored ref would still read the *previous* value in that case,
+  // which silently skipped the reveal hold below (and, for a wicket, could
+  // clear the OUT overlay before it ever painted).
   const runsRef = useRef({ myRuns: 0, opponentRuns: 0 });
-  useEffect(() => {
-    runsRef.current = { myRuns, opponentRuns };
-  }, [myRuns, opponentRuns]);
-
-  // Same reasoning as runsRef: BALL_STARTED needs to know whether a reveal
-  // is currently on screen (to decide whether to hold for the next-round
-  // banner below) without re-subscribing the socket every time it changes.
   const revealRef = useRef<BallReveal | null>(null);
-  useEffect(() => {
-    revealRef.current = reveal;
-  }, [reveal]);
 
-  const nextBallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function clearNextBallTimer() {
-    if (nextBallTimerRef.current) {
-      clearTimeout(nextBallTimerRef.current);
-      nextBallTimerRef.current = null;
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function clearHoldTimer() {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  }
+
+  // Every transition that follows a resolved ball — the next ball, the next
+  // innings, a Super Over, or the match result — waits for the reveal (or
+  // wicket overlay) currently on screen to sit for 2.5s before advancing.
+  // With nothing on screen yet (e.g. the very first ball of the match) it
+  // applies immediately.
+  function afterReveal(apply: () => void) {
+    clearHoldTimer();
+    if (revealRef.current) {
+      holdTimerRef.current = setTimeout(() => {
+        holdTimerRef.current = null;
+        apply();
+      }, 2500);
+    } else {
+      apply();
     }
   }
 
@@ -246,9 +261,12 @@ export function HandCricketBoard() {
         if (currentInningsIndex !== null) {
           const live = innings[currentInningsIndex];
           if (live) {
+            const mine = live.batterId === myId ? live.runs : 0;
+            const theirs = live.batterId === myId ? 0 : live.runs;
             setMyRole(live.batterId === myId ? 'batting' : 'bowling');
-            setMyRuns(live.batterId === myId ? live.runs : 0);
-            setOpponentRuns(live.batterId === myId ? 0 : live.runs);
+            setMyRuns(mine);
+            setOpponentRuns(theirs);
+            runsRef.current = { myRuns: mine, opponentRuns: theirs };
             setBallNumber(live.ballsBowled + 1);
           }
           setFinishedInnings(
@@ -261,6 +279,12 @@ export function HandCricketBoard() {
         }
 
         if (data.state.pendingBall) {
+          // A ball is actively awaiting picks — any reveal/hold left over
+          // from before a reconnect no longer applies.
+          clearHoldTimer();
+          revealRef.current = null;
+          setReveal(null);
+          setNextRoundNumber(null);
           const elapsed = Math.floor((Date.now() - data.state.pendingBall.ballStartedAt) / 1000);
           setPickTimeLeft(Math.max(0, PICK_TIMEOUT_SEC - elapsed));
           setMySubmitted(data.state.pendingBall.picks[myId] !== undefined);
@@ -271,64 +295,67 @@ export function HandCricketBoard() {
       }
     });
 
+    // The server advances the instant a ball resolves — no pause of its
+    // own — for every kind of transition: the next ball, the next innings,
+    // a Super Over, or the match result. Applying any of these immediately
+    // would wipe the reveal (or the wicket overlay) before a player could
+    // read it, so each one runs through afterReveal() to hold for 2.5s
+    // first whenever there's something on screen to hold for.
     socket.on(HC.INNINGS_STARTED, (data: {
       inningsId: 'first' | 'second' | 'super_second';
       batterId: string;
       bowlerId: string;
       ballsPerInnings: number;
     }) => {
-      if (data.inningsId === 'second') pushFinishedInnings('Innings 1');
-      if (data.inningsId === 'super_second') pushFinishedInnings('Super Over 1');
+      afterReveal(() => {
+        if (data.inningsId === 'second') pushFinishedInnings('Innings 1');
+        if (data.inningsId === 'super_second') pushFinishedInnings('Super Over 1');
 
-      clearNextBallTimer();
-      setNextRoundNumber(null);
-      setMyRole(data.batterId === myId ? 'batting' : 'bowling');
-      setMyRuns(0);
-      setOpponentRuns(0);
-      setBallNumber(1);
-      setMySubmitted(false);
-      setReveal(null);
-      setPage(data.inningsId === 'super_second' ? 'super_over' : 'batting');
+        revealRef.current = null;
+        setNextRoundNumber(null);
+        setMyRole(data.batterId === myId ? 'batting' : 'bowling');
+        setMyRuns(0);
+        setOpponentRuns(0);
+        runsRef.current = { myRuns: 0, opponentRuns: 0 };
+        setBallNumber(1);
+        setMySubmitted(false);
+        setReveal(null);
+        setRematchStatus('idle');
+        setPage(data.inningsId === 'super_second' ? 'super_over' : 'batting');
+      });
     });
 
     socket.on(HC.SUPER_OVER_STARTED, (data: { batterId: string; bowlerId: string; ballsPerInnings: number }) => {
-      pushFinishedInnings('Innings 2');
-      clearNextBallTimer();
-      setNextRoundNumber(null);
-      setMyRole(data.batterId === myId ? 'batting' : 'bowling');
-      setMyRuns(0);
-      setOpponentRuns(0);
-      setBallNumber(1);
-      setMySubmitted(false);
-      setReveal(null);
-      setPage('super_over');
+      afterReveal(() => {
+        pushFinishedInnings('Innings 2');
+        revealRef.current = null;
+        setNextRoundNumber(null);
+        setMyRole(data.batterId === myId ? 'batting' : 'bowling');
+        setMyRuns(0);
+        setOpponentRuns(0);
+        runsRef.current = { myRuns: 0, opponentRuns: 0 };
+        setBallNumber(1);
+        setMySubmitted(false);
+        setReveal(null);
+        setPage('super_over');
+      });
     });
 
-    // The server starts the next ball the instant the previous one resolves
-    // — no pause of its own. Applying that immediately would wipe the reveal
-    // (and the pad would unlock) before a player could read what happened.
-    // So: when this ball follows a reveal that's still on screen, hold it —
-    // show a "next round" title for 2.5s — before applying the new ball.
     socket.on(HC.BALL_STARTED, (data: { ballNumber: number; ballStartedAt: number }) => {
-      const applyBallStart = () => {
+      // Only the same-innings case gets a "Round N" title — a wicket
+      // already has its own OUT overlay to hold on, and doesn't reach here
+      // (a wicket's next event is INNINGS_STARTED/SUPER_OVER_STARTED, not
+      // another BALL_STARTED).
+      if (revealRef.current) setNextRoundNumber(data.ballNumber);
+      afterReveal(() => {
+        revealRef.current = null;
         setReveal(null);
         setNextRoundNumber(null);
         setMySubmitted(false);
         setBallNumber(data.ballNumber);
         const elapsed = Math.floor((Date.now() - data.ballStartedAt) / 1000);
         setPickTimeLeft(Math.max(0, PICK_TIMEOUT_SEC - elapsed));
-      };
-
-      if (revealRef.current) {
-        setNextRoundNumber(data.ballNumber);
-        clearNextBallTimer();
-        nextBallTimerRef.current = setTimeout(() => {
-          nextBallTimerRef.current = null;
-          applyBallStart();
-        }, 2500);
-      } else {
-        applyBallStart();
-      }
+      });
     });
 
     socket.on(HC.BALL_RESULT, (data: {
@@ -339,11 +366,22 @@ export function HandCricketBoard() {
       batterId: string;
       totalRuns: number;
     }) => {
-      setReveal({ batterPick: data.batterPick, bowlerPick: data.bowlerPick, runsScored: data.runsScored, out: data.out });
+      const nextReveal: BallReveal = {
+        batterPick: data.batterPick,
+        bowlerPick: data.bowlerPick,
+        runsScored: data.runsScored,
+        out: data.out,
+      };
+      // Set synchronously (not just via setState) so the very next socket
+      // event — which can arrive before this render commits — sees it.
+      revealRef.current = nextReveal;
+      setReveal(nextReveal);
       if (data.batterId === myId) {
         setMyRuns(data.totalRuns);
+        runsRef.current.myRuns = data.totalRuns;
       } else {
         setOpponentRuns(data.totalRuns);
+        runsRef.current.opponentRuns = data.totalRuns;
       }
       clearTimer();
     });
@@ -359,12 +397,29 @@ export function HandCricketBoard() {
     });
 
     socket.on(HC.MATCH_RESULT, (data: MatchResult & { matchId?: string }) => {
-      setResult(data);
-      setPage('match_result');
-      setRematchAvailable(data.endCause !== 'dual_unreachable' && data.endCause !== 'lives_forfeit');
+      // Only holds when the match ended on a resolved ball (revealRef set);
+      // a forfeit/disconnect end has nothing on screen to wait for.
+      afterReveal(() => {
+        revealRef.current = null;
+        setReveal(null);
+        setNextRoundNumber(null);
+        setResult(data);
+        setPage('match_result');
+        setRematchAvailable(data.endCause !== 'dual_unreachable' && data.endCause !== 'lives_forfeit');
+        setRematchStatus('idle');
+      });
       clearTimer();
-      clearNextBallTimer();
-      setNextRoundNumber(null);
+    });
+
+    // First player to ask waits; the other gets offered the same request —
+    // accepting just re-emits REMATCH_REQUEST, which starts the match once
+    // both have confirmed (see backend REMATCH_REQUEST).
+    socket.on(HC.REMATCH_WAITING, () => {
+      setRematchStatus('waiting');
+    });
+
+    socket.on(HC.REMATCH_OFFERED, () => {
+      setRematchStatus('offered');
     });
 
     socket.on(HC.OPPONENT_DISCONNECTED, (_data: { userId: string }) => {
@@ -386,7 +441,7 @@ export function HandCricketBoard() {
 
     return () => {
       clearTimer();
-      clearNextBallTimer();
+      clearHoldTimer();
       socket.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -667,6 +722,7 @@ export function HandCricketBoard() {
           feeCollected={result.feeCollected}
           payouts={result.payouts}
           playerNames={Object.fromEntries(players.map((p) => [p.id, p.displayName ?? 'Player']))}
+          rematchStatus={rematchStatus}
           onRematch={rematchAvailable ? handleRematch : undefined}
           onBackToGames={handleBackToGames}
         />
