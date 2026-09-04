@@ -112,9 +112,18 @@ export function MineCatcherBoard() {
   const [myFoundCount, setMyFoundCount] = useState(0);
   const [opponentFoundCount, setOpponentFoundCount] = useState(0);
   const [myBreakCount, setMyBreakCount] = useState(0);
+  const [opponentBreakCount, setOpponentBreakCount] = useState(0);
   const [myLives, setMyLives] = useState(3);
   const [opponentLives, setOpponentLives] = useState(3);
   const [lastAttack, setLastAttack] = useState<{ cellIndex: number; type: 'break' | 'blast' } | null>(null);
+  // The cells I buried during placement — I placed them, so I always know
+  // where they are. Combined with ownReveals (which of them the opponent
+  // has since attacked), this drives the "Your field" mini-grid.
+  const [ownMinePositions, setOwnMinePositions] = useState<number[]>([]);
+  const [ownReveals, setOwnReveals] = useState<Record<number, 'break' | 'blast'>>({});
+  const [combatLog, setCombatLog] = useState<
+    { id: string; attacker: 'me' | 'opponent'; cellIndex: number; hit: boolean }[]
+  >([]);
 
   // Result state
   const [result, setResult] = useState<MatchResult | null>(null);
@@ -227,6 +236,13 @@ export function MineCatcherBoard() {
       setBoardSize(data.boardSize as BoardSize);
       const elapsed = Math.floor((Date.now() - data.placementStartedAt) / 1000);
       setPlacementTimeLeft(Math.max(0, Math.floor(data.placementTimeout / 1000) - elapsed));
+      // A fresh placement phase means a fresh match (initial deal or rematch) —
+      // clear everything scoped to the previous match's attack phase.
+      setOwnMinePositions([]);
+      setOwnReveals({});
+      setOpponentBreakCount(0);
+      setCombatLog([]);
+      setLastAttack(null);
     });
 
     socket.on(MC.MINES_PLACED, (_data: { userId: string; mineCount: number }) => {
@@ -269,7 +285,8 @@ export function MineCatcherBoard() {
       foundCounts: Record<string, number>;
       breakCounts: Record<string, number>;
     }) => {
-      if (data.attackerId === myId) {
+      const iAttacked = data.attackerId === myId;
+      if (iAttacked) {
         // I attacked — update opponent's board as I see it
         setOpponentCells((prev) => {
           const next = [...prev];
@@ -278,11 +295,23 @@ export function MineCatcherBoard() {
         });
         setMyFoundCount(data.foundCounts[myId] ?? 0);
         setMyBreakCount(data.breakCounts[myId] ?? 0);
+        // Only my own attacks land on the grid this view renders (the
+        // opponent's board) — an opponent attack resolves on MY board,
+        // a different grid, so it must not drive this highlight.
+        setLastAttack({ cellIndex: data.cellIndex, type: data.result });
       } else {
-        // Opponent attacked me — no update to opponentCells (my board is hidden from me)
+        // Opponent attacked me — reveal that cell on "my field" (I already
+        // know where my own mines are; I placed them) and update their stats.
         setOpponentFoundCount(data.foundCounts[opponentIdRef.current] ?? 0);
+        setOpponentBreakCount(data.breakCounts[opponentIdRef.current] ?? 0);
+        setOwnReveals((prev) => ({ ...prev, [data.cellIndex]: data.result }));
       }
-      setLastAttack({ cellIndex: data.cellIndex, type: data.result });
+      setCombatLog((prev) =>
+        [
+          { id: `${Date.now()}-${data.cellIndex}-${prev.length}`, attacker: iAttacked ? 'me' : 'opponent', cellIndex: data.cellIndex, hit: data.result === 'blast' } as const,
+          ...prev,
+        ].slice(0, 8),
+      );
     });
 
     socket.on(MC.TURN_START, (data: {
@@ -402,6 +431,7 @@ export function MineCatcherBoard() {
   }, []);
 
   const handlePlace = useCallback((cells: number[]) => {
+    setOwnMinePositions(cells);
     socketRef.current?.emit(MC.PLACE_MINES, { cells });
   }, []);
 
@@ -525,7 +555,7 @@ export function MineCatcherBoard() {
   if (page === 'placement') {
     return (
       <GameShell title="Mine Catcher">
-        <PageTitle title="Mine Catcher" subtitle="Hide your mines!" />
+        <PageTitle title="Mine Catcher" subtitle="Deployment phase" />
         {error && (
           <div className="mx-auto mb-4 max-w-sm rounded-[10px] border border-red/30 bg-red/10 px-4 py-2 text-center text-xs text-red">
             {error}
@@ -547,7 +577,7 @@ export function MineCatcherBoard() {
   if (page === 'attacking') {
     return (
       <GameShell title="Mine Catcher">
-        <PageTitle title="Mine Catcher" subtitle="Find the opponent's mines!" />
+        <PageTitle title="Mine Catcher" subtitle="Sweep phase" />
         {error && (
           <div className="mx-auto mb-4 max-w-sm rounded-[10px] border border-red/30 bg-red/10 px-4 py-2 text-center text-xs text-red">
             {error}
@@ -555,17 +585,22 @@ export function MineCatcherBoard() {
         )}
         <MineAttackBoard
           boardSize={boardSize}
+          totalMines={10}
           myId={myId}
           currentAttacker={currentAttacker}
           opponentCells={opponentCells}
           foundCount={myFoundCount}
           breakCount={myBreakCount}
           opponentFoundCount={opponentFoundCount}
+          opponentBreakCount={opponentBreakCount}
           turnTimeLeft={turnTimeLeft}
           myLives={myLives}
           opponentLives={opponentLives}
           lastAttack={lastAttack}
           onAttack={handleAttack}
+          ownMinePositions={ownMinePositions}
+          ownReveals={ownReveals}
+          combatLog={combatLog}
         />
       </GameShell>
     );

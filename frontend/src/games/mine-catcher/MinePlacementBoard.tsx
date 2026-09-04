@@ -1,8 +1,18 @@
-import { useState, useCallback } from 'react';
-import { Bomb } from 'lucide-react';
-import { Button, Card } from '../../components/shared/ui';
-
-type BoardSize = 25 | 49 | 81 | 100;
+import { useCallback, useState } from 'react';
+import { Card } from '../../components/shared/ui';
+import { MineGlyph } from './MineGlyph';
+import {
+  boardSide,
+  CELL_ARMED_CLASS,
+  CELL_BASE_CLASS,
+  CELL_HOVER_CLASS,
+  cellGeometryStyle,
+  cellPx,
+  frameStyle,
+  gridStyle,
+  terrainStyle,
+  type BoardSize,
+} from './mineCatcherTheme';
 
 interface MinePlacementBoardProps {
   boardSize: BoardSize;
@@ -14,15 +24,13 @@ interface MinePlacementBoardProps {
   opponentReady: boolean;
 }
 
-function gridDimensions(size: BoardSize): { rows: number; cols: number } {
-  switch (size) {
-    case 25:  return { rows: 5, cols: 5 };
-    case 49:  return { rows: 7, cols: 7 };
-    case 81:  return { rows: 9, cols: 9 };
-    case 100: return { rows: 10, cols: 10 };
-  }
-}
-
+/**
+ * Reskin of the deployment phase from `Mine Catcher.dc.html` — armed cells
+ * carry the fuse-lit {@link MineGlyph}, an "ordnance" pip row tracks mines
+ * placed vs. buried, and Auto-lay / Clear give the same one-tap shortcuts
+ * the design offers before a placement is committed. All three only touch
+ * local `selected` state; nothing reaches the server until Ready is pressed.
+ */
 export function MinePlacementBoard({
   boardSize,
   totalMines,
@@ -33,7 +41,8 @@ export function MinePlacementBoard({
   opponentReady,
 }: MinePlacementBoardProps) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const { cols } = gridDimensions(boardSize);
+  const side = boardSide(boardSize);
+  const px = cellPx(boardSize);
 
   const toggleCell = useCallback((index: number) => {
     if (isReady) return;
@@ -48,6 +57,20 @@ export function MinePlacementBoard({
     });
   }, [isReady, totalMines]);
 
+  const randomFill = useCallback(() => {
+    if (isReady) return;
+    const all = Array.from({ length: boardSize }, (_, i) => i);
+    for (let i = all.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [all[i], all[j]] = [all[j], all[i]];
+    }
+    setSelected(new Set(all.slice(0, totalMines)));
+  }, [isReady, boardSize, totalMines]);
+
+  const clearAll = useCallback(() => {
+    if (!isReady) setSelected(new Set());
+  }, [isReady]);
+
   const handleReady = useCallback(() => {
     if (selected.size !== totalMines) return;
     onPlace([...selected]);
@@ -57,76 +80,113 @@ export function MinePlacementBoard({
   const minutes = Math.floor(placementTimeLeft / 60);
   const seconds = placementTimeLeft % 60;
   const timerColor = placementTimeLeft <= 10 ? 'text-red' : 'text-text';
+  const placedCount = selected.size;
+  const canReady = placedCount >= totalMines;
 
   return (
-    <Card className="mx-auto max-w-md px-4 py-5">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="mx-auto w-full max-w-[640px]" style={{ fontFamily: "'Chakra Petch',Inter,sans-serif" }}>
+      <div className="mb-4 flex items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-bold text-text">Place Your Mines</p>
-          <p className="text-xs text-muted">
-            Tap cells to place mines · {selected.size}/{totalMines} placed
-          </p>
+          <div className="font-mono text-[10px] tracking-[.24em] text-green uppercase">You · deployment</div>
+          <div className="mt-1 text-[26px] font-bold tracking-tight">Arm your field</div>
         </div>
-        <div className={`text-right font-mono text-lg font-bold ${timerColor}`}>
-          {minutes}:{seconds.toString().padStart(2, '0')}
+        <div className="flex items-center gap-3">
+          <div className={`text-right font-mono text-lg font-bold ${timerColor}`}>
+            {minutes}:{seconds.toString().padStart(2, '0')}
+          </div>
+          {!isReady && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={randomFill}
+                className="rounded-[6px] border border-line px-3 py-2 font-mono text-[10px] tracking-[.14em] text-muted uppercase hover:border-green-solid/60 hover:text-text"
+              >
+                Auto-lay
+              </button>
+              <button
+                type="button"
+                onClick={clearAll}
+                className="rounded-[6px] border border-red/25 px-3 py-2 font-mono text-[10px] tracking-[.14em] text-muted uppercase hover:border-red/65 hover:text-text"
+              >
+                Clear
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Mine count indicators */}
-      <div className="mb-3 flex gap-1">
-        {Array.from({ length: totalMines }).map((_, i) => (
-          <div
-            key={i}
-            className={`h-2 flex-1 rounded-full transition-colors ${
-              i < selected.size ? 'bg-red' : 'bg-bg3'
-            }`}
-          />
-        ))}
+      <div style={frameStyle(false)}>
+        <div style={terrainStyle()}>
+          <div style={gridStyle(side, px)}>
+            {Array.from({ length: boardSize }).map((_, i) => {
+              const armed = selected.has(i);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  disabled={isReady}
+                  onClick={() => toggleCell(i)}
+                  style={{ ...cellGeometryStyle(px), opacity: isReady ? 0.65 : 1 }}
+                  className={`${armed ? CELL_ARMED_CLASS : CELL_BASE_CLASS} ${!isReady ? CELL_HOVER_CLASS : 'cursor-default'}`}
+                >
+                  {armed && <MineGlyph size="50%" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
-      {/* Grid */}
-      <div
-        className="mx-auto mb-4 grid gap-1"
-        style={{
-          gridTemplateColumns: `repeat(${cols}, 1fr)`,
-          maxWidth: `${cols * 40}px`,
-        }}
-      >
-        {Array.from({ length: boardSize }).map((_, i) => (
-          <button
-            key={i}
-            type="button"
-            disabled={isReady}
-            onClick={() => toggleCell(i)}
-            className={`flex aspect-square items-center justify-center rounded-[6px] border text-xs font-bold transition-all ${
-              selected.has(i)
-                ? 'border-red bg-red/20 text-red hover:bg-red/30'
-                : 'border-line bg-bg2 text-faint hover:border-green-solid/40 hover:bg-bg3'
-            } ${isReady ? 'cursor-default opacity-60' : 'cursor-pointer'}`}
-          >
-            {selected.has(i) && <Bomb className="size-4" />}
-          </button>
-        ))}
-      </div>
+      <Card className="mt-4 flex items-center gap-3.5 px-4 py-3.5">
+        <div className="font-mono text-[10px] tracking-[.2em] text-muted uppercase">Ordnance</div>
+        <div className="flex flex-1 flex-wrap gap-1.5">
+          {Array.from({ length: totalMines }).map((_, i) => (
+            <div
+              key={i}
+              className="size-[16px] rounded-full box-border"
+              style={
+                i < placedCount
+                  ? { background: 'rgba(255,255,255,.05)', border: '1px dashed rgba(74,222,128,.3)' }
+                  : {
+                      background: 'radial-gradient(circle at 32% 26%,#767c82,#2b2f33 48%,#0a0c0e)',
+                      border: '1px solid rgba(0,0,0,.5)',
+                      boxShadow: 'inset -1px -2px 4px rgba(0,0,0,.7)',
+                    }
+              }
+            />
+          ))}
+        </div>
+        <div className="font-mono text-[15px] font-extrabold">
+          {placedCount}
+          <span className="text-faint">/{totalMines}</span>
+        </div>
+      </Card>
 
-      {/* Ready button */}
       {!isReady ? (
-        <Button
-          variant="primary"
-          size="lg"
-          className="w-full"
-          disabled={selected.size !== totalMines}
+        <button
+          type="button"
+          disabled={!canReady}
           onClick={handleReady}
+          className="mt-3 w-full rounded-[6px] py-4 text-[14px] font-bold tracking-[.16em] uppercase transition disabled:cursor-not-allowed"
+          style={
+            canReady
+              ? {
+                  background: 'linear-gradient(#a8f07a,#5fc23c)',
+                  color: '#06170d',
+                  boxShadow: '0 6px 0 #35761f',
+                }
+              : { background: 'rgba(255,255,255,.03)', color: 'var(--faint)' }
+          }
         >
-          Ready ({selected.size}/{totalMines})
-        </Button>
+          {canReady ? `Lock in ${totalMines} mines` : `Bury ${totalMines - placedCount} more mine${totalMines - placedCount === 1 ? '' : 's'}`}
+        </button>
       ) : (
-        <div className="rounded-[10px] border border-green-solid/40 bg-green-solid/10 px-4 py-3 text-center">
+        <div className="mt-3 rounded-[6px] border border-green-solid/40 bg-green-solid/10 px-4 py-3 text-center">
           <p className="text-sm font-bold text-green">
-            {opponentReady ? 'Both ready — starting!' : 'Waiting for opponent...'}
+            {opponentReady ? 'Both fields armed — starting!' : 'Field armed — waiting for opponent…'}
           </p>
         </div>
       )}
-    </Card>
+    </div>
   );
 }
