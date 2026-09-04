@@ -273,6 +273,59 @@ html[data-theme='light'] .wallet-adapter-modal-wrapper {
   }
 }
 
+/* Hand Cricket (HandCricketPickBoard): wicket overlay pop-in, hand-sign
+   reveal pop, and the floating ball above the stage — verbatim from the
+   Hand Cricket design handoff's own keyframes. */
+@keyframes hcPopIn {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes hcNumPop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes hcFloatBall {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(-12px) rotate(180deg);
+  }
+}
+
+/* Number-pad hover/press — real pseudo-classes, so these live here rather
+   than as inline styles. */
+.hc-num-btn:not(:disabled):hover {
+  background: linear-gradient(#fff8d6, #ffd766);
+}
+.hc-num-btn:not(:disabled):active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 #1a3f7a;
+}
+
 @keyframes wallet-modal-pop {
   from {
     opacity: 0;
