@@ -32,11 +32,12 @@ Setup follows Rule 4's Random Play / Friends Play shapes plus its multiplayer ex
 3. Host chooses player count: **2, 3, or 4** — this game's seat-count setting, referenced by Rule 4's multiplayer extension as "all chosen slots."
 4. Host chooses **Fixed Bet** or **Free Bet** mode (Rule 3) and sets the amount.
 5. **Random Play:** the match is listed publicly. **Friends Play:** a room code is generated with a share option.
-6. Per Rule 4's multiplayer extension, the lobby **must fill all chosen slots** before the match can start — no early start with a partial lobby, even if the host is willing.
-7. Once full, players are **automatically assigned colors**:
+6. **Free Bet mode:** each joiner is prompted for their own stake (`ludo:stake:required`) before they're added as a participant — matching Rule 3's Free Bet definition exactly ("each player picks their own bet amount when joining"). Declining/closing the prompt is side-effect-free; nothing is locked or reserved yet. Fixed mode has no such prompt — the joiner is bound to the host's amount automatically, as before.
+7. Per Rule 4's multiplayer extension, the lobby **must fill all chosen slots** before the match can start — no early start with a partial lobby, even if the host is willing.
+8. Once full, players are **automatically assigned colors**:
    - **2 players:** fixed opposite pairing — Red vs Yellow.
    - **3/4 players:** standard four-color assignment (Red, Green, Yellow, Blue). The exact 3-player color subset is still undecided — see Open Questions.
-8. Match starts → every seated player's bet amount locks via `lockBalance()`.
+9. Match starts → every seated player's own recorded stake locks via `lockBalance()` (the same amount for everyone in Fixed mode; each player's own chosen amount in Free mode).
 
 ### Gameplay
 Standard classic Ludo rules:
@@ -46,20 +47,39 @@ Standard classic Ludo rules:
 - **Capturing:** landing exactly on an opponent's token on a non-safe square sends that token back to its owner's yard.
 - **Safe squares** (starting squares and star squares) protect tokens from capture.
 - A token needs an **exact roll** to enter the home triangle at the center.
-- Rolling a **6 grants an extra turn**.
+- Rolling a **6 grants an extra turn**, unless it's the **third consecutive 6** — that forfeits the turn instead (classic house rule).
+- **A 6 that has no usable move** (e.g. the player's own start square is already blocked by two of their own tokens) keeps the turn with the same player instead of forfeiting it — they simply roll again. This is distinct from an ordinary non-6 dead roll, which does pass the turn.
 - Turn order proceeds in sequence around the assigned colors.
 
-No per-turn action timer is specified yet — see Open Questions.
+**Turn timer:** each player has **15 seconds to roll** once it becomes their turn, and (after rolling, when more than one token could move) **10 seconds to pick which token to move**. See *Turn Notification* below for how this is presented, and Reference for the exact durations.
+
+### Turn Notification
+Ludo is the first game to adopt the hub-wide **Turn Notification** convention — see `../12-Game-UI-Conventions.md` (Rule 1) for the full spec shared by every game. In short: the instant it becomes a player's turn, only *their* screen shows a large centered "Your Turn" popup for 2.5 seconds; the popup then hides and the 15-second roll countdown starts. The server delays arming its own roll timer by the same 2.5 seconds so the countdown never lies about how much time is actually left.
+
+### Lives & Elimination
+Unlike most games in this hub, Ludo does **not** use the standard 15-second escrow reconnect-grace disconnect rule as its only stall protection — it layers a **lives system** on top, scoped specifically to missed rolls:
+- Every player starts a match with **3 lives**.
+- Missing the 15-second roll window (not rolling in time) costs **1 life** — the missed-move 10-second window does not; choosing which token to move is a separate action from rolling and isn't penalized the same way.
+- At **0 lives**, the player is **eliminated immediately** — forfeited via the same `forfeitPlayer()` primitive the disconnect path uses, but with no reconnect grace period (they're still connected; there's nothing to wait for). Their tokens stay on the board exactly as a disconnect-forfeit leaves them — uncontrolled, still capturable by everyone else.
+- The match continues exactly as a disconnect-forfeit would: turn passes on if it was the eliminated player's turn, and the match settles immediately if only one active player remains.
 
 ### Disconnects
-Ludo uses the **standard escrow disconnect rule, unmodified** — no per-game override like a lives system:
+For an actual dropped connection (as opposed to running out of lives while still connected), Ludo uses the **standard escrow disconnect rule, unmodified**:
 - 15-second reconnect grace period. Failing to reconnect within it triggers `forfeitPlayer()`, confiscating that player's stake into the pot; the match continues with the remaining players.
 - A forfeited player's tokens **stay on the board as-is, uncontrolled** — other players can still capture them normally. Nobody rolls or moves on their behalf.
 - **`forfeitPlayer()` does not end the match.** With 3+ seats, a forfeit only removes one player from contention — the match keeps running toward a winner among those still seated, and `settleMatch()` still fires at the normal match-end trigger with the forfeited player excluded from the payout.
 
+### Points Economy
+Ranking and payout are based on **points**, not raw steps moved:
+- **+1 point** per square a token moves (a yard-exit itself is worth 0 — the token hasn't traveled any squares yet, just entered the board).
+- **+10 points** to the player who captures a token; **-10 points** to the player whose token was captured.
+- **+50 points** the instant a token reaches its final home square.
+
+Points can go negative (a player captured often ends up below zero) — ranking simply sorts by whatever value results, ties handled per Rule 2.
+
 ### Match End
 1. The match ends **instantly** the moment one player gets all 4 tokens home — that player is 1st place.
-2. Every other still-seated player is ranked by **total steps moved across all 4 tokens** (more steps = higher rank). A forfeited player is not ranked and is not paid.
+2. Every other still-seated player is ranked by **points** (more points = higher rank) — see the *Points Economy* below; `totalSteps` (raw squares moved) is still recorded but is no longer the ranking basis. A forfeited or eliminated player is not ranked and is not paid.
 3. **Ties** (equal total steps) → that place's prize share is split evenly between the tied players, per Rule 2's tie handling.
 4. **Payout** — Rule 1's 5% fee comes off the pot first, then the split below is applied instead of Rule 2's fixed top-2/70-30 (see Reference for the exact override text):
 
@@ -155,7 +175,24 @@ behaviour **only** from the escrow adapter.
 **Game-specific timers**
 | Timer | Duration | On Timeout |
 |---|---|---|
-| *(none specified yet — see Open Questions)* | | |
+| "Your Turn" popup | 2.5 seconds | Hides automatically; the roll countdown starts right after (see `../12-Game-UI-Conventions.md`) |
+| Roll dice | 15 seconds | Turn passes to the next player **and costs the player 1 life** (see Lives & Elimination). At 0 lives, eliminated instead. |
+| Choose which token to move | 10 seconds | Turn passes to the next player — no life lost |
+
+**Lives**
+| Field | Value |
+|---|---|
+| Starting lives | 3 |
+| Lost on | Missing the 15-second roll window only |
+| At 0 lives | Eliminated — `forfeitPlayer()` with no reconnect grace, same downstream handling as a disconnect forfeit |
+
+**Points economy** (ranking & payout basis — see *Points Economy* above)
+| Event | Points |
+|---|---|
+| Step moved | +1 (per square; yard-exit = 0) |
+| Capturing a token | +10 to the capturer |
+| Being captured | -10 to the victim |
+| Token reaches final home | +50 |
 
 **Payout by seated player count** (after Rule 1's 5% fee — overrides Rule 2's fixed top-2)
 | Players | Paid Places | Split |
@@ -176,14 +213,13 @@ behaviour **only** from the escrow adapter.
 - **`forfeitPlayer()` does not end a match** — with 3+ seats it only removes one player from the payout; `settleMatch()` still has to fire at the real match-end trigger (someone gets all 4 tokens home) to rank and pay whoever is left.
 - **Rule 1** applies unchanged — 5% off the pot, taken by `settleMatch`.
 - **Rule 2 is overridden by this game**, via the documented exception in `../10-Game-Common-Rules.md`'s Rule 2 Exceptions subsection (added 2026-08-24): 2 players = winner-take-all, 3 players = top 2 paid (70/30), 4 players = top 3 paid (50/30/20). This game links to that exception rather than restating the numbers as its own rule.
-- **Rule 3** applies unchanged — Fixed vs Free bet mode, host's choice, one amount for the whole match.
+- **Rule 3** applies as documented — Fixed mode is one amount for the whole match, host's choice; Free mode has each joiner pick their own amount when they join (`ludo:stake:required`), matching Rule 3's Free Bet definition exactly rather than the earlier (buggy) behavior of silently reusing the host's amount for everyone.
 - **Rule 4 covers this game** via its Multiplayer Extension (added 2026-08-24): Random Play and Friends Play both require every chosen seat filled before the match starts. This game's Match Setup section above documents only what is Ludo-specific (seat count, color assignment) — the lobby-fill mechanics themselves are Rule 4's, not restated here.
 
 ## Open Questions
 
 ### Owned by this game
 - **3-player color assignment.** Which 3 of the 4 standard colors are used, and is it a fixed set (e.g. always Red/Green/Yellow) or does it vary per match?
-- **No turn timer specified.** Every other game in this hub has a per-action timer (Coin Flip's spin/call, Mine Catcher's placement/turn) to prevent stalling. Ludo currently has none for dice rolls or moves — worth deciding whether one is needed, and if so, its duration and its timeout behavior (auto-roll? skip turn? forfeit the turn only?).
 
 ### Inherited — waiting on the shared rules
 
@@ -196,8 +232,10 @@ behaviour **only** from the escrow adapter.
 ## Related Docs
 - `../04-Games-Index.md` — master game list and status
 - `../10-Game-Common-Rules.md` — Rules 1–4; this game inherits 1 and 3 unchanged, and uses documented amendments to 2 and 4
+- `../12-Game-UI-Conventions.md` — the Turn Notification popup this game first adopted
 - `../03-Escrow.md` — the functions this game calls instead of touching balances
 
 ## Last Updated
+2026-09-03 — **Bug-fix pass**: fixed a 6-rolled-with-no-legal-move incorrectly forfeiting the turn (it now re-rolls the same player); replaced `totalSteps`-based ranking/payout with a **points economy** (+1/step, ±10/capture, +50/home); added a **3-lives** system that eliminates a player after 3 missed 15-second roll windows; Free Bet matches now actually collect each joiner's own stake instead of silently reusing the host's; adopted the hub-wide **Turn Notification** popup (`../12-Game-UI-Conventions.md`); the board now visually rotates per viewer so a player's own color always renders bottom-left (client-side only, no rule change); and in-match errors now broadcast to every seated player instead of only the one whose action triggered them. Resolves this doc's former "no turn timer specified" open question.
 2026-08-24 — **Rule 2 and Rule 4 amendments applied upstream.** `../10-Game-Common-Rules.md` now carries Ludo's payout exception (Rule 2 Exceptions) and the multiplayer full-lobby gate (Rule 4 Multiplayer Extension) as real amendments, not proposed text. This doc's Reference and Open Questions sections rewritten to link to them instead of quoting paste-ready text; the two "waiting on shared rules" gaps are closed, leaving only inherited schema debt.
 2026-08-24 — Restructured onto the standard game template and numbered as Game 02, from the original unstructured `game_ideas/Game-Ludo.md`. Rule 2 override and the needed Rule 4 multiplayer extension carried forward as paste-ready text under Reference, and re-filed under Open Questions as inherited gaps rather than "depends on" bullets. No content changes to the designed flow itself.

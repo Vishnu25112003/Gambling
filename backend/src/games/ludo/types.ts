@@ -124,6 +124,8 @@ export interface PlayerRecord {
   userId: string;
   color: LudoColor;
   totalSteps: number;
+  /** Scoring economy: +1 per step moved, ±10 on a capture, +50 on reaching home. Ranking/payouts use this, not totalSteps. */
+  points: number;
   tokensHome: number;
   /** Token states at match end. */
   tokens: Token[];
@@ -142,6 +144,10 @@ export interface LudoState {
   tokens: Record<string, Token[]>;
   /** userId → total steps moved across all 4 tokens. */
   totalSteps: Record<string, number>;
+  /** userId → scoring economy total: +1/step, ±10/capture, +50/home. Basis for ranking & payouts. */
+  points: Record<string, number>;
+  /** userId → remaining lives (starts at MAX_LIVES, -1 per missed 15s roll window). */
+  lives: Record<string, number>;
 
   /** Current turn player's userId. */
   currentPlayerId: string;
@@ -173,9 +179,11 @@ export const LUDO_EVENTS = {
   MATCH_STATE: 'ludo:state',
   MATCH_CREATED: 'ludo:created',
   MATCHES_LIST: 'ludo:matches',
+  STAKE_REQUIRED: 'ludo:stake:required',
   DICE_ROLLED: 'ludo:dice:rolled',
   TOKEN_MOVED: 'ludo:token:moved',
   TURN_START: 'ludo:turn:start',
+  LIVES_UPDATE: 'ludo:lives:update',
   MATCH_RESULT: 'ludo:match:result',
   OPPONENT_DISCONNECTED: 'ludo:opponent:disconnect',
   OPPONENT_RECONNECTED: 'ludo:opponent:reconnect',

@@ -7,12 +7,15 @@ import { walletApi } from '../../api/endpoints';
 import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
 import { GameSetupWizard, GameJoinByCode, GameWaitingRoom } from '../../components/shared/gameSetup';
+import { StakeAmountStep } from '../../components/shared/gameSetup/StakeAmountStep';
+import { TurnBanner } from '../../components/shared/TurnBanner';
 import { formatSol } from '../../lib/format';
+import { gameVisual } from '../../lib/gameVisuals';
 import { ludoSetupConfig } from './ludoSetupConfig';
 import { LudoResult } from './LudoResult';
 import { LudoBoardGrid } from './LudoBoardGrid';
 import { PlayerPod } from './PlayerPod';
-import { HOME_COLUMN_LENGTH } from './boardGeometry';
+import { HOME_COLUMN_LENGTH, colorAtSlot, rotationForViewer } from './boardGeometry';
 
 /** Die-face rotation table (matches the Ludo Royale design's Dice3D). */
 const DIEBASE: Record<number, [number, number]> = {
@@ -45,9 +48,11 @@ const LUDO = {
   MATCH_STATE: 'ludo:state',
   MATCH_CREATED: 'ludo:created',
   MATCHES_LIST: 'ludo:matches',
+  STAKE_REQUIRED: 'ludo:stake:required',
   DICE_ROLLED: 'ludo:dice:rolled',
   TOKEN_MOVED: 'ludo:token:moved',
   TURN_START: 'ludo:turn:start',
+  LIVES_UPDATE: 'ludo:lives:update',
   MATCH_RESULT: 'ludo:match:result',
   OPPONENT_DISCONNECTED: 'ludo:opponent:disconnect',
   OPPONENT_RECONNECTED: 'ludo:opponent:reconnect',
@@ -56,6 +61,9 @@ const LUDO = {
 
 const ROLL_TIMEOUT_MS = 15_000;
 const MOVE_TIMEOUT_MS = 10_000;
+/** Mirrors the backend's TURN_BANNER_MS — how long the "Your Turn" popup shows
+ * before the visible roll countdown begins. */
+const TURN_BANNER_MS = 2_500;
 
 type Page =
   | 'lobby'
@@ -63,9 +71,19 @@ type Page =
   | 'waiting'
   | 'waiting_friends'
   | 'join_code'
+  | 'stake_select'
   | 'live'
   | 'match_result'
   | 'error';
+
+/** Sent by the server when JOIN_MATCH hits a Free Bet match without a chosen
+ * stake yet — see the STAKE_REQUIRED handler below. */
+interface StakeRequiredInfo {
+  matchId: string;
+  hostName: string;
+  seatCount: number;
+  minBet: string | null;
+}
 
 type DiscoveryMode = 'random' | 'friends';
 type BetMode = 'fixed' | 'free';
@@ -98,6 +116,8 @@ interface LudoState {
   colors: Record<string, LudoColor>;
   tokens: Record<string, TokenState[]>;
   totalSteps: Record<string, number>;
+  points: Record<string, number>;
+  lives: Record<string, number>;
   currentPlayerId: string;
   phase: string;
   currentDice: number | null;
@@ -113,7 +133,7 @@ interface ValidMove {
 
 interface MatchResult {
   winnerId: string | null;
-  rankings: { playerId: string; rank: number; totalSteps: number }[];
+  rankings: { playerId: string; rank: number; totalSteps: number; points: number }[];
   seatCount: number;
   pot: string;
   feeCollected: string;
@@ -153,6 +173,11 @@ function LudoBoardInner() {
   const [betMode, setBetMode] = useState<BetMode>('fixed');
   const [stake, setStake] = useState('0.1');
 
+  // --- Join flow (Free Bet stake picker) ---
+  const [joinStakeInfo, setJoinStakeInfo] = useState<StakeRequiredInfo | null>(null);
+  const [joinStake, setJoinStake] = useState('0.1');
+  const [stakeError, setStakeError] = useState<string | null>(null);
+
   // --- Live game ---
   const [myId, setMyId] = useState<string | null>(user?.id ?? null);
   const [players, setPlayers] = useState<PlayerInfo[]>([]);
@@ -171,6 +196,8 @@ function LudoBoardInner() {
   const [pendingSubmit, setPendingSubmit] = useState(false);
   const [isMyTurn, setIsMyTurn] = useState(false);
   const [waitingReason, setWaitingReason] = useState<string | null>(null);
+  const [showTurnBanner, setShowTurnBanner] = useState(false);
+  const turnBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // --- Dice cube rotation (cosmetic — the settled face always mirrors the
   // server's authoritative `lastDice`; this just makes it spin) ---
@@ -315,15 +342,42 @@ function LudoBoardInner() {
       setValidMoves([]);
       setRollingDice(false);
       setPendingSubmit(false);
+      clearTimer();
+      if (turnBannerTimerRef.current) {
+        clearTimeout(turnBannerTimerRef.current);
+        turnBannerTimerRef.current = null;
+      }
 
       if (data.currentPlayerId === user.id) {
         setIsMyTurn(true);
         setWaitingReason(null);
-        startTimer(ROLL_TIMEOUT_MS);
+        // Show the big "Your Turn" popup for TURN_BANNER_MS, then start the
+        // visible roll countdown — mirrors the server delaying its own roll
+        // timer by the same amount (see backend socket.ts), so the countdown
+        // shown here always has the real time left before the server acts.
+        setShowTurnBanner(true);
+        turnBannerTimerRef.current = setTimeout(() => {
+          setShowTurnBanner(false);
+          startTimer(ROLL_TIMEOUT_MS);
+        }, TURN_BANNER_MS);
       } else {
         setIsMyTurn(false);
+        setShowTurnBanner(false);
         setWaitingReason(`Waiting for ${getDisplayName(data.currentPlayerId)} to roll...`);
       }
+    });
+
+    s.on(LUDO.LIVES_UPDATE, (data: { lives: Record<string, number> }) => {
+      setGameState((prev) => (prev ? { ...prev, lives: data.lives } : prev));
+    });
+
+    s.on(LUDO.STAKE_REQUIRED, (data: StakeRequiredInfo) => {
+      // The match we tried to join is Free Bet — the server needs our own
+      // stake before it'll actually lock anything and start the match.
+      setJoinStakeInfo(data);
+      setJoinStake(data.minBet ?? '0.1');
+      setStakeError(null);
+      setPage('stake_select');
     });
 
     s.on(LUDO.DICE_ROLLED, (data: {
@@ -406,6 +460,12 @@ function LudoBoardInner() {
     });
 
     s.on(LUDO.ERROR, (data: { message: string }) => {
+      // A failed roll/move leaves rollingDice/pendingSubmit stuck true
+      // forever otherwise — the dice keeps spinning and the player can never
+      // roll again. Always clear these, regardless of which page we're on.
+      setRollingDice(false);
+      setPendingSubmit(false);
+
       // In a live match, surfacing a fatal full-screen error on every stray
       // server event (e.g. a late/duplicate move that the server benignly
       // ignored) would kick the player out of the match. Instead show an
@@ -429,6 +489,7 @@ function LudoBoardInner() {
 
     return () => {
       clearTimer();
+      if (turnBannerTimerRef.current) clearTimeout(turnBannerTimerRef.current);
       s.disconnect();
       socketRef.current = null;
     };
@@ -460,6 +521,19 @@ function LudoBoardInner() {
     }, 90);
     return () => clearInterval(id);
   }, [rollingDice, gameState, myId]);
+
+  // Defense in depth for issue #2/#8: if a roll never gets a DICE_ROLLED or
+  // ERROR response (a dropped socket event, not just a thrown server error),
+  // force the dice to stop spinning and unblock further rolls rather than
+  // leaving the player stuck forever.
+  useEffect(() => {
+    if (!rollingDice) return;
+    const id = setTimeout(() => {
+      setRollingDice(false);
+      setPendingSubmit(false);
+    }, ROLL_TIMEOUT_MS + 3000);
+    return () => clearTimeout(id);
+  }, [rollingDice]);
 
   // --- Fetch balance ---
   useEffect(() => {
@@ -508,6 +582,25 @@ function LudoBoardInner() {
     setPage('waiting');
   };
 
+  const handleConfirmStake = () => {
+    if (!joinStakeInfo) return;
+    const amount = Number(joinStake);
+    const minBetNum = joinStakeInfo.minBet != null ? Number(joinStakeInfo.minBet) : 0;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setStakeError('Enter a valid stake amount.');
+      return;
+    }
+    if (amount < minBetNum) {
+      setStakeError(`Must be at least ${formatSol(joinStakeInfo.minBet ?? '0')} SOL.`);
+      return;
+    }
+    setStakeError(null);
+    // Stay on the stake_select page — MATCH_STATE/waiting-room events move us
+    // forward once the server accepts this stake.
+    setPage('waiting');
+    emit(LUDO.JOIN_MATCH, { matchId: joinStakeInfo.matchId, stake: amount });
+  };
+
   const handleRollDice = () => {
     if (pendingSubmit) return;
     setPendingSubmit(true);
@@ -535,6 +628,9 @@ function LudoBoardInner() {
     setWaitingReason(null);
     setRoomCode(null);
     setError(null);
+    setJoinStakeInfo(null);
+    setStakeError(null);
+    setShowTurnBanner(false);
     // Reconnect
     const token = tokenStore.get();
     if (!token || !user) return;
@@ -605,6 +701,59 @@ function LudoBoardInner() {
   // --- Friends Play: Join with code ---
   if (page === 'join_code') {
     return <GameJoinByCode onJoin={handleJoinByCode} onBack={() => setPage('lobby')} />;
+  }
+
+  // --- Free Bet joiner: pick a stake before the match can start ---
+  if (page === 'stake_select' && joinStakeInfo) {
+    const accentColor = gameVisual({ name: 'Ludo' }).tone;
+    const stakeNum = Number(joinStake) || 0;
+    const minBetNum = joinStakeInfo.minBet != null ? Number(joinStakeInfo.minBet) : 0;
+    const canAfford = balance === null || stakeNum <= Number(balance);
+    const meetsMinimum = stakeNum >= minBetNum;
+    return (
+      <>
+        <PageTitle
+          title="Choose Your Bet"
+          subtitle={`Joining ${joinStakeInfo.hostName}'s Free Bet match — ${joinStakeInfo.seatCount} players.`}
+        />
+        <Card className="mx-auto max-w-sm px-6 py-6">
+          {joinStakeInfo.minBet && (
+            <p className="mb-4 text-xs text-muted">
+              Minimum stake: <span className="font-bold text-text">{formatSol(joinStakeInfo.minBet)} SOL</span>
+            </p>
+          )}
+          <StakeAmountStep
+            balance={balance}
+            stake={joinStake}
+            onStakeChange={setJoinStake}
+            accentColor={accentColor}
+            canAfford={canAfford}
+          />
+          {!meetsMinimum && (
+            <p className="mb-1 text-xs text-red">Must be at least {formatSol(joinStakeInfo.minBet ?? '0')} SOL.</p>
+          )}
+          {stakeError && <p className="mb-1 text-xs text-red">{stakeError}</p>}
+          <Button
+            variant="primary"
+            size="lg"
+            className="mt-3 w-full"
+            disabled={!joinStake || stakeNum <= 0 || !canAfford || !meetsMinimum}
+            onClick={handleConfirmStake}
+            style={{ background: accentColor }}
+          >
+            Join Match
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-3 w-full"
+            onClick={() => { setJoinStakeInfo(null); setStakeError(null); setPage('lobby'); }}
+          >
+            Back to Lobby
+          </Button>
+        </Card>
+      </>
+    );
   }
 
   // --- Create flow ---
@@ -690,6 +839,8 @@ function LudoBoardInner() {
   const timerColor = timeLeft <= 3 ? 'text-red' : timeLeft <= 5 ? 'text-gold' : 'text-green';
   const canRollNow = isMyTurn && !pendingSubmit && !rollingDice && validMoves.length === 0;
   const playerByColor = new Map(players.map((p) => [p.color, p] as const));
+  const myColor = gameState && myId ? gameState.colors[myId] : undefined;
+  const viewerRotation = rotationForViewer(myColor);
 
   const renderPod = (color: LudoColor, side: 'top' | 'bottom', reversed: boolean) => {
     const p = playerByColor.get(color);
@@ -704,6 +855,7 @@ function LudoBoardInner() {
         color={color}
         name={isMe ? 'You' : getDisplayName(p.id)}
         finishedCount={finished}
+        lives={gameState?.lives[p.id] ?? 3}
         active={!!active}
         canRoll={isMe && canRollNow}
         reversed={reversed}
@@ -741,8 +893,10 @@ function LudoBoardInner() {
         </Card>
       )}
 
+      <TurnBanner show={showTurnBanner} label="Your Turn" />
+
       <div
-        className="mx-auto flex w-full max-w-[470px] flex-col gap-2 rounded-[22px] p-3 sm:max-w-[600px]"
+        className="relative mx-auto flex w-full max-w-[470px] flex-col gap-2 rounded-[22px] p-3 sm:max-w-[600px]"
         style={{
           background: 'radial-gradient(120% 70% at 50% 0%,#1b3f86 0%,#0d224e 45%,#071022 100%)',
           boxShadow: '0 18px 40px rgba(0,0,0,.3)',
@@ -760,10 +914,10 @@ function LudoBoardInner() {
           <span className="min-w-0 flex-1 truncate text-right text-[11.5px] text-[#bcd0f0]">{statusText}</span>
         </div>
 
-        {/* Top pods (red, green) */}
+        {/* Top pods — rotated so my own color always renders bottom-left */}
         <div className="grid grid-cols-2 items-start gap-2.5">
-          <div className="justify-self-start">{renderPod('red', 'top', false)}</div>
-          <div className="justify-self-end">{renderPod('green', 'top', true)}</div>
+          <div className="justify-self-start">{renderPod(colorAtSlot(0, viewerRotation), 'top', false)}</div>
+          <div className="justify-self-end">{renderPod(colorAtSlot(1, viewerRotation), 'top', true)}</div>
         </div>
 
         <LudoBoardGrid
@@ -772,12 +926,13 @@ function LudoBoardInner() {
           myId={myId}
           validMoves={validMoves}
           onMoveToken={handleMoveToken}
+          viewerRotation={viewerRotation}
         />
 
-        {/* Bottom pods (blue, yellow) */}
+        {/* Bottom pods */}
         <div className="grid grid-cols-2 items-end gap-2.5">
-          <div className="justify-self-start">{renderPod('blue', 'bottom', false)}</div>
-          <div className="justify-self-end">{renderPod('yellow', 'bottom', true)}</div>
+          <div className="justify-self-start">{renderPod(colorAtSlot(3, viewerRotation), 'bottom', false)}</div>
+          <div className="justify-self-end">{renderPod(colorAtSlot(2, viewerRotation), 'bottom', true)}</div>
         </div>
 
         {/* Footer */}

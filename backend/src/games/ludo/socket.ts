@@ -23,6 +23,7 @@ import {
   processDiceRoll,
   processTokenMove,
   processTurnPass,
+  processSixNoMoves,
   getValidMoves,
   getColorSet,
   allTokensHome,
@@ -30,6 +31,8 @@ import {
   calculatePayoutWeights,
   ROLL_TIMEOUT_MS,
   MOVE_TIMEOUT_MS,
+  MAX_LIVES,
+  TURN_BANNER_MS,
 } from './engine.js';
 import type {
   LudoState,
@@ -94,6 +97,9 @@ const lobbyInfo = new Map<string, {
   minBet: number | null;
   discovery: 'random' | 'friends';
   createdAt: number;
+  /** userId → the stake THEY locked in for. Fixed mode: everyone maps to
+   * `stake` above. Free mode: each joiner picks their own (>= minBet). */
+  stakes: Map<string, number>;
 }>();
 
 /** socketId → matchId (for disconnect handling). */
@@ -142,10 +148,34 @@ function clearTimeouts(match: ActiveMatch): void {
 
 // --- Turn management --------------------------------------------------------
 
+/**
+ * Arm a fresh roll timer for a NEWLY-current player, delayed by
+ * TURN_BANNER_MS — the client shows its "Your Turn" popup for that same
+ * duration before it displays the countdown, so this keeps the server's
+ * actual deadline in sync with what the countdown shows. Same-player
+ * continuations (extra turns, a 6 with no usable move) call `startRollTimer`
+ * directly instead — no popup, no delay.
+ */
+function armRollTimerWithBanner(match: ActiveMatch, playerId: string): void {
+  match.timers.roll = setTimeout(() => {
+    startRollTimer(match, playerId);
+  }, TURN_BANNER_MS);
+}
+
 function startRollTimer(match: ActiveMatch, playerId: string): void {
   match.turnStartedAt = Date.now();
   match.timers.roll = setTimeout(() => guardSync('roll timeout', () => {
     log.info('roll timeout', { matchId: match.matchId, playerId });
+
+    // Missing the roll window costs a life.
+    const remainingLives = (match.state.lives[playerId] ?? MAX_LIVES) - 1;
+    match.state = { ...match.state, lives: { ...match.state.lives, [playerId]: remainingLives } };
+    broadcastToMatch(match, LUDO_EVENTS.LIVES_UPDATE, { lives: match.state.lives });
+
+    if (remainingLives <= 0) {
+      guard('eliminate on roll timeout', eliminatePlayer(match, playerId), { matchId: match.matchId, playerId });
+      return;
+    }
 
     // Player timed out — pass turn to next player
     const { state: newState, nextPlayerId } = processTurnPass(match.state);
@@ -155,9 +185,10 @@ function startRollTimer(match: ActiveMatch, playerId: string): void {
       currentPlayerId: nextPlayerId,
       turnNumber: newState.turnNumber,
       dice: null,
+      reason: 'roll_timeout',
     });
 
-    startRollTimer(match, nextPlayerId);
+    armRollTimerWithBanner(match, nextPlayerId);
   }, { matchId: match.matchId, playerId }), ROLL_TIMEOUT_MS);
 }
 
@@ -166,7 +197,9 @@ function startMoveTimer(match: ActiveMatch, playerId: string): void {
   match.timers.move = setTimeout(() => guardSync('move timeout', () => {
     log.info('move timeout', { matchId: match.matchId, playerId });
 
-    // Player timed out — pass turn to next player
+    // Player timed out — pass turn to next player. Only a missed ROLL costs a
+    // life (see startRollTimer) — choosing which token to move is a separate
+    // action and isn't penalized the same way.
     const { state: newState, nextPlayerId } = processTurnPass(match.state);
     match.state = newState;
 
@@ -176,8 +209,46 @@ function startMoveTimer(match: ActiveMatch, playerId: string): void {
       dice: null,
     });
 
-    startRollTimer(match, nextPlayerId);
+    armRollTimerWithBanner(match, nextPlayerId);
   }, { matchId: match.matchId, playerId }), MOVE_TIMEOUT_MS);
+}
+
+/**
+ * Shared tail end of "a player is out of the match" (disconnect-forfeit and
+ * lives-elimination both end here): mark them forfeited, pass the turn along
+ * if it was theirs, and settle immediately if only one active player is left.
+ */
+async function applyForfeitOutcome(match: ActiveMatch, playerId: string): Promise<void> {
+  match.forfeitedPlayers.push(playerId);
+
+  if (match.state.currentPlayerId === playerId) {
+    clearTimeouts(match);
+    const { state: newState, nextPlayerId } = processTurnPass(match.state);
+    match.state = newState;
+
+    broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
+      currentPlayerId: nextPlayerId,
+      turnNumber: newState.turnNumber,
+      dice: null,
+    });
+
+    armRollTimerWithBanner(match, nextPlayerId);
+  }
+
+  const activePlayers = match.playerIds.filter((id) => !match.forfeitedPlayers.includes(id));
+  if (activePlayers.length <= 1) {
+    const winnerId = activePlayers[0] ?? null;
+    await settleMatch(match, winnerId);
+  }
+}
+
+/** Eliminated for running out of lives (still connected — unlike a disconnect
+ * forfeit, there's no reconnect grace period to wait out). */
+async function eliminatePlayer(match: ActiveMatch, playerId: string): Promise<void> {
+  const forfeitResult = await escrow.forfeitPlayer(match.matchId, playerId, 0);
+  if (forfeitResult.outcome === 'forfeited') {
+    await applyForfeitOutcome(match, playerId);
+  }
 }
 
 // --- Match end / settlement -------------------------------------------------
@@ -185,7 +256,8 @@ function startMoveTimer(match: ActiveMatch, playerId: string): void {
 async function settleMatch(match: ActiveMatch, winnerId: string | null): Promise<void> {
   clearTimeouts(match);
 
-  // Rank players by total steps (forfeit players excluded)
+  // Rank players by points — the scoring economy, not raw totalSteps
+  // (forfeit players excluded).
   const rankings = rankPlayers(match.state, match.forfeitedPlayers);
 
   // If there's a winner, ensure they're ranked 1st
@@ -223,6 +295,7 @@ async function settleMatch(match: ActiveMatch, winnerId: string | null): Promise
           playerId: r.playerId,
           rank: r.rank,
           totalSteps: r.totalSteps,
+          points: r.points,
         })),
         forfeitedPlayers: match.forfeitedPlayers,
       },
@@ -236,6 +309,7 @@ async function settleMatch(match: ActiveMatch, winnerId: string | null): Promise
       playerId: r.playerId,
       rank: r.rank,
       totalSteps: r.totalSteps,
+      points: r.points,
     })),
     seatCount: match.seatCount,
     pot: result.pot.toString(),
@@ -340,6 +414,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
           minBet: minBetValue,
           discovery: 'random',
           createdAt: Date.now(),
+          stakes: new Map([[userId, stakeAmount]]),
         });
 
         socket.emit(LUDO_EVENTS.MATCH_CREATED, { matchId });
@@ -379,6 +454,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
           minBet: minBetValue,
           discovery: 'friends',
           createdAt: Date.now(),
+          stakes: new Map([[userId, stakeAmount]]),
         });
 
         socket.emit(LUDO_EVENTS.MATCH_CREATED, { matchId, roomCode: code });
@@ -393,7 +469,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
   });
 
   // --- JOIN_MATCH: join an existing lobby ---
-  socket.on(LUDO_EVENTS.JOIN_MATCH, async (data: { matchId?: string; roomCode?: string }) => {
+  socket.on(LUDO_EVENTS.JOIN_MATCH, async (data: { matchId?: string; roomCode?: string; stake?: number }) => {
     try {
       let matchId: string | undefined;
       let usedRoomCode: string | undefined;
@@ -459,9 +535,12 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
         seatCount?: number;
         betMode?: string;
         stake?: number;
+        minBet?: number;
       };
       const seatCount = gs.seatCount ?? 2;
       const stakeAmount = gs.stake ?? lobbyInfo.get(matchId)?.stake ?? 0.1;
+      const betMode = gs.betMode ?? lobbyInfo.get(matchId)?.betMode ?? 'fixed';
+      const minBet = gs.minBet ?? lobbyInfo.get(matchId)?.minBet ?? null;
 
       // Check match isn't full
       if (dbMatch.participants.length >= seatCount) {
@@ -469,10 +548,41 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
         return;
       }
 
+      // Free Bet: the joiner picks their own stake before anything is
+      // locked or the participant row created — bouncing back here is
+      // side-effect-free and safe for the client to repeat with a chosen
+      // amount.
+      let joinerStake = stakeAmount;
+      if (betMode === 'free') {
+        const submitted = data.stake;
+        if (submitted == null) {
+          socket.emit(LUDO_EVENTS.STAKE_REQUIRED, {
+            matchId,
+            hostName: lobbyInfo.get(matchId)?.hostName ?? 'Player',
+            seatCount,
+            minBet: minBet != null ? String(minBet) : null,
+          });
+          return;
+        }
+        const chosen = Number(submitted);
+        if (!Number.isFinite(chosen) || chosen <= 0) {
+          socket.emit(LUDO_EVENTS.ERROR, { message: 'Stake must be a positive amount' });
+          return;
+        }
+        if (minBet != null && chosen < minBet) {
+          socket.emit(LUDO_EVENTS.ERROR, { message: `Stake must be at least ${minBet} SOL` });
+          return;
+        }
+        joinerStake = chosen;
+      }
+
       // Add joiner as participant
       await prisma.matchParticipant.create({
         data: { matchId, userId, lockedAmount: 0, stakeTotal: 0, status: 'active' },
       });
+
+      const lobbyForJoin = lobbyInfo.get(matchId);
+      lobbyForJoin?.stakes.set(userId, joinerStake);
 
       // Collect all player IDs (host first, joiners in join order)
       const allParticipantIds = dbMatch.participants.map((p) => p.userId);
@@ -513,10 +623,12 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
 
       // --- Lobby is full — start the match! ---
 
-      // Lock all stakes via escrow
-      const stakeDecimal = new Decimal(stakeAmount);
+      // Lock each participant's own stake (Fixed mode: all the same; Free
+      // mode: whatever each of them individually chose when joining).
+      const stakesAtFill = lobbyInfo.get(matchId)?.stakes;
       for (const pid of allParticipantIds) {
-        await escrow.lockBalance(pid, stakeDecimal, matchId);
+        const amount = stakesAtFill?.get(pid) ?? stakeAmount;
+        await escrow.lockBalance(pid, new Decimal(amount), matchId);
       }
 
       // Assign colors and initialize game state
@@ -576,7 +688,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
       });
 
       // Start roll timer for first player
-      startRollTimer(newActiveMatch, state.currentPlayerId);
+      armRollTimerWithBanner(newActiveMatch, state.currentPlayerId);
 
       // Clean up lobby
       lobbyInfo.delete(matchId);
@@ -654,11 +766,32 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
           reason: 'three_sixes',
         });
 
-        startRollTimer(match, nextPlayerId);
+        armRollTimerWithBanner(match, nextPlayerId);
         return;
       }
 
       if (validMoves.length === 0) {
+        if (diceValue === 6) {
+          // A 6 with nothing usable (e.g. the player's own start square is
+          // already blocked by two of their own tokens) keeps the turn with
+          // the same player instead of forfeiting it — unlike an ordinary
+          // dead roll, they shouldn't lose their turn over a 6 they couldn't
+          // use. No "Your Turn" banner here: it's still their turn.
+          log.info('six rolled, no valid moves', { matchId, playerId: userId });
+
+          match.state = processSixNoMoves(match.state);
+
+          broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
+            currentPlayerId: userId,
+            turnNumber: match.state.turnNumber,
+            dice: null,
+            reason: 'six_no_moves',
+          });
+
+          startRollTimer(match, userId);
+          return;
+        }
+
         // No valid moves — pass turn
         log.info('no valid moves', { matchId, playerId: userId, diceValue });
 
@@ -672,7 +805,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
           reason: 'no_moves',
         });
 
-        startRollTimer(match, nextPlayerId);
+        armRollTimerWithBanner(match, nextPlayerId);
         return;
       }
 
@@ -726,7 +859,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
             turnNumber: moveState.turnNumber,
             dice: null,
           });
-          startRollTimer(match, nextPlayerId);
+          armRollTimerWithBanner(match, nextPlayerId);
         }
         return;
       }
@@ -753,7 +886,18 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
       startMoveTimer(match, userId);
     } catch (err) {
       log.error('roll_dice error', { userId, err });
-      socket.emit(LUDO_EVENTS.ERROR, { message: 'Failed to roll dice' });
+      // Something may have already broadcast to everyone (e.g. DICE_ROLLED)
+      // before this threw — broadcast the error and a fresh state snapshot
+      // to the whole match, not just the acting socket, so nobody is left
+      // with stale state and no explanation.
+      const failedMatchId = socketToMatch.get(socket.id);
+      const failedMatch = failedMatchId ? matches.get(failedMatchId) : undefined;
+      if (failedMatch) {
+        broadcastToMatch(failedMatch, LUDO_EVENTS.ERROR, { message: 'Failed to roll dice' });
+        broadcastToMatch(failedMatch, LUDO_EVENTS.MATCH_STATE, { state: failedMatch.state });
+      } else {
+        socket.emit(LUDO_EVENTS.ERROR, { message: 'Failed to roll dice' });
+      }
     }
   });
 
@@ -868,11 +1012,20 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
           turnNumber: moveState.turnNumber,
           dice: null,
         });
-        startRollTimer(match, nextPlayerId);
+        armRollTimerWithBanner(match, nextPlayerId);
       }
     } catch (err) {
       log.error('move_token error', { userId, err });
-      socket.emit(LUDO_EVENTS.ERROR, { message: 'Failed to move token' });
+      // See the matching comment in ROLL_DICE's catch — broadcast so every
+      // player recovers, not just whoever's move triggered this.
+      const failedMatchId = socketToMatch.get(socket.id);
+      const failedMatch = failedMatchId ? matches.get(failedMatchId) : undefined;
+      if (failedMatch) {
+        broadcastToMatch(failedMatch, LUDO_EVENTS.ERROR, { message: 'Failed to move token' });
+        broadcastToMatch(failedMatch, LUDO_EVENTS.MATCH_STATE, { state: failedMatch.state });
+      } else {
+        socket.emit(LUDO_EVENTS.ERROR, { message: 'Failed to move token' });
+      }
     }
   });
 
@@ -948,33 +1101,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
       const forfeitResult = await escrow.forfeitPlayer(matchId, userId);
 
       if (forfeitResult.outcome === 'forfeited') {
-        // Player was forfeited — add to forfeited list
-        match.forfeitedPlayers.push(userId);
-
-        // If it was their turn, pass to next player
-        if (match.state.currentPlayerId === userId) {
-          clearTimeouts(match);
-          const { state: newState, nextPlayerId } = processTurnPass(match.state);
-          match.state = newState;
-
-          broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
-            currentPlayerId: nextPlayerId,
-            turnNumber: newState.turnNumber,
-            dice: null,
-          });
-
-          startRollTimer(match, nextPlayerId);
-        }
-
-        // Check if only one player remains — that player wins
-        const activePlayers = match.playerIds.filter(
-          (id) => !match.forfeitedPlayers.includes(id),
-        );
-
-        if (activePlayers.length <= 1) {
-          const winnerId = activePlayers[0] ?? null;
-          await settleMatch(match, winnerId);
-        }
+        await applyForfeitOutcome(match, userId);
       } else if (forfeitResult.outcome === 'reconnected') {
         // They reconnected — cancel forfeit (handled in JOIN_MATCH)
       }

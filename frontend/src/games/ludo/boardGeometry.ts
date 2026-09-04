@@ -248,3 +248,60 @@ export function getEntryDirection(color: LudoColor): { dRow: number; dCol: numbe
   const b = RING_PATH[(offset + 1) % RING_PATH.length];
   return { dRow: b.row - a.row, dCol: b.col - a.col };
 }
+
+// ---------------------------------------------------------------------------
+// Per-viewer board rotation (display-only — never touches the geometry above).
+//
+// Every player sees the SAME physical board, just rotated as a whole so their
+// own color's yard always renders where blue's sits in the neutral frame
+// (bottom-left). `COLOR_ORDER`'s index is already "how many 90deg rotations
+// from red" (see how HOME_COLUMNS/RING_PATH are built above), so rotating by
+// `k` advances every color's effective slot by `k` — we just need the `k`
+// that lands `myColor` on slot 3 (blue's slot).
+// ---------------------------------------------------------------------------
+
+export const COLOR_ORDER: LudoColor[] = ['red', 'green', 'yellow', 'blue'];
+
+/** Each color's native screen slot in the neutral frame: 0=TL, 1=TR, 2=BR, 3=BL. */
+export const NATIVE_SLOT: Record<LudoColor, number> = { red: 0, green: 1, yellow: 2, blue: 3 };
+
+/** Rotation count (0-3) so `myColor`'s yard renders bottom-left. No-op when `myColor` is unknown. */
+export function rotationForViewer(myColor: LudoColor | undefined): number {
+  if (!myColor) return 0;
+  return (3 - NATIVE_SLOT[myColor] + 4) % 4;
+}
+
+/** Rotate a single point-cell by k*90deg CW about the board center. Safe for any
+ * point-like cell: RING_PATH/HOME_COLUMNS/YARD_SLOTS entries, token cells, single-cell markers. */
+export function rotateForViewer(cell: Cell, k: number): Cell {
+  return rotate(cell, k);
+}
+
+/**
+ * Rotate an axis-aligned multi-cell box (top-left origin + size, in cell units —
+ * may be fractional) by k*90deg CW. A box's top-left origin is a *label*, not a
+ * rotation-invariant point — rotating it directly does not land on the target
+ * color's real origin, so this rotates both extreme corners and takes the
+ * componentwise min. Needed anywhere a rect is drawn from origin+width/height
+ * rather than from a real generated cell list (e.g. the home base squares and
+ * yard-nest insets in LudoBoardGrid.tsx).
+ */
+export function rotateBoxForViewer(
+  origin: Cell,
+  w: number,
+  h: number,
+  k: number,
+): { origin: Cell; w: number; h: number } {
+  const c1 = rotate(origin, k);
+  const c2 = rotate({ row: origin.row + h - 1, col: origin.col + w - 1 }, k);
+  return {
+    origin: { row: Math.min(c1.row, c2.row), col: Math.min(c1.col, c2.col) },
+    w: Math.abs(c2.col - c1.col) + 1,
+    h: Math.abs(c2.row - c1.row) + 1,
+  };
+}
+
+/** Which color occupies native slot `slot` (0=TL,1=TR,2=BR,3=BL) once the whole board is rotated by k. */
+export function colorAtSlot(slot: number, k: number): LudoColor {
+  return COLOR_ORDER[(((slot - k) % 4) + 4) % 4];
+}

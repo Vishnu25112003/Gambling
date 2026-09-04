@@ -1,3 +1,4 @@
+import { Heart } from 'lucide-react';
 import { Dice3D } from './Dice3D';
 import type { LudoColor } from './boardGeometry';
 
@@ -14,6 +15,8 @@ interface PlayerPodProps {
   color: LudoColor;
   name: string;
   finishedCount: number;
+  /** Remaining lives (out of 3) — lost by missing the 15s roll window. */
+  lives: number;
   /** Whose turn it currently is. */
   active: boolean;
   /** This is my pod and I'm free to tap-roll. */
@@ -30,6 +33,7 @@ export function PlayerPod({
   color,
   name,
   finishedCount,
+  lives,
   active,
   canRoll,
   reversed = false,
@@ -80,6 +84,14 @@ export function PlayerPod({
       <span className="max-w-[96px] truncate text-[11px] font-semibold text-[#dce7fb]">{name}</span>
       <span className="text-[11px] font-bold" style={{ color: sh.mid }}>
         {finishedCount}/4
+      </span>
+      <span className="flex items-center gap-px" aria-label={`${lives} lives remaining`}>
+        {[0, 1, 2].map((i) => (
+          <Heart
+            key={i}
+            className={`size-2.5 ${i < lives ? 'fill-red text-red' : 'fill-transparent text-white/20'}`}
+          />
+        ))}
       </span>
     </div>
   );
