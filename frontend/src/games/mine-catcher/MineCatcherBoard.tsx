@@ -5,6 +5,7 @@ import { tokenStore } from '../../api/client';
 import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
 import { GameSetupWizard, GameJoinByCode, GameWaitingRoom } from '../../components/shared/gameSetup';
+import { StakeAmountStep } from '../../components/shared/gameSetup/StakeAmountStep';
 import { formatSol } from '../../lib/format';
 import { mineCatcherSetupConfig } from './mineCatcherSetupConfig';
 import { MinePlacementBoard } from './MinePlacementBoard';
@@ -25,6 +26,7 @@ const MC = {
   MATCH_STATE: 'mc:state',
   MATCH_CREATED: 'mc:created',
   MATCHES_LIST: 'mc:matches',
+  STAKE_REQUIRED: 'mc:stake:required',
   PLACEMENT_STARTED: 'mc:placement:started',
   MINES_PLACED: 'mc:mines:placed',
   PLAYER_READY: 'mc:player:ready',
@@ -47,6 +49,7 @@ type Page =
   | 'waiting'
   | 'waiting_friends'
   | 'join_code'
+  | 'stake_select'
   | 'placement'
   | 'attacking'
   | 'match_result'
@@ -62,6 +65,15 @@ interface ListedMatch {
   stake: string;
   boardSize: number;
   betMode: string;
+  minBet: string | null;
+}
+
+/** Sent by the server when JOIN_MATCH hits a Free Bet match without a chosen
+ * stake yet — see the STAKE_REQUIRED handler below. */
+interface StakeRequiredInfo {
+  matchId: string;
+  hostName: string;
+  boardSize: number;
   minBet: string | null;
 }
 
@@ -87,8 +99,20 @@ export function MineCatcherBoard() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [page, setPage] = useState<Page>('lobby');
+  // Mirrored into a ref so the socket-connection effect below (set up once,
+  // see its dependency array) can tell whether an ERROR belongs on the
+  // stake_select screen without tearing the socket down every navigation.
+  const pageRef = useRef<Page>('lobby');
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
   const [error, setError] = useState<string>('');
   const [listedMatches, setListedMatches] = useState<ListedMatch[]>([]);
+
+  // Free Bet joiner: the stake picker shown after a STAKE_REQUIRED bounce.
+  const [joinStakeInfo, setJoinStakeInfo] = useState<StakeRequiredInfo | null>(null);
+  const [joinStake, setJoinStake] = useState('0.1');
+  const [stakeError, setStakeError] = useState<string | null>(null);
 
   // Match state
   const [matchId, setMatchId] = useState<string>('');
@@ -172,6 +196,17 @@ export function MineCatcherBoard() {
       }
     });
 
+    socket.on(MC.STAKE_REQUIRED, (data: StakeRequiredInfo) => {
+      // The match we tried to join is Free Bet — the server needs our own
+      // stake before it'll lock anything and start the match. This is why a
+      // Free Bet join previously appeared to hang: the join silently used
+      // the host's exact stake and failed whenever we couldn't cover it.
+      setJoinStakeInfo(data);
+      setJoinStake(data.minBet ?? '0.1');
+      setStakeError(null);
+      setPage('stake_select');
+    });
+
     socket.on(MC.MATCH_STATE, (data: {
       matchId?: string;
       players?: PlayerInfo[];
@@ -243,6 +278,8 @@ export function MineCatcherBoard() {
       setOpponentBreakCount(0);
       setCombatLog([]);
       setLastAttack(null);
+      setJoinStakeInfo(null);
+      setStakeError(null);
     });
 
     socket.on(MC.MINES_PLACED, (_data: { userId: string; mineCount: number }) => {
@@ -351,6 +388,13 @@ export function MineCatcherBoard() {
     });
 
     socket.on(MC.ERROR, (data: { message: string }) => {
+      // A rejected stake (below minimum, insufficient balance) shouldn't
+      // knock the joiner back to the lobby — let them see why and try a
+      // different amount without losing their place in line.
+      if (pageRef.current === 'stake_select') {
+        setStakeError(data.message);
+        return;
+      }
       setError(data.message);
       setTimeout(() => setError(''), 3000);
     });
@@ -429,6 +473,23 @@ export function MineCatcherBoard() {
   const handleJoin = useCallback((matchId: string) => {
     socketRef.current?.emit(MC.JOIN_MATCH, { matchId });
   }, []);
+
+  const handleJoinByCode = useCallback((code: string) => {
+    if (!code.trim()) return;
+    socketRef.current?.emit(MC.JOIN_MATCH, { roomCode: code });
+    setPage('waiting');
+  }, []);
+
+  const handleConfirmStake = useCallback(() => {
+    if (!joinStakeInfo) return;
+    const amount = Number(joinStake);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    setStakeError(null);
+    // Stay on stake_select — MATCH_STATE/PLACEMENT_STARTED moves us on
+    // success, and the ERROR handler above keeps us here (with a message)
+    // on rejection, so the player can just try a different amount.
+    socketRef.current?.emit(MC.JOIN_MATCH, { matchId: joinStakeInfo.matchId, stake: amount });
+  }, [joinStakeInfo, joinStake]);
 
   const handlePlace = useCallback((cells: number[]) => {
     setOwnMinePositions(cells);
@@ -544,10 +605,59 @@ export function MineCatcherBoard() {
   if (page === 'join_code') {
     return (
       <GameShell title="Mine Catcher">
-        <GameJoinByCode
-          onJoin={(code) => socketRef.current?.emit(MC.JOIN_MATCH, { roomCode: code })}
-          onBack={() => setPage('lobby')}
+        <GameJoinByCode onJoin={handleJoinByCode} onBack={() => setPage('lobby')} />
+      </GameShell>
+    );
+  }
+
+  if (page === 'stake_select' && joinStakeInfo) {
+    const stakeNum = Number(joinStake) || 0;
+    const minBetNum = joinStakeInfo.minBet != null ? Number(joinStakeInfo.minBet) : 0;
+    const balance = user?.availableBalance?.toString() ?? null;
+    const canAfford = balance === null || stakeNum <= Number(balance);
+    const meetsMinimum = stakeNum >= minBetNum;
+    const stakeBoardLabel = joinStakeInfo.boardSize === 25 ? '5×5' : joinStakeInfo.boardSize === 49 ? '7×7' : joinStakeInfo.boardSize === 81 ? '9×9' : '10×10';
+    return (
+      <GameShell title="Mine Catcher">
+        <PageTitle
+          title="Choose Your Bet"
+          subtitle={`Joining ${joinStakeInfo.hostName}'s Free Bet match — ${stakeBoardLabel} field.`}
         />
+        <Card className="mx-auto max-w-sm px-6 py-6">
+          {joinStakeInfo.minBet && (
+            <p className="mb-4 text-xs text-muted">
+              Minimum stake: <span className="font-bold text-text">{formatSol(joinStakeInfo.minBet)} SOL</span>
+            </p>
+          )}
+          <StakeAmountStep
+            balance={balance}
+            stake={joinStake}
+            onStakeChange={setJoinStake}
+            accentColor="var(--green)"
+            canAfford={canAfford}
+          />
+          {!meetsMinimum && (
+            <p className="mb-1 text-xs text-red">Must be at least {formatSol(joinStakeInfo.minBet ?? '0')} SOL.</p>
+          )}
+          {stakeError && <p className="mb-1 text-xs text-red">{stakeError}</p>}
+          <Button
+            variant="primary"
+            size="lg"
+            className="mt-3 w-full"
+            disabled={!joinStake || stakeNum <= 0 || !canAfford || !meetsMinimum}
+            onClick={handleConfirmStake}
+          >
+            Join Match
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-3 w-full"
+            onClick={() => { setJoinStakeInfo(null); setStakeError(null); setPage('lobby'); }}
+          >
+            Back to Lobby
+          </Button>
+        </Card>
       </GameShell>
     );
   }
