@@ -94,6 +94,9 @@ interface LobbyInfo {
   minBet: number | null;
   discovery: 'random' | 'friends';
   createdAt: number;
+  /** userId -> the stake THEY locked in for. Fixed mode: everyone maps to
+   * `stake` above. Free mode: each joiner picks their own (>= minBet). */
+  stakes: Map<string, number>;
 }
 
 /** matchId -> lobby info (for Random Play listings and Friends Play host tracking). */
@@ -405,6 +408,7 @@ export function registerTrumpcardSocket(namespace: Namespace, socket: Socket): v
           matchId, hostUserId: userId, hostSocketId: socket.id, hostName,
           seatCount, cardsPerPlayer, durationMinutes, stake: stakeAmount,
           betMode: mode, minBet: minBetValue, discovery: 'random', createdAt: Date.now(),
+          stakes: new Map([[userId, stakeAmount]]),
         });
 
         socket.emit(TRUMPCARD_EVENTS.MATCH_CREATED, { matchId });
@@ -420,6 +424,7 @@ export function registerTrumpcardSocket(namespace: Namespace, socket: Socket): v
           matchId, hostUserId: userId, hostSocketId: socket.id, hostName,
           seatCount, cardsPerPlayer, durationMinutes, stake: stakeAmount,
           betMode: mode, minBet: minBetValue, discovery: 'friends', createdAt: Date.now(),
+          stakes: new Map([[userId, stakeAmount]]),
         });
 
         socket.emit(TRUMPCARD_EVENTS.MATCH_CREATED, { matchId, roomCode: code });
@@ -432,7 +437,7 @@ export function registerTrumpcardSocket(namespace: Namespace, socket: Socket): v
   });
 
   // --- JOIN_MATCH: join an existing lobby (or reconnect to an active one) ---
-  socket.on(TRUMPCARD_EVENTS.JOIN_MATCH, async (data: { matchId?: string; roomCode?: string }) => {
+  socket.on(TRUMPCARD_EVENTS.JOIN_MATCH, async (data: { matchId?: string; roomCode?: string; stake?: number }) => {
     try {
       let matchId: string | undefined;
       let usedRoomCode: string | undefined;
@@ -505,20 +510,54 @@ export function registerTrumpcardSocket(namespace: Namespace, socket: Socket): v
         durationMinutes?: number;
         betMode?: string;
         stake?: number;
+        minBet?: number;
       };
       const seatCount = gs.seatCount ?? 2;
       const cardsPerPlayer = gs.cardsPerPlayer ?? CARD_LIMITS[seatCount as 2 | 3 | 4] ?? 26;
       const durationMinutes = gs.durationMinutes ?? 10;
       const stakeAmount = gs.stake ?? lobbyInfo.get(matchId)?.stake ?? 0.1;
+      const betMode = gs.betMode ?? lobbyInfo.get(matchId)?.betMode ?? 'fixed';
+      const minBet = gs.minBet ?? lobbyInfo.get(matchId)?.minBet ?? null;
 
       if (dbMatch.participants.length >= seatCount) {
         socket.emit(TRUMPCARD_EVENTS.ERROR, { message: 'Match is full' });
         return;
       }
 
+      // Free Bet: the joiner picks their own stake before anything is
+      // locked or the participant row created — bouncing back here is
+      // side-effect-free and safe for the client to repeat with a chosen
+      // amount.
+      let joinerStake = stakeAmount;
+      if (betMode === 'free') {
+        const submitted = data.stake;
+        if (submitted == null) {
+          socket.emit(TRUMPCARD_EVENTS.STAKE_REQUIRED, {
+            matchId,
+            hostName: lobbyInfo.get(matchId)?.hostName ?? 'Player',
+            seatCount,
+            minBet: minBet != null ? String(minBet) : null,
+          });
+          return;
+        }
+        const chosen = Number(submitted);
+        if (!Number.isFinite(chosen) || chosen <= 0) {
+          socket.emit(TRUMPCARD_EVENTS.ERROR, { message: 'Stake must be a positive amount' });
+          return;
+        }
+        if (minBet != null && chosen < minBet) {
+          socket.emit(TRUMPCARD_EVENTS.ERROR, { message: `Stake must be at least ${minBet} SOL` });
+          return;
+        }
+        joinerStake = chosen;
+      }
+
       await prisma.matchParticipant.create({
         data: { matchId, userId, lockedAmount: 0, stakeTotal: 0, status: 'active' },
       });
+
+      const lobbyForJoin = lobbyInfo.get(matchId);
+      lobbyForJoin?.stakes.set(userId, joinerStake);
 
       const allParticipantIds = dbMatch.participants.map((p) => p.userId);
       allParticipantIds.push(userId);
@@ -551,9 +590,12 @@ export function registerTrumpcardSocket(namespace: Namespace, socket: Socket): v
 
       // --- Lobby is full — start the match! ---
 
-      const stakeDecimal = new Decimal(stakeAmount);
+      // Lock each participant's own stake (Fixed mode: all the same; Free
+      // mode: whatever each of them individually chose when joining).
+      const stakesAtFill = lobbyInfo.get(matchId)?.stakes;
       for (const pid of allParticipantIds) {
-        await escrow.lockBalance(pid, stakeDecimal, matchId);
+        const amount = stakesAtFill?.get(pid) ?? stakeAmount;
+        await escrow.lockBalance(pid, new Decimal(amount), matchId);
       }
 
       const playerIds = allParticipantIds as string[];

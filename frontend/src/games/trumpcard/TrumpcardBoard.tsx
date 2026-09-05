@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { Dices, Heart, Layers } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -7,11 +8,15 @@ import { walletApi } from '../../api/endpoints';
 import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
 import { GameSetupWizard, GameJoinByCode, GameWaitingRoom } from '../../components/shared/gameSetup';
+import { StakeAmountStep } from '../../components/shared/gameSetup/StakeAmountStep';
 import { formatSol } from '../../lib/format';
 import { trumpcardSetupConfig } from './trumpcardSetupConfig';
 import { TrumpcardResult } from './TrumpcardResult';
 import { TrumpcardCard, TrumpcardBack, type TrumpCardData } from './TrumpcardCard';
 import { RoundRevealOverlay, type RevealEntry } from './RoundRevealOverlay';
+import { NarutoFrame } from './NarutoFrame';
+import { RivalMiniRow } from './RivalMiniRow';
+import { NARUTO, NARUTO_FONT, cardStackLayers } from './narutoTheme';
 
 /**
  * Mirror of backend TRUMPCARD_EVENTS — keep in sync with backend/src/games/trumpcard/types.ts
@@ -25,6 +30,7 @@ const TRUMPCARD = {
   MATCH_CREATED: 'trumpcard:created',
   MATCHES_LIST: 'trumpcard:matches',
   MATCH_STATE: 'trumpcard:state',
+  STAKE_REQUIRED: 'trumpcard:stake:required',
   LEADER_TURN_START: 'trumpcard:leader:start',
   ROUND_REVEAL: 'trumpcard:round:reveal',
   LIVES_UPDATE: 'trumpcard:lives:update',
@@ -43,6 +49,7 @@ type Page =
   | 'waiting'
   | 'waiting_friends'
   | 'join_code'
+  | 'stake_select'
   | 'live'
   | 'match_result'
   | 'error';
@@ -59,6 +66,15 @@ interface ListedMatch {
   durationMinutes: number;
   stake: string;
   betMode: BetMode;
+  minBet: string | null;
+}
+
+/** Sent by the server when JOIN_MATCH hits a Free Bet match without a chosen
+ * stake yet — see the STAKE_REQUIRED handler below. */
+interface StakeRequiredInfo {
+  matchId: string;
+  hostName: string;
+  seatCount: number;
   minBet: string | null;
 }
 
@@ -112,6 +128,39 @@ function formatClock(totalSeconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/**
+ * A faux stack of cards peeking out from behind the top card — port of the
+ * mock's `stack(n)` + absolutely-positioned filler divs. Purely decorative
+ * (reflects how many cards are left in the pile); the real card on top
+ * still renders through `children`.
+ */
+function CardStack({ remaining, children }: { remaining: number; children: ReactNode }) {
+  const layers = cardStackLayers(remaining);
+  return (
+    <div style={{ position: 'relative', width: '100%', paddingLeft: 14, boxSizing: 'border-box' }}>
+      {layers.map((l) => (
+        <div
+          key={l.key}
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: 14,
+            right: 0,
+            borderRadius: 16,
+            background: NARUTO.card,
+            border: `2px solid ${NARUTO.ink}`,
+            boxShadow: '0 10px 22px rgba(0,0,0,.4)',
+            transformOrigin: '50% 100%',
+            transform: l.transform,
+          }}
+        />
+      ))}
+      <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
+    </div>
+  );
+}
+
 export function TrumpcardBoard() {
   return (
     <GameShell title="Trumpcard">
@@ -138,6 +187,10 @@ function TrumpcardBoardInner() {
   const [durationMinutes, setDurationMinutes] = useState(10);
   const [betMode, setBetMode] = useState<BetMode>('fixed');
   const [stake, setStake] = useState('0.1');
+
+  const [joinStakeInfo, setJoinStakeInfo] = useState<StakeRequiredInfo | null>(null);
+  const [joinStake, setJoinStake] = useState('0.1');
+  const [stakeError, setStakeError] = useState<string | null>(null);
 
   const [myId, setMyId] = useState<string | null>(user?.id ?? null);
   const [players, setPlayers] = useState<PlayerInfo[]>([]);
@@ -217,6 +270,15 @@ function TrumpcardBoardInner() {
 
     s.on(TRUMPCARD.MATCHES_LIST, (data: { matches: ListedMatch[] }) => {
       setMatches(data.matches);
+    });
+
+    s.on(TRUMPCARD.STAKE_REQUIRED, (data: StakeRequiredInfo) => {
+      // The match we tried to join is Free Bet — the server needs our own
+      // stake before it'll actually lock anything and start the match.
+      setJoinStakeInfo(data);
+      setJoinStake(data.minBet ?? '0.1');
+      setStakeError(null);
+      setPage('stake_select');
     });
 
     s.on(TRUMPCARD.MATCH_CREATED, (data: {
@@ -366,6 +428,25 @@ function TrumpcardBoardInner() {
     setPage('waiting');
   };
 
+  const handleConfirmStake = () => {
+    if (!joinStakeInfo) return;
+    const amount = Number(joinStake);
+    const minBetNum = joinStakeInfo.minBet != null ? Number(joinStakeInfo.minBet) : 0;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setStakeError('Enter a valid stake amount.');
+      return;
+    }
+    if (amount < minBetNum) {
+      setStakeError(`Must be at least ${formatSol(joinStakeInfo.minBet ?? '0')} SOL.`);
+      return;
+    }
+    setStakeError(null);
+    // Stay off 'stake_select' — MATCH_STATE/waiting-room events move us
+    // forward once the server accepts this stake.
+    setPage('waiting');
+    emit(TRUMPCARD.JOIN_MATCH, { matchId: joinStakeInfo.matchId, stake: amount });
+  };
+
   const handleChooseStat = (statKey: string) => {
     setPendingStat(statKey);
     emit(TRUMPCARD.CHOOSE_STAT, { statKey });
@@ -391,6 +472,8 @@ function TrumpcardBoardInner() {
     setError(null);
     setLeaderDeadline(null);
     setMatchDeadlineAt(null);
+    setJoinStakeInfo(null);
+    setStakeError(null);
 
     const token = tokenStore.get();
     if (!token || !user) return;
@@ -464,6 +547,58 @@ function TrumpcardBoardInner() {
     return <GameJoinByCode onJoin={handleJoinByCode} onBack={() => setPage('lobby')} />;
   }
 
+  // --- Free Bet joiner: pick a stake before the match can start ---
+  if (page === 'stake_select' && joinStakeInfo) {
+    const stakeNum = Number(joinStake) || 0;
+    const minBetNum = joinStakeInfo.minBet != null ? Number(joinStakeInfo.minBet) : 0;
+    const canAfford = balance === null || stakeNum <= Number(balance);
+    const meetsMinimum = stakeNum >= minBetNum;
+    return (
+      <>
+        <PageTitle
+          title="Choose Your Bet"
+          subtitle={`Joining ${joinStakeInfo.hostName}'s Free Bet match — ${joinStakeInfo.seatCount} players.`}
+        />
+        <Card className="mx-auto max-w-sm px-6 py-6">
+          {joinStakeInfo.minBet && (
+            <p className="mb-4 text-xs text-muted">
+              Minimum stake: <span className="font-bold text-text">{formatSol(joinStakeInfo.minBet)} SOL</span>
+            </p>
+          )}
+          <StakeAmountStep
+            balance={balance}
+            stake={joinStake}
+            onStakeChange={setJoinStake}
+            accentColor={NARUTO.gold}
+            canAfford={canAfford}
+          />
+          {!meetsMinimum && (
+            <p className="mb-1 text-xs text-red">Must be at least {formatSol(joinStakeInfo.minBet ?? '0')} SOL.</p>
+          )}
+          {stakeError && <p className="mb-1 text-xs text-red">{stakeError}</p>}
+          <Button
+            variant="primary"
+            size="lg"
+            className="mt-3 w-full border-none"
+            disabled={!joinStake || stakeNum <= 0 || !canAfford || !meetsMinimum}
+            onClick={handleConfirmStake}
+            style={{ background: NARUTO.gold, color: NARUTO.ink }}
+          >
+            Join Match
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-3 w-full"
+            onClick={() => { setJoinStakeInfo(null); setStakeError(null); setPage('lobby'); }}
+          >
+            Back to Lobby
+          </Button>
+        </Card>
+      </>
+    );
+  }
+
   // --- Create flow ---
   if (page === 'create') {
     return (
@@ -526,8 +661,13 @@ function TrumpcardBoardInner() {
     }
 
     return (
-      <>
-        <PageTitle title="Trumpcard — Match Over" />
+      <NarutoFrame>
+        <div
+          className="mb-5 text-center"
+          style={{ fontFamily: NARUTO_FONT.display, fontSize: 'clamp(20px,4vw,32px)', color: NARUTO.cream }}
+        >
+          MATCH OVER
+        </div>
         <TrumpcardResult
           won={won}
           stake={stake}
@@ -540,93 +680,180 @@ function TrumpcardBoardInner() {
           playerNames={nameMap}
           onBackToLobby={goHome}
         />
-      </>
+      </NarutoFrame>
     );
   }
 
   // --- Live game board ---
   const isMyTurn = phase === 'leader_choosing' && currentLeaderId === myId;
-  const leaderTimerColor = leaderTimeLeft <= 3 ? 'text-red' : leaderTimeLeft <= 5 ? 'text-gold' : 'text-green';
   const opponents = players.filter((p) => p.id !== myId);
+  const singleOpponent = opponents.length === 1 ? opponents[0] : null;
+  const iAmActive = activePlayerIds.includes(myId ?? '');
+  const myCount = handCounts[myId ?? ''] ?? 0;
+  const myLives = Math.max(0, lives[myId ?? ''] ?? 0);
+
+  let bannerTitle = 'GET READY';
+  let bannerNote = waitingReason ?? '';
+  let bannerColor: string = NARUTO.cream;
+  if (phase === 'reveal') {
+    bannerTitle = 'REVEALING…';
+    bannerNote = '';
+    bannerColor = NARUTO.gold;
+  } else if (isMyTurn) {
+    bannerTitle = 'PICK A STAT';
+    bannerNote = '';
+  } else if (phase === 'leader_choosing' && currentLeaderId) {
+    bannerTitle = `${getDisplayName(currentLeaderId).toUpperCase()}'S TURN`;
+    bannerNote = waitingReason ?? 'Waiting for their pick…';
+  }
+
+  const labelStyle = (color: string) => ({
+    fontFamily: NARUTO_FONT.condensed,
+    fontWeight: 700 as const,
+    fontSize: 'clamp(9px,2.2vw,12px)',
+    letterSpacing: '.2em',
+    color,
+    textAlign: 'center' as const,
+  });
 
   return (
-    <>
-      <div className="mb-4 flex items-center justify-between">
-        <PageTitle
-          title="Trumpcard"
-          subtitle={isMyTurn ? 'Your turn — pick a stat!' : (waitingReason ?? 'Round in progress...')}
-        />
-        <div className="flex items-center gap-2 text-xs font-bold text-muted">
-          <span>Round {roundNumber}</span>
+    <NarutoFrame>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <div
+            style={{
+              fontFamily: NARUTO_FONT.condensed,
+              fontWeight: 700,
+              fontSize: 13,
+              letterSpacing: '.32em',
+              color: NARUTO.orange,
+              textTransform: 'uppercase',
+            }}
+          >
+            Real-Time Duel · 52 Card Deck
+          </div>
+          <div
+            style={{
+              fontFamily: NARUTO_FONT.display,
+              fontSize: 'clamp(22px,4.6vw,38px)',
+              color: NARUTO.cream,
+              letterSpacing: '-.01em',
+              lineHeight: 1.05,
+            }}
+          >
+            NARUTO TRUMP CARDS
+          </div>
+        </div>
+        <div
+          className="flex items-center gap-3"
+          style={{ fontFamily: NARUTO_FONT.condensed, fontWeight: 700, fontSize: 12, letterSpacing: '.14em', color: NARUTO.muted }}
+        >
+          <span>ROUND {roundNumber}</span>
           <span>⏳ {formatClock(matchTimeLeft)}</span>
-          {poolSize > 0 && <span className="text-gold">· Pool: {poolSize}</span>}
+          {poolSize > 0 && <span style={{ color: NARUTO.gold }}>· POOL {poolSize}</span>}
         </div>
       </div>
 
-      <div className="mx-auto max-w-lg">
-        {/* Opponents row */}
-        <Card className="mb-4 px-5 py-3">
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            {opponents.map((p) => {
-              const isEliminated = !activePlayerIds.includes(p.id);
-              const isLeader = currentLeaderId === p.id;
-              return (
-                <div key={p.id} className={`flex flex-col items-center gap-1 ${isEliminated ? 'opacity-40' : ''}`}>
-                  <div className="relative">
-                    <TrumpcardBack size="sm" className={isLeader ? 'border-gold' : ''} />
-                    <span className="absolute -bottom-1.5 -right-1.5 rounded-full border border-line bg-bg2 px-1.5 py-0.5 text-[10px] font-bold">
-                      {handCounts[p.id] ?? 0}
-                    </span>
-                  </div>
-                  <p className="text-[11px] font-bold">{p.displayName ?? 'Player'}</p>
-                  <div className="flex items-center gap-0.5">
-                    {Array.from({ length: Math.max(0, lives[p.id] ?? 0) }).map((_, i) => (
-                      <Heart key={i} className="size-2.5 fill-red text-red" />
-                    ))}
-                  </div>
-                  {isEliminated && <p className="text-[10px] text-faint">Eliminated</p>}
-                </div>
-              );
-            })}
+      {!iAmActive ? (
+        <div className="mx-auto max-w-md py-10 text-center">
+          <Dices className="mx-auto mb-2 size-8" style={{ color: NARUTO.faint }} />
+          <p className="text-sm font-bold" style={{ color: NARUTO.cream }}>You've been eliminated</p>
+          <p className="text-xs" style={{ color: NARUTO.muted }}>Watching the rest of the match play out.</p>
+        </div>
+      ) : (
+        <div className="mx-auto flex w-full max-w-[1120px] flex-col items-center gap-5">
+          <div className="flex flex-wrap items-center justify-center gap-2.5 text-center">
+            <div style={{ fontFamily: NARUTO_FONT.display, fontSize: 'clamp(15px,3.6vw,22px)', lineHeight: 1.15, color: bannerColor }}>
+              {bannerTitle}
+            </div>
+            {bannerNote && <div style={{ fontSize: 'clamp(12px,3vw,14px)', color: NARUTO.muted }}>{bannerNote}</div>}
           </div>
-        </Card>
 
-        {/* Your card / turn area */}
-        <Card className="mb-4 flex flex-col items-center px-6 py-8">
-          {activePlayerIds.includes(myId ?? '') ? (
-            <>
-              <p className="mb-3 text-xs font-bold text-muted">Your Top Card</p>
-              {myTopCard && (
-                <TrumpcardCard
-                  card={myTopCard}
-                  size="lg"
-                  selectedStat={pendingStat}
-                  onStatTap={isMyTurn ? handleChooseStat : undefined}
+          {singleOpponent ? (
+            <div className="grid w-full grid-cols-1 items-start justify-items-center gap-3 sm:grid-cols-[2.4fr_1fr] sm:gap-9">
+              <div className="flex w-full max-w-[400px] flex-col items-stretch gap-2">
+                <div style={labelStyle(NARUTO.gold)}>YOUR CARD</div>
+                {myTopCard && (
+                  <CardStack remaining={myCount}>
+                    <TrumpcardCard
+                      card={myTopCard}
+                      selectedStat={pendingStat}
+                      onStatTap={isMyTurn ? handleChooseStat : undefined}
+                      footerHint={isMyTurn ? 'TAP A STAT' : 'WAITING…'}
+                    />
+                  </CardStack>
+                )}
+                <div style={labelStyle(NARUTO.faint)}>{myCount} LEFT</div>
+              </div>
+
+              {/* Wide layout: face-down rival card. Narrow layout swaps to the mini row below. */}
+              <div className="hidden w-full max-w-[330px] flex-col items-stretch gap-2 sm:flex">
+                <div style={labelStyle(NARUTO.orange)}>RIVAL CARD</div>
+                <CardStack remaining={handCounts[singleOpponent.id] ?? 0}>
+                  <TrumpcardBack />
+                </CardStack>
+                <div style={labelStyle(NARUTO.faint)}>{handCounts[singleOpponent.id] ?? 0} LEFT</div>
+              </div>
+              <div className="w-full sm:hidden">
+                <RivalMiniRow
+                  displayName={singleOpponent.displayName ?? 'Player'}
+                  cardsLeft={handCounts[singleOpponent.id] ?? 0}
+                  lives={Math.max(0, lives[singleOpponent.id] ?? 0)}
+                  isLeader={currentLeaderId === singleOpponent.id}
+                  isEliminated={!activePlayerIds.includes(singleOpponent.id)}
                 />
-              )}
-              <div className="mt-4 flex items-center gap-1.5">
-                {Array.from({ length: Math.max(0, lives[myId ?? ''] ?? 0) }).map((_, i) => (
-                  <Heart key={i} className="size-3.5 fill-red text-red" />
+              </div>
+            </div>
+          ) : (
+            <div className="flex w-full flex-col items-center gap-5">
+              <div className="flex w-full max-w-[400px] flex-col items-stretch gap-2">
+                <div style={labelStyle(NARUTO.gold)}>YOUR CARD</div>
+                {myTopCard && (
+                  <CardStack remaining={myCount}>
+                    <TrumpcardCard
+                      card={myTopCard}
+                      selectedStat={pendingStat}
+                      onStatTap={isMyTurn ? handleChooseStat : undefined}
+                      footerHint={isMyTurn ? 'TAP A STAT' : 'WAITING…'}
+                    />
+                  </CardStack>
+                )}
+                <div style={labelStyle(NARUTO.faint)}>{myCount} LEFT</div>
+              </div>
+              <div className="flex w-full max-w-[560px] flex-col gap-2">
+                {opponents.map((p) => (
+                  <RivalMiniRow
+                    key={p.id}
+                    displayName={p.displayName ?? 'Player'}
+                    cardsLeft={handCounts[p.id] ?? 0}
+                    lives={Math.max(0, lives[p.id] ?? 0)}
+                    isLeader={currentLeaderId === p.id}
+                    isEliminated={!activePlayerIds.includes(p.id)}
+                  />
                 ))}
               </div>
-              {isMyTurn ? (
-                <p className={`mt-3 text-2xl font-extrabold ${leaderTimerColor}`}>{leaderTimeLeft}s</p>
-              ) : (
-                <div className="mt-3 flex items-center gap-2 text-sm text-muted">
-                  <Spinner className="size-4" />
-                  {waitingReason ?? "Waiting for the leader..."}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center">
-              <Dices className="mx-auto mb-2 size-8 text-faint" />
-              <p className="text-sm font-bold">You've been eliminated</p>
-              <p className="text-xs text-muted">Watching the rest of the match play out.</p>
             </div>
           )}
-        </Card>
-      </div>
+
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: myLives }).map((_, i) => (
+              <Heart key={i} className="size-3.5" style={{ fill: NARUTO.lose, color: NARUTO.lose }} />
+            ))}
+          </div>
+
+          {isMyTurn && (
+            <p
+              style={{
+                fontFamily: NARUTO_FONT.display,
+                fontSize: 26,
+                color: leaderTimeLeft <= 3 ? NARUTO.lose : leaderTimeLeft <= 5 ? NARUTO.gold : NARUTO.win,
+              }}
+            >
+              {leaderTimeLeft}s
+            </p>
+          )}
+        </div>
+      )}
 
       {revealData && (
         <RoundRevealOverlay
@@ -639,6 +866,6 @@ function TrumpcardBoardInner() {
           myId={myId}
         />
       )}
-    </>
+    </NarutoFrame>
   );
 }

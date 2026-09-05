@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { STAT_LABEL, TrumpcardCard, type TrumpCardData } from './TrumpcardCard';
+import { NARUTO, NARUTO_FONT } from './narutoTheme';
 
 /**
  * Staged full-screen reveal: a banner naming the stat, then every active
@@ -9,6 +10,8 @@ import { STAT_LABEL, TrumpcardCard, type TrumpCardData } from './TrumpcardCard';
  * setTimeout, no animation library — consistent with the rest of this repo).
  * Timed to roughly match the backend's ROUND_REVEAL_DELAY_MS (4s) so it
  * finishes right as the next leader turn arrives.
+ *
+ * Reskinned to the Naruto ember/gold palette (see narutoTheme.ts).
  */
 
 export interface RevealEntry {
@@ -52,8 +55,20 @@ export function RoundRevealOverlay({
   const maxValue = Math.max(...comparison.map((c) => c.value), 1);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-[rgba(6,2,26,0.85)] px-4 backdrop-blur-sm">
-      <div className="animate-fade-up rounded-full border border-gold/40 bg-gold/10 px-5 py-2 text-sm font-bold text-gold">
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 px-4 backdrop-blur-sm"
+      style={{ background: 'rgba(10,7,6,0.88)', fontFamily: NARUTO_FONT.body }}
+    >
+      <div
+        className="animate-fade-up rounded-full px-5 py-2 text-sm font-bold"
+        style={{
+          border: `1px solid rgba(245,197,24,.4)`,
+          background: 'rgba(245,197,24,.1)',
+          color: NARUTO.gold,
+          fontFamily: NARUTO_FONT.condensed,
+          letterSpacing: '.15em',
+        }}
+      >
         {STAT_LABEL[statKey] ?? statKey}
       </div>
 
@@ -63,16 +78,20 @@ export function RoundRevealOverlay({
             const isWinner = !isTie && entry.userId === winnerId;
             const isTied = isTie && tiedIds.includes(entry.userId);
             return (
-              <div key={entry.userId} className="flex animate-fade-up flex-col items-center gap-2">
+              <div key={entry.userId} className="flex w-[110px] animate-fade-up flex-col items-center gap-2">
                 {isWinner && <span className="text-xl">👑</span>}
                 <TrumpcardCard
                   card={entry.card}
-                  size="md"
                   winningStat={isWinner ? statKey : null}
                   losingStat={!isTie && !isWinner ? statKey : null}
-                  className={isWinner ? '-translate-y-2 border-gold' : isTied ? 'border-gold/60' : ''}
+                  selectedStat={isTied ? statKey : null}
+                  className={isWinner ? '-translate-y-2' : ''}
+                  footerHint="REVEALED"
                 />
-                <span className={`text-xs font-bold ${entry.userId === myId ? 'text-green' : 'text-muted'}`}>
+                <span
+                  className="text-xs font-bold"
+                  style={{ color: entry.userId === myId ? NARUTO.win : NARUTO.muted }}
+                >
                   {entry.userId === myId ? 'You' : getDisplayName(entry.userId)}
                 </span>
               </div>
@@ -85,18 +104,24 @@ export function RoundRevealOverlay({
         <div className="w-full max-w-sm space-y-2">
           {comparison.map((entry) => (
             <div key={entry.userId} className="flex items-center gap-2">
-              <span className="w-20 truncate text-xs text-muted">
+              <span className="w-20 truncate text-xs" style={{ color: NARUTO.muted }}>
                 {entry.userId === myId ? 'You' : getDisplayName(entry.userId)}
               </span>
-              <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-bg2">
+              <div
+                className="h-2.5 flex-1 overflow-hidden rounded-full"
+                style={{ background: NARUTO.panel }}
+              >
                 <div
-                  className={`h-full rounded-full transition-all duration-700 ${
-                    !isTie && entry.userId === winnerId ? 'bg-gold' : 'bg-green-solid/50'
-                  }`}
-                  style={{ width: `${(entry.value / maxValue) * 100}%` }}
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{
+                    width: `${(entry.value / maxValue) * 100}%`,
+                    background: !isTie && entry.userId === winnerId ? NARUTO.gold : 'rgba(124,228,164,.5)',
+                  }}
                 />
               </div>
-              <span className="w-8 text-right font-mono text-xs font-bold">{entry.value}</span>
+              <span className="w-8 text-right font-mono text-xs font-bold" style={{ color: NARUTO.cream }}>
+                {entry.value}
+              </span>
             </div>
           ))}
         </div>
@@ -105,9 +130,11 @@ export function RoundRevealOverlay({
       {stage >= 3 && (
         <div className="animate-fade-up text-center">
           {isTie ? (
-            <p className="text-lg font-extrabold text-gold">Tied — cards pool for the next round</p>
+            <p className="text-lg font-extrabold" style={{ color: NARUTO.draw }}>
+              Tied — cards pool for the next round
+            </p>
           ) : (
-            <p className="text-lg font-extrabold text-green">
+            <p className="text-lg font-extrabold" style={{ color: NARUTO.win }}>
               {winnerId === myId ? 'You win the round!' : `${getDisplayName(winnerId ?? '')} wins the round`}
               {poolClaimedBy && ' + claims the pool'}
             </p>
