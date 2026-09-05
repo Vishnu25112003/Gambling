@@ -92,6 +92,7 @@ export const TRUMPCARD_EVENTS = {
   MATCH_CREATED: 'trumpcard:created',
   MATCHES_LIST: 'trumpcard:matches',
   MATCH_STATE: 'trumpcard:state',
+  STAKE_REQUIRED: 'trumpcard:stake:required',
   LEADER_TURN_START: 'trumpcard:leader:start',
   ROUND_REVEAL: 'trumpcard:round:reveal',
   LIVES_UPDATE: 'trumpcard:lives:update',
