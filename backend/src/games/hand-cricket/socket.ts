@@ -211,10 +211,15 @@ function afterBallResolved(match: ActiveMatch): void {
   }
 
   const finishedInnings = currentInnings(match.state);
+  const finishedIdx = match.state.currentInningsIndex;
+  const target = finishedIdx !== null && (finishedIdx === 1 || finishedIdx === 3)
+    ? match.state.innings[finishedIdx - 1]
+    : undefined;
+  const chased = Boolean(target && finishedInnings && finishedInnings.runs > target.runs);
   broadcastToMatch(match, HC_EVENTS.INNINGS_OVER, {
     inningsIndex: match.state.currentInningsIndex,
     finalRuns: finishedInnings?.runs,
-    cause: finishedInnings?.isOut ? 'out' : 'balls_used',
+    cause: finishedInnings?.isOut ? 'out' : chased ? 'target_achieved' : 'balls_used',
   });
 
   if (match.state.innings.length === 1) {

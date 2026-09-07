@@ -161,11 +161,25 @@ export function currentInnings(state: HandCricketState): InningsRecord | null {
   return state.innings[state.currentInningsIndex] ?? null;
 }
 
-/** True once the live innings has ended (out, or balls used up). */
+/**
+ * True once the live innings has ended: out, balls used up, or — for a
+ * chasing innings (the 2nd of the main match or the 2nd of a Super Over) —
+ * the batter has already overtaken the target. A successful chase ends the
+ * match immediately, same as real cricket: the batting side doesn't need to
+ * play out the remaining balls or lose a wicket first once they're ahead.
+ */
 export function checkInningsEnd(state: HandCricketState): boolean {
   const innings = currentInnings(state);
   if (!innings) return false;
-  return innings.isOut || innings.ballsBowled >= innings.ballsPerInnings;
+  if (innings.isOut || innings.ballsBowled >= innings.ballsPerInnings) return true;
+
+  const idx = state.currentInningsIndex;
+  if (idx === 1 || idx === 3) {
+    const target = state.innings[idx - 1];
+    if (target && innings.runs > target.runs) return true;
+  }
+
+  return false;
 }
 
 /**

@@ -126,6 +126,59 @@ describe('hand-cricket engine — innings progression', () => {
     expect(checkInningsEnd(liveState)).toBe(false);
   });
 
+  it('checkInningsEnd ends the 2nd innings the instant the chaser overtakes the target — even mid-over, not out (bug fix)', () => {
+    // Player A batted first, scored 12, out. Player B is chasing and just
+    // reached 13 on ball 3 of a 6-ball innings — not out, overs not used up.
+    const state = makeState({
+      innings: [
+        innings({ batterId: A, bowlerId: B, runs: 12, ballsBowled: 6, isOut: true }),
+        innings({ batterId: B, bowlerId: A, runs: 13, ballsBowled: 3, isOut: false }),
+      ],
+    });
+    expect(checkInningsEnd(state)).toBe(true);
+  });
+
+  it('checkInningsEnd keeps the 2nd innings live while the chaser is still behind or only level', () => {
+    const behind = makeState({
+      innings: [
+        innings({ batterId: A, bowlerId: B, runs: 12, ballsBowled: 6, isOut: true }),
+        innings({ batterId: B, bowlerId: A, runs: 12, ballsBowled: 5, isOut: false }),
+      ],
+    });
+    expect(checkInningsEnd(behind)).toBe(false);
+
+    const evenLower = makeState({
+      innings: [
+        innings({ batterId: A, bowlerId: B, runs: 12, ballsBowled: 6, isOut: true }),
+        innings({ batterId: B, bowlerId: A, runs: 5, ballsBowled: 2, isOut: false }),
+      ],
+    });
+    expect(checkInningsEnd(evenLower)).toBe(false);
+  });
+
+  it('checkInningsEnd applies the same overtake rule to the Super Over 2nd innings', () => {
+    const state = makeState({
+      innings: [
+        innings({ batterId: A, bowlerId: B, runs: 20, ballsBowled: 6, isOut: true }),
+        innings({ batterId: B, bowlerId: A, runs: 20, ballsBowled: 6, isOut: true }),
+        innings({ batterId: A, bowlerId: B, runs: 4, ballsBowled: 6, isOut: true }),
+        innings({ batterId: B, bowlerId: A, runs: 5, ballsBowled: 2, isOut: false }),
+      ],
+    });
+    expect(checkInningsEnd(state)).toBe(true);
+  });
+
+  it('a completed chase is correctly scored as a win once checkMatchEnd runs (end-to-end)', () => {
+    const state = makeState({
+      innings: [
+        innings({ batterId: A, bowlerId: B, runs: 12, ballsBowled: 6, isOut: true }),
+        innings({ batterId: B, bowlerId: A, runs: 13, ballsBowled: 3, isOut: false }),
+      ],
+    });
+    expect(checkInningsEnd(state)).toBe(true);
+    expect(checkMatchEnd(state)).toEqual({ over: true, winnerId: B, endCause: 'runs_higher' });
+  });
+
   it('advanceInnings swaps batter/bowler roles for the next innings', () => {
     const state = makeState({ innings: [innings({ batterId: A, bowlerId: B, runs: 20, isOut: true })] });
     const next = advanceInnings(state);
