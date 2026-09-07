@@ -78,7 +78,11 @@ export function RoundRevealOverlay({
             const isWinner = !isTie && entry.userId === winnerId;
             const isTied = isTie && tiedIds.includes(entry.userId);
             return (
-              <div key={entry.userId} className="flex w-[110px] animate-fade-up flex-col items-center gap-2">
+              // Below ~150px the card's 6-row stat panel doesn't fit in the
+              // space left after the fixed-size header/portrait/nameplate/
+              // footer, and its `overflow: hidden` clips the bottom rows —
+              // 180px keeps a comfortable margin so every stat stays visible.
+              <div key={entry.userId} className="flex w-[180px] animate-fade-up flex-col items-center gap-2">
                 {isWinner && <span className="text-xl">👑</span>}
                 <TrumpcardCard
                   card={entry.card}

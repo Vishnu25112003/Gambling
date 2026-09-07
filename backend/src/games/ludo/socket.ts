@@ -178,7 +178,7 @@ function startRollTimer(match: ActiveMatch, playerId: string): void {
     }
 
     // Player timed out — pass turn to next player
-    const { state: newState, nextPlayerId } = processTurnPass(match.state);
+    const { state: newState, nextPlayerId } = processTurnPass(match.state, match.forfeitedPlayers);
     match.state = newState;
 
     broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
@@ -200,7 +200,7 @@ function startMoveTimer(match: ActiveMatch, playerId: string): void {
     // Player timed out — pass turn to next player. Only a missed ROLL costs a
     // life (see startRollTimer) — choosing which token to move is a separate
     // action and isn't penalized the same way.
-    const { state: newState, nextPlayerId } = processTurnPass(match.state);
+    const { state: newState, nextPlayerId } = processTurnPass(match.state, match.forfeitedPlayers);
     match.state = newState;
 
     broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
@@ -223,7 +223,7 @@ async function applyForfeitOutcome(match: ActiveMatch, playerId: string): Promis
 
   if (match.state.currentPlayerId === playerId) {
     clearTimeouts(match);
-    const { state: newState, nextPlayerId } = processTurnPass(match.state);
+    const { state: newState, nextPlayerId } = processTurnPass(match.state, match.forfeitedPlayers);
     match.state = newState;
 
     broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
@@ -756,7 +756,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
         // Three consecutive 6s — lose turn
         log.info('three consecutive sixes', { matchId, playerId: userId });
 
-        const { state: afterPass, nextPlayerId } = processTurnPass(match.state);
+        const { state: afterPass, nextPlayerId } = processTurnPass(match.state, match.forfeitedPlayers);
         match.state = afterPass;
 
         broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
@@ -795,7 +795,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
         // No valid moves — pass turn
         log.info('no valid moves', { matchId, playerId: userId, diceValue });
 
-        const { state: afterPass, nextPlayerId } = processTurnPass(match.state);
+        const { state: afterPass, nextPlayerId } = processTurnPass(match.state, match.forfeitedPlayers);
         match.state = afterPass;
 
         broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
@@ -813,7 +813,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
         // Auto-move if only one valid option
         const move = validMoves[0]!;
         const { state: moveState, result, matchWinner, nextPlayerId, getsExtraTurn } =
-          processTokenMove(match.state, move.tokenIndex);
+          processTokenMove(match.state, move.tokenIndex, match.forfeitedPlayers);
 
         match.state = moveState;
 
@@ -964,7 +964,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
 
       // Execute the move
       const { state: moveState, result, matchWinner, nextPlayerId, getsExtraTurn } =
-        processTokenMove(match.state, tokenIndex);
+        processTokenMove(match.state, tokenIndex, match.forfeitedPlayers);
 
       match.state = moveState;
 

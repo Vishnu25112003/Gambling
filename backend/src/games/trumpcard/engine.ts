@@ -19,7 +19,6 @@ import type {
   TrumpCard,
   TrumpcardState,
 } from './types.js';
-import { STAT_KEYS } from './types.js';
 
 // --- Constants ----------------------------------------------------------------
 
@@ -48,27 +47,83 @@ const SUITS: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 const RANKS: Rank[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 
 /**
- * Deterministic integer hash (no external deps) — same inputs always produce
- * the same output, so the deck is fixed rather than re-randomized per match.
- * A fixed deck keeps the game balanced by construction and unit-testable.
+ * Curated per-card stats for the Naruto reskin, one entry per canonical deck
+ * slot in the exact SUITS-outer/RANKS-inner order buildCanonicalDeck() below
+ * iterates — the same order frontend/src/games/trumpcard/narutoData.ts's
+ * ROSTER assigns character identities in, so index i here is always the same
+ * character as ROSTER[i] there (index 0 = Naruto Uzumaki, 1 = Sasuke Uchiha,
+ * ... 51 = Shizune). Values are a canon-informed read of each character's
+ * power/speed/chakra("defense")/jutsu("stamina")/intellect/popularity("luck")
+ * on a 10-99 scale — replacing the old suit/rank hash, whose numbers had no
+ * relationship to the character actually printed on the card.
  */
-function hashToRange(a: number, b: number, c: number, min: number, max: number): number {
-  let h = a * 374761393 + b * 668265263 + c * 2246822519;
-  h = (h ^ (h >>> 13)) * 1274126177;
-  h = h ^ (h >>> 16);
-  h = h >>> 0;
-  return min + (h % (max - min + 1));
-}
+const CARD_STATS: Record<StatKey, number>[] = [
+  // Leaf — spades 2-14
+  { power: 95, speed: 90, defense: 99, intellect: 70, stamina: 92, luck: 99 }, // Naruto Uzumaki
+  { power: 96, speed: 93, defense: 94, intellect: 88, stamina: 90, luck: 96 }, // Sasuke Uchiha
+  { power: 78, speed: 82, defense: 75, intellect: 92, stamina: 85, luck: 90 }, // Kakashi Hatake
+  { power: 70, speed: 65, defense: 80, intellect: 78, stamina: 72, luck: 75 }, // Sakura Haruno
+  { power: 85, speed: 88, defense: 40, intellect: 55, stamina: 55, luck: 70 }, // Rock Lee
+  { power: 80, speed: 78, defense: 82, intellect: 85, stamina: 70, luck: 68 }, // Neji Hyuga
+  { power: 60, speed: 62, defense: 70, intellect: 60, stamina: 58, luck: 78 }, // Hinata Hyuga
+  { power: 45, speed: 50, defense: 55, intellect: 99, stamina: 60, luck: 72 }, // Shikamaru Nara
+  { power: 40, speed: 48, defense: 50, intellect: 75, stamina: 55, luck: 58 }, // Ino Yamanaka
+  { power: 82, speed: 40, defense: 65, intellect: 45, stamina: 60, luck: 55 }, // Choji Akimichi
+  { power: 65, speed: 75, defense: 55, intellect: 42, stamina: 58, luck: 55 }, // Kiba Inuzuka
+  { power: 50, speed: 48, defense: 68, intellect: 78, stamina: 65, luck: 40 }, // Shino Aburame
+  { power: 55, speed: 60, defense: 40, intellect: 58, stamina: 62, luck: 38 }, // Tenten
+  // Leaf legends — hearts 2-14
+  { power: 97, speed: 80, defense: 99, intellect: 88, stamina: 96, luck: 92 }, // Hashirama Senju
+  { power: 88, speed: 99, defense: 90, intellect: 90, stamina: 85, luck: 90 }, // Minato Namikaze
+  { power: 93, speed: 68, defense: 95, intellect: 80, stamina: 78, luck: 85 }, // Tsunade
+  { power: 87, speed: 75, defense: 88, intellect: 82, stamina: 90, luck: 88 }, // Jiraiya
+  { power: 82, speed: 60, defense: 85, intellect: 90, stamina: 92, luck: 80 }, // Hiruzen Sarutobi
+  { power: 88, speed: 85, defense: 90, intellect: 85, stamina: 88, luck: 70 }, // Tobirama Senju
+  { power: 96, speed: 97, defense: 60, intellect: 60, stamina: 65, luck: 82 }, // Might Guy
+  { power: 78, speed: 70, defense: 92, intellect: 65, stamina: 68, luck: 75 }, // Kushina Uzumaki
+  { power: 65, speed: 60, defense: 80, intellect: 70, stamina: 70, luck: 45 }, // Yamato
+  { power: 55, speed: 62, defense: 60, intellect: 75, stamina: 68, luck: 50 }, // Sai
+  { power: 70, speed: 65, defense: 65, intellect: 72, stamina: 62, luck: 55 }, // Asuma Sarutobi
+  { power: 45, speed: 55, defense: 62, intellect: 80, stamina: 55, luck: 48 }, // Kurenai Yuhi
+  { power: 30, speed: 35, defense: 40, intellect: 62, stamina: 35, luck: 55 }, // Iruka Umino
+  // Akatsuki & rivals — diamonds 2-14
+  { power: 99, speed: 92, defense: 98, intellect: 92, stamina: 95, luck: 94 }, // Madara Uchiha
+  { power: 97, speed: 88, defense: 97, intellect: 85, stamina: 90, luck: 85 }, // Obito Uchiha
+  { power: 85, speed: 84, defense: 88, intellect: 96, stamina: 82, luck: 92 }, // Itachi Uchiha
+  { power: 94, speed: 55, defense: 96, intellect: 82, stamina: 88, luck: 80 }, // Nagato
+  { power: 82, speed: 72, defense: 90, intellect: 95, stamina: 92, luck: 76 }, // Orochimaru
+  { power: 85, speed: 68, defense: 88, intellect: 62, stamina: 75, luck: 55 }, // Kisame Hoshigaki
+  { power: 68, speed: 60, defense: 82, intellect: 90, stamina: 80, luck: 50 }, // Sasori
+  { power: 75, speed: 70, defense: 72, intellect: 74, stamina: 78, luck: 58 }, // Deidara
+  { power: 82, speed: 65, defense: 90, intellect: 70, stamina: 72, luck: 42 }, // Kakuzu
+  { power: 78, speed: 62, defense: 95, intellect: 40, stamina: 55, luck: 45 }, // Hidan
+  { power: 75, speed: 78, defense: 85, intellect: 85, stamina: 80, luck: 65 }, // Konan
+  { power: 55, speed: 60, defense: 70, intellect: 72, stamina: 62, luck: 30 }, // Zetsu
+  { power: 68, speed: 65, defense: 78, intellect: 92, stamina: 88, luck: 48 }, // Kabuto Yakushi
+  // Kage & allied villages — clubs 2-14
+  { power: 88, speed: 62, defense: 92, intellect: 80, stamina: 78, luck: 88 }, // Gaara
+  { power: 90, speed: 78, defense: 90, intellect: 60, stamina: 82, luck: 72 }, // Killer Bee
+  { power: 92, speed: 90, defense: 80, intellect: 65, stamina: 68, luck: 68 }, // A · Fourth Raikage
+  { power: 75, speed: 55, defense: 85, intellect: 82, stamina: 78, luck: 55 }, // Onoki
+  { power: 80, speed: 62, defense: 82, intellect: 72, stamina: 75, luck: 70 }, // Mei Terumi
+  { power: 62, speed: 68, defense: 58, intellect: 68, stamina: 60, luck: 58 }, // Temari
+  { power: 58, speed: 55, defense: 62, intellect: 65, stamina: 68, luck: 45 }, // Kankuro
+  { power: 78, speed: 70, defense: 68, intellect: 55, stamina: 62, luck: 60 }, // Zabuza Momochi
+  { power: 65, speed: 82, defense: 72, intellect: 62, stamina: 65, luck: 68 }, // Haku
+  { power: 78, speed: 60, defense: 82, intellect: 88, stamina: 75, luck: 42 }, // Danzo Shimura
+  { power: 62, speed: 68, defense: 60, intellect: 65, stamina: 62, luck: 55 }, // Anko Mitarashi
+  { power: 45, speed: 40, defense: 55, intellect: 85, stamina: 45, luck: 40 }, // Ibiki Morino
+  { power: 50, speed: 55, defense: 62, intellect: 70, stamina: 58, luck: 45 }, // Shizune
+];
 
 function buildCanonicalDeck(): TrumpCard[] {
   const deck: TrumpCard[] = [];
-  SUITS.forEach((suit, suitIndex) => {
+  let cursor = 0;
+  SUITS.forEach((suit) => {
     for (const rank of RANKS) {
-      const stats = {} as Record<StatKey, number>;
-      STAT_KEYS.forEach((key, statIndex) => {
-        stats[key] = hashToRange(suitIndex, rank, statIndex, 10, 99);
-      });
+      const stats = CARD_STATS[cursor]!;
       deck.push({ id: `${suit}-${rank}`, suit, rank, stats });
+      cursor++;
     }
   });
   return deck;

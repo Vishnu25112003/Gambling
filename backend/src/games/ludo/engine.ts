@@ -258,8 +258,12 @@ export function getValidMoves(
         // Entering home column
         const homeEntry = targetTrackPos - TRACK_LENGTH;
         if (homeEntry <= HOME_COLUMN_LENGTH) {
-          // Check no friendly token already at this home position
-          const friendlyAtHome = tokens.some(
+          // Check no friendly token already at this home position — except
+          // the terminal/finished slot, which every one of a player's own
+          // tokens must be able to reach (a finished token sits in the
+          // shared hub, not blocking its siblings from also finishing).
+          const finishing = homeEntry >= HOME_COLUMN_LENGTH;
+          const friendlyAtHome = !finishing && tokens.some(
             (t, j) => j !== i && t.zone === 'home' && t.homePosition === homeEntry,
           );
           if (!friendlyAtHome) {
@@ -278,8 +282,10 @@ export function getValidMoves(
     } else if (token.zone === 'home') {
       const targetHomePos = token.homePosition + diceValue;
       if (targetHomePos <= HOME_COLUMN_LENGTH) {
-        // Check no friendly token at destination
-        const friendlyAtHome = tokens.some(
+        // Check no friendly token at destination — except the terminal/
+        // finished slot (see the matching comment above).
+        const finishing = targetHomePos >= HOME_COLUMN_LENGTH;
+        const friendlyAtHome = !finishing && tokens.some(
           (t, j) => j !== i && t.zone === 'home' && t.homePosition === targetHomePos,
         );
         if (!friendlyAtHome) {
@@ -426,14 +432,23 @@ export function createInitialState(
 }
 
 /**
- * Get the next player in turn order.
+ * Get the next player in turn order, skipping forfeited/eliminated players —
+ * without this, a 3-4 seat match keeps handing the turn to a player who can
+ * no longer act, freezing the match on their phantom turn (2-player matches
+ * never hit this: eliminating either player there ends the match outright).
  */
 export function getNextPlayer(
   currentPlayerId: string,
   playerIds: string[],
+  forfeitedPlayers: string[] = [],
 ): string {
   const currentIndex = playerIds.indexOf(currentPlayerId);
-  return playerIds[(currentIndex + 1) % playerIds.length]!;
+  const n = playerIds.length;
+  for (let step = 1; step <= n; step++) {
+    const candidate = playerIds[(currentIndex + step + n) % n]!;
+    if (!forfeitedPlayers.includes(candidate)) return candidate;
+  }
+  return playerIds[(currentIndex + 1) % n]!;
 }
 
 /**
@@ -555,6 +570,7 @@ export function processDiceRoll(state: LudoState): {
 export function processTokenMove(
   state: LudoState,
   tokenIndex: number,
+  forfeitedPlayers: string[] = [],
 ): {
   state: LudoState;
   result: MoveResult;
@@ -620,7 +636,7 @@ export function processTokenMove(
     getsExtraTurn = true;
     nextPlayerId = state.currentPlayerId;
   } else {
-    nextPlayerId = getNextPlayer(state.currentPlayerId, state.playerIds);
+    nextPlayerId = getNextPlayer(state.currentPlayerId, state.playerIds, forfeitedPlayers);
   }
 
   newState.currentPlayerId = nextPlayerId;
@@ -632,11 +648,14 @@ export function processTokenMove(
 /**
  * Process a turn pass (no valid moves or 3 consecutive 6s).
  */
-export function processTurnPass(state: LudoState): {
+export function processTurnPass(
+  state: LudoState,
+  forfeitedPlayers: string[] = [],
+): {
   state: LudoState;
   nextPlayerId: string;
 } {
-  const nextPlayerId = getNextPlayer(state.currentPlayerId, state.playerIds);
+  const nextPlayerId = getNextPlayer(state.currentPlayerId, state.playerIds, forfeitedPlayers);
   return {
     state: {
       ...state,

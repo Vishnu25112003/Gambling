@@ -296,3 +296,109 @@ describe('ludo engine — lives', () => {
   });
 });
 
+describe('ludo engine — a finished token never blocks a sibling from also finishing (bug fix)', () => {
+  it('getValidMoves offers the finishing move even though another of my tokens already sits at the terminal slot', () => {
+    // Token0 already finished (homePosition 6). Token1 is one step away from
+    // finishing (homePosition 5 + dice 1 = 6) — the old "no two friendly
+    // tokens share a home cell" check wrongly treated the terminal slot the
+    // same as any other, permanently blocking token1 one square short.
+    const aTokens: Token[] = [
+      { zone: 'home', position: 0, homePosition: 6 },
+      { zone: 'home', position: 0, homePosition: 5 },
+      yard(),
+      yard(),
+    ];
+    const allTokens = { [A]: aTokens, [B]: [yard(), yard(), yard(), yard()] };
+    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
+
+    const moves = getValidMoves(aTokens, 1, 'red', allTokens, [A, B], colors);
+    expect(moves).toContainEqual({ tokenIndex: 1, type: 'home' });
+
+    const result = executeMove(aTokens, 1, 1, 'red', allTokens, [A, B], colors);
+    expect(result.tokens[1]!.homePosition).toBe(6);
+    expect(result.reachedHome).toBe(true);
+  });
+
+  it('still blocks two tokens sharing an INTERMEDIATE (non-finished) home-lane cell', () => {
+    // Regression: the exemption must be scoped to the terminal slot only —
+    // ordinary home-lane collisions still apply.
+    const aTokens: Token[] = [
+      { zone: 'home', position: 0, homePosition: 3 },
+      { zone: 'home', position: 0, homePosition: 1 },
+      yard(),
+      yard(),
+    ];
+    const allTokens = { [A]: aTokens, [B]: [yard(), yard(), yard(), yard()] };
+    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
+
+    // Token1 rolling a 2 would land on homePosition 3, already occupied by token0.
+    const moves = getValidMoves(aTokens, 2, 'red', allTokens, [A, B], colors);
+    expect(moves).not.toContainEqual({ tokenIndex: 1, type: 'home' });
+  });
+
+  it('a 2-player match ends the instant one player finishes all 4 tokens, independent of the other player (bug fix)', async () => {
+    const { createInitialState, checkMatchEnd } = await import('../src/games/ludo/engine.js');
+    let state = createInitialState(2, [A, B]);
+    state = {
+      ...state,
+      tokens: {
+        ...state.tokens,
+        [A]: [
+          { zone: 'home', position: 0, homePosition: 6 },
+          { zone: 'home', position: 0, homePosition: 6 },
+          { zone: 'home', position: 0, homePosition: 6 },
+          { zone: 'home', position: 0, homePosition: 5 },
+        ],
+        // B hasn't finished a single token — must not matter.
+        [B]: [track(0), yard(), yard(), yard()],
+      },
+      currentDice: 1,
+    };
+    const { processTokenMove } = await import('../src/games/ludo/engine.js');
+    const { state: after, matchWinner } = processTokenMove(state, 3);
+    expect(after.tokens[A]![3]!.homePosition).toBe(6);
+    expect(checkMatchEnd(after)).toBe(A);
+    expect(matchWinner).toBe(A);
+  });
+});
+
+describe('ludo engine — turn rotation skips forfeited/eliminated players (bug fix)', () => {
+  const C = 'player-c';
+  const D = 'player-d';
+
+  it('getNextPlayer skips a forfeited seat instead of handing it a phantom turn', async () => {
+    const { getNextPlayer } = await import('../src/games/ludo/engine.js');
+    // B is out; A's turn should pass to C, not to the eliminated B.
+    expect(getNextPlayer(A, [A, B, C, D], [B])).toBe(C);
+  });
+
+  it('getNextPlayer skips multiple forfeited seats in a row', async () => {
+    const { getNextPlayer } = await import('../src/games/ludo/engine.js');
+    expect(getNextPlayer(A, [A, B, C, D], [B, C])).toBe(D);
+  });
+
+  it('getNextPlayer with no forfeits behaves exactly as before', async () => {
+    const { getNextPlayer } = await import('../src/games/ludo/engine.js');
+    expect(getNextPlayer(A, [A, B, C, D])).toBe(B);
+  });
+
+  it('processTurnPass routes around a forfeited player in a 4-seat match', async () => {
+    const { createInitialState, processTurnPass } = await import('../src/games/ludo/engine.js');
+    const state = createInitialState(4, [A, B, C, D]);
+    const { state: after } = processTurnPass(state, [B]);
+    expect(after.currentPlayerId).toBe(C);
+  });
+
+  it('processTokenMove routes the next turn around a forfeited player', async () => {
+    const { createInitialState, processTokenMove } = await import('../src/games/ludo/engine.js');
+    let state = createInitialState(4, [A, B, C, D]);
+    state = {
+      ...state,
+      tokens: { ...state.tokens, [A]: [track(0), yard(), yard(), yard()] },
+      currentDice: 3, // non-6, so the turn passes on
+    };
+    const { nextPlayerId } = processTokenMove(state, 0, [B]);
+    expect(nextPlayerId).toBe(C);
+  });
+});
+

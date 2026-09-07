@@ -17,10 +17,6 @@ export interface FinishedInningsSummary {
 
 interface HandCricketPickBoardProps {
   isSuperOver: boolean;
-  /** Whichever player created the match — fixed for its whole lifetime, so
-   * the blue/red hands and scorecards can stay put instead of swapping
-   * sides depending on who's looking at the screen. */
-  isHost: boolean;
   myRole: 'batting' | 'bowling';
   myRuns: number;
   opponentRuns: number;
@@ -52,7 +48,6 @@ const LUCKIEST = "'Luckiest Guy', cursive";
  */
 export function HandCricketPickBoard({
   isSuperOver,
-  isHost,
   myRole,
   myRuns,
   opponentRuns,
@@ -83,18 +78,19 @@ export function HandCricketPickBoard({
   const myPickPose = reveal ? (isBatting ? reveal.batterPick : reveal.bowlerPick) : (myPick ?? 0);
   const opponentPickPose = reveal ? (isBatting ? reveal.bowlerPick : reveal.batterPick) : 0;
 
-  // Host is always the blue/left hand and card, the joiner always red/right
-  // — fixed by who created the match, not by who's currently looking.
-  const leftPose = isHost ? myPickPose : opponentPickPose;
-  const rightPose = isHost ? opponentPickPose : myPickPose;
-  const hostLabel = isHost ? 'You' : 'Opponent';
-  const joinerLabel = isHost ? 'Opponent' : 'You';
-  const hostRuns = isHost ? myRuns : opponentRuns;
-  const joinerRuns = isHost ? opponentRuns : myRuns;
-  const hostRole = isHost ? myRole : otherRole;
-  const joinerRole = isHost ? otherRole : myRole;
-  const hostLives = isHost ? myLives : opponentLives;
-  const joinerLives = isHost ? opponentLives : myLives;
+  // Every player sees themselves as the blue/left hand and card, and their
+  // opponent as red/right — a per-player perspective rather than a fixed
+  // host/joiner layout, so "You" always means "me" on every screen.
+  const leftPose = myPickPose;
+  const rightPose = opponentPickPose;
+  const hostLabel = 'You';
+  const joinerLabel = 'Opponent';
+  const hostRuns = myRuns;
+  const joinerRuns = opponentRuns;
+  const hostRole = myRole;
+  const joinerRole = otherRole;
+  const hostLives = myLives;
+  const joinerLives = opponentLives;
 
   const timerColor = pickTimeLeft <= 3 ? '#ff8f92' : pickTimeLeft <= 6 ? '#ffe9a8' : '#cfe8ff';
 
