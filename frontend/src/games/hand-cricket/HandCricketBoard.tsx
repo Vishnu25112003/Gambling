@@ -143,9 +143,6 @@ export function HandCricketBoard() {
   const [rematchStatus, setRematchStatus] = useState<'idle' | 'waiting' | 'offered'>('idle');
 
   const myId = user?.id ?? '';
-  // players[0] is always the match creator — see backend JOIN_MATCH, which
-  // keeps dbMatch.participants[0] (the host) first when building playerIds.
-  const isHost = players.length > 0 && players[0]?.id === myId;
 
   // runsRef/revealRef mirror the equivalent state into refs the socket
   // handlers can read synchronously. They're updated directly inside the
@@ -346,8 +343,13 @@ export function HandCricketBoard() {
       // already has its own OUT overlay to hold on, and doesn't reach here
       // (a wicket's next event is INNINGS_STARTED/SUPER_OVER_STARTED, not
       // another BALL_STARTED).
-      if (revealRef.current) setNextRoundNumber(data.ballNumber);
-      afterReveal(() => {
+      //
+      // Two sequential holds, not one: the resolved hands stay on screen
+      // alone for 2.5s, then the "Round N" popup takes over for its own
+      // 2.5s, then the board resets for the next pick. With nothing to
+      // reveal (very first ball) both holds are skipped.
+      clearHoldTimer();
+      function applyNextBall() {
         revealRef.current = null;
         setReveal(null);
         setNextRoundNumber(null);
@@ -355,7 +357,18 @@ export function HandCricketBoard() {
         setBallNumber(data.ballNumber);
         const elapsed = Math.floor((Date.now() - data.ballStartedAt) / 1000);
         setPickTimeLeft(Math.max(0, PICK_TIMEOUT_SEC - elapsed));
-      });
+      }
+      if (revealRef.current) {
+        holdTimerRef.current = setTimeout(() => {
+          setNextRoundNumber(data.ballNumber);
+          holdTimerRef.current = setTimeout(() => {
+            holdTimerRef.current = null;
+            applyNextBall();
+          }, 2500);
+        }, 2500);
+      } else {
+        applyNextBall();
+      }
     });
 
     socket.on(HC.BALL_RESULT, (data: {
@@ -687,7 +700,6 @@ export function HandCricketBoard() {
         )}
         <HandCricketPickBoard
           isSuperOver={page === 'super_over'}
-          isHost={isHost}
           myRole={myRole ?? 'batting'}
           myRuns={myRuns}
           opponentRuns={opponentRuns}

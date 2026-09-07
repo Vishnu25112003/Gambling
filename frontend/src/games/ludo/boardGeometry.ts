@@ -186,14 +186,6 @@ export const YARD_SLOTS: Record<LudoColor, Cell[]> = (
   {} as Record<LudoColor, Cell[]>,
 );
 
-/** The center hub's 4 innermost cells — one per color, where its home lane ends. */
-export const CENTER_INNER: Record<LudoColor, Cell> = {
-  red: HOME_COLUMNS.red[HOME_COLUMN_LENGTH - 1],
-  green: HOME_COLUMNS.green[HOME_COLUMN_LENGTH - 1],
-  yellow: HOME_COLUMNS.yellow[HOME_COLUMN_LENGTH - 1],
-  blue: HOME_COLUMNS.blue[HOME_COLUMN_LENGTH - 1],
-};
-
 export const CENTER_POINT: Cell = { row: CENTER, col: CENTER };
 
 // ---------------------------------------------------------------------------
@@ -218,16 +210,22 @@ export function getGlobalPosition(color: LudoColor, trackPosition: number): numb
 
 /**
  * Maps a token to the board cell it currently occupies. Yard tokens use
- * `tokenIndex` (0-3) to pick a stable dot slot; track/home tokens are
- * positioned via RING_PATH / HOME_COLUMNS.
+ * `tokenIndex` (0-3) to pick a stable dot slot; track tokens are positioned
+ * via RING_PATH; still-progressing home tokens via HOME_COLUMNS. A token
+ * that has actually finished (`homePosition >= HOME_COLUMN_LENGTH`) always
+ * lands on the single shared `CENTER_POINT` — every color's finished tokens
+ * converge on the one true center square, not on 4 separate near-center cells.
  */
 export function getCellForToken(color: LudoColor, token: BoardToken, tokenIndex: number): Cell {
   if (token.zone === 'yard') {
     return YARD_SLOTS[color][tokenIndex % 4];
   }
   if (token.zone === 'home') {
-    const idx = Math.min(Math.max(token.homePosition - 1, 0), HOME_COLUMNS[color].length - 1);
-    return HOME_COLUMNS[color][idx];
+    if (token.homePosition >= HOME_COLUMN_LENGTH) {
+      return CENTER_POINT;
+    }
+    const idx = Math.max(token.homePosition - 1, 0);
+    return HOME_COLUMNS[color][idx]!;
   }
   const globalIndex = getGlobalPosition(color, token.position);
   return RING_PATH[globalIndex];
