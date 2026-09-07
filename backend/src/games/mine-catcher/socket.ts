@@ -508,7 +508,7 @@ export function registerMineCatcherSocket(namespace: Namespace, socket: Socket):
   });
 
   // --- JOIN_MATCH ---
-  socket.on(MC_EVENTS.JOIN_MATCH, async (data: { matchId?: string; roomCode?: string }) => {
+  socket.on(MC_EVENTS.JOIN_MATCH, async (data: { matchId?: string; roomCode?: string; stake?: number }) => {
     try {
       let matchId: string | undefined;
       let usedRoomCode: string | undefined;
@@ -581,18 +581,59 @@ export function registerMineCatcherSocket(namespace: Namespace, socket: Socket):
 
       const gs = (dbMatch.gameState ?? {}) as { boardSize?: number; betMode?: string; minBet?: number };
       const boardSize = (gs.boardSize ?? 25) as BoardSize;
-      const stakeAmount = Number(dbMatch.participants[0]?.lockedAmount ?? 0) > 0
+      // The host's own declared stake — always locked as-is, regardless of bet mode.
+      const hostStakeAmount = Number(dbMatch.participants[0]?.lockedAmount ?? 0) > 0
         ? Number(dbMatch.participants[0]?.stakeTotal ?? 0.1)
         : publicMatches.get(matchId)?.stake ?? 0.1;
       const betMode = gs.betMode ?? 'fixed';
+      const minBet = gs.minBet != null ? Number(gs.minBet) : null;
 
-      // Lock stakes
-      const stakeDecimal = new (await import('../../lib/money.js')).Decimal(stakeAmount);
+      // Free Bet mode: the joiner picks their own amount (Rule 3), independent
+      // of the host's. Rather than assuming the host's stake for them — which
+      // silently failed the join whenever the joiner couldn't cover it —
+      // bounce back and ask — the client shows a stake picker and resubmits
+      // JOIN_MATCH with `stake` set. Nothing has been locked yet at this
+      // point, so this bounce is side-effect-free and safe to repeat.
+      let joinerStakeAmount = hostStakeAmount;
+      if (betMode === 'free') {
+        if (data.stake == null) {
+          socket.emit(MC_EVENTS.STAKE_REQUIRED, {
+            matchId,
+            hostName: publicMatches.get(matchId)?.hostName ?? 'Player',
+            boardSize,
+            minBet: minBet != null ? String(minBet) : null,
+          });
+          return;
+        }
+        const chosen = Number(data.stake);
+        if (!Number.isFinite(chosen) || chosen <= 0) {
+          socket.emit(MC_EVENTS.ERROR, { message: 'Stake must be a positive amount' });
+          return;
+        }
+        if (minBet != null && chosen < minBet) {
+          socket.emit(MC_EVENTS.ERROR, { message: `Stake must be at least ${minBet} SOL` });
+          return;
+        }
+        joinerStakeAmount = chosen;
+      }
+
+      // Lock both stakes — same amount in Fixed mode, each player's own in Free mode.
+      const { Decimal } = await import('../../lib/money.js');
       const hostParticipant = dbMatch.participants[0];
       if (hostParticipant) {
-        await escrow.lockBalance(hostParticipant.userId, stakeDecimal, matchId);
+        await escrow.lockBalance(hostParticipant.userId, new Decimal(hostStakeAmount), matchId);
       }
-      await escrow.lockBalance(userId, stakeDecimal, matchId);
+      try {
+        await escrow.lockBalance(userId, new Decimal(joinerStakeAmount), matchId);
+      } catch (lockErr) {
+        // Give the joiner a real reason (e.g. insufficient balance) instead of
+        // the generic catch-all below — they may still want to pick a
+        // different amount rather than being bounced to the lobby.
+        socket.emit(MC_EVENTS.ERROR, {
+          message: lockErr instanceof Error ? lockErr.message : 'Failed to lock stake',
+        });
+        return;
+      }
 
       const playerIds = [dbMatch.participants[0]?.userId ?? userId, userId] as [string, string];
       if (dbMatch.participants[0] && dbMatch.participants[0].userId !== playerIds[0]) {
@@ -620,11 +661,11 @@ export function registerMineCatcherSocket(namespace: Namespace, socket: Socket):
       await beginMatch(
         matchId,
         playerIds,
-        { boardSize, betMode, minBet: gs.minBet ?? null, stake: stakeAmount },
+        { boardSize, betMode, minBet: gs.minBet ?? null, stake: hostStakeAmount },
         socketIds,
       );
 
-      log.info('match joined', { matchId, playerIds, stake: stakeAmount });
+      log.info('match joined', { matchId, playerIds, hostStake: hostStakeAmount, joinerStake: joinerStakeAmount });
     } catch (err) {
       log.error('join_match error', { userId, err });
       socket.emit(MC_EVENTS.ERROR, { message: 'Failed to join match' });

@@ -190,6 +190,49 @@ export function MineAttackBoard({
                           />
                         </>
                       )}
+                      {/* Every swept (empty) cell keeps its smoke residue permanently —
+                          this is a static layer, not the one-shot billow below, so it
+                          never fades out once the attack that revealed it scrolls out
+                          of "last attack" status. */}
+                      {state === 'break' && (
+                        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[6px]">
+                          <div
+                            className="absolute rounded-full"
+                            style={{
+                              left: '10%',
+                              bottom: '5%',
+                              width: '80%',
+                              height: '26%',
+                              background: 'radial-gradient(ellipse,rgba(84,92,86,.55),transparent 72%)',
+                              filter: 'blur(2px)',
+                            }}
+                          />
+                          <div
+                            className="absolute rounded-full"
+                            style={{
+                              left: '18%',
+                              bottom: '18%',
+                              width: '64%',
+                              height: '64%',
+                              background: 'radial-gradient(circle at 40% 60%,rgba(206,214,208,.32),rgba(206,214,208,0) 68%)',
+                              filter: 'blur(3px)',
+                            }}
+                          />
+                          <div
+                            className="absolute rounded-full"
+                            style={{
+                              left: '44%',
+                              bottom: '34%',
+                              width: '34%',
+                              height: '34%',
+                              background: 'radial-gradient(circle,rgba(186,196,189,.24),rgba(186,196,189,0) 70%)',
+                              filter: 'blur(3px)',
+                            }}
+                          />
+                        </div>
+                      )}
+                      {/* One-shot billow flourish layered on top, only for the cell that
+                          was *just* swept — the persistent smoke above is what stays. */}
                       {isLast && state === 'break' && (
                         <div className="pointer-events-none absolute -inset-1.5 overflow-hidden">
                           <div

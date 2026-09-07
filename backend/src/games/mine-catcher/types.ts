@@ -102,6 +102,7 @@ export const MC_EVENTS = {
   MATCH_STATE: 'mc:state',
   MATCH_CREATED: 'mc:created',
   MATCHES_LIST: 'mc:matches',
+  STAKE_REQUIRED: 'mc:stake:required',
   PLACEMENT_STARTED: 'mc:placement:started',
   MINES_PLACED: 'mc:mines:placed',
   PLAYER_READY: 'mc:player:ready',
