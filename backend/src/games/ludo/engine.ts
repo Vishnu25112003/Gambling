@@ -35,10 +35,6 @@ export const MOVE_TIMEOUT_MS = 10_000;
 /** Lives a player starts a match with; missing a 15s roll window costs one. */
 export const MAX_LIVES = 3;
 
-/** How long the client shows its "Your Turn" popup before the roll timer visibly starts.
- * The server delays arming a fresh roll timer by this long too, so the two stay in sync. */
-export const TURN_BANNER_MS = 2_500;
-
 /** Points economy (Gambling_Docs/Games/G02-Ludo.md): +1/step, +10 capturing / -10 captured, +50 reaching home. */
 export const POINTS_PER_CAPTURE = 10;
 export const POINTS_PER_HOME = 50;

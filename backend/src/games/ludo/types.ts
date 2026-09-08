@@ -180,6 +180,7 @@ export const LUDO_EVENTS = {
   MATCH_CREATED: 'ludo:created',
   MATCHES_LIST: 'ludo:matches',
   STAKE_REQUIRED: 'ludo:stake:required',
+  DICE_ROLLING: 'ludo:dice:rolling',
   DICE_ROLLED: 'ludo:dice:rolled',
   TOKEN_MOVED: 'ludo:token:moved',
   TURN_START: 'ludo:turn:start',

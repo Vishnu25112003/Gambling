@@ -32,7 +32,6 @@ import {
   ROLL_TIMEOUT_MS,
   MOVE_TIMEOUT_MS,
   MAX_LIVES,
-  TURN_BANNER_MS,
 } from './engine.js';
 import type {
   LudoState,
@@ -148,20 +147,6 @@ function clearTimeouts(match: ActiveMatch): void {
 
 // --- Turn management --------------------------------------------------------
 
-/**
- * Arm a fresh roll timer for a NEWLY-current player, delayed by
- * TURN_BANNER_MS — the client shows its "Your Turn" popup for that same
- * duration before it displays the countdown, so this keeps the server's
- * actual deadline in sync with what the countdown shows. Same-player
- * continuations (extra turns, a 6 with no usable move) call `startRollTimer`
- * directly instead — no popup, no delay.
- */
-function armRollTimerWithBanner(match: ActiveMatch, playerId: string): void {
-  match.timers.roll = setTimeout(() => {
-    startRollTimer(match, playerId);
-  }, TURN_BANNER_MS);
-}
-
 function startRollTimer(match: ActiveMatch, playerId: string): void {
   match.turnStartedAt = Date.now();
   match.timers.roll = setTimeout(() => guardSync('roll timeout', () => {
@@ -188,7 +173,7 @@ function startRollTimer(match: ActiveMatch, playerId: string): void {
       reason: 'roll_timeout',
     });
 
-    armRollTimerWithBanner(match, nextPlayerId);
+    startRollTimer(match, nextPlayerId);
   }, { matchId: match.matchId, playerId }), ROLL_TIMEOUT_MS);
 }
 
@@ -209,7 +194,7 @@ function startMoveTimer(match: ActiveMatch, playerId: string): void {
       dice: null,
     });
 
-    armRollTimerWithBanner(match, nextPlayerId);
+    startRollTimer(match, nextPlayerId);
   }, { matchId: match.matchId, playerId }), MOVE_TIMEOUT_MS);
 }
 
@@ -232,7 +217,7 @@ async function applyForfeitOutcome(match: ActiveMatch, playerId: string): Promis
       dice: null,
     });
 
-    armRollTimerWithBanner(match, nextPlayerId);
+    startRollTimer(match, nextPlayerId);
   }
 
   const activePlayers = match.playerIds.filter((id) => !match.forfeitedPlayers.includes(id));
@@ -688,7 +673,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
       });
 
       // Start roll timer for first player
-      armRollTimerWithBanner(newActiveMatch, state.currentPlayerId);
+      startRollTimer(newActiveMatch, state.currentPlayerId);
 
       // Clean up lobby
       lobbyInfo.delete(matchId);
@@ -739,6 +724,12 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
         match.timers.roll = null;
       }
 
+      // Let every seated client start its tumble animation immediately.
+      broadcastToMatch(match, LUDO_EVENTS.DICE_ROLLING, {
+        playerId: userId,
+        color: match.state.colors[userId],
+      });
+
       // Process dice roll
       const { state: newState, diceValue, validMoves, mustPass } = processDiceRoll(match.state);
 
@@ -766,7 +757,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
           reason: 'three_sixes',
         });
 
-        armRollTimerWithBanner(match, nextPlayerId);
+        startRollTimer(match, nextPlayerId);
         return;
       }
 
@@ -805,7 +796,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
           reason: 'no_moves',
         });
 
-        armRollTimerWithBanner(match, nextPlayerId);
+        startRollTimer(match, nextPlayerId);
         return;
       }
 
@@ -859,7 +850,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
             turnNumber: moveState.turnNumber,
             dice: null,
           });
-          armRollTimerWithBanner(match, nextPlayerId);
+          startRollTimer(match, nextPlayerId);
         }
         return;
       }
@@ -1012,7 +1003,7 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
           turnNumber: moveState.turnNumber,
           dice: null,
         });
-        armRollTimerWithBanner(match, nextPlayerId);
+        startRollTimer(match, nextPlayerId);
       }
     } catch (err) {
       log.error('move_token error', { userId, err });
