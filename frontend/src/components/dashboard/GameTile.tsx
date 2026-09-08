@@ -57,7 +57,7 @@ export function GameTile({
             <Icon name={visual.icon} size={large ? 52 : 42} strokeWidth={1.4} />
           </div>
           <div
-            className={`text-center font-bold ${
+            className={`text-center font-heading font-bold ${
               large ? 'px-4 pt-3.5 pb-4 text-[15.5px]' : 'px-[13px] pt-[11px] pb-[13px] text-sm'
             }`}
           >

@@ -1,4 +1,5 @@
 import { LeaderboardTable } from '../../components/dashboard/LeaderboardTable';
+import { LeaderboardPodium } from '../../components/dashboard/LeaderboardPodium';
 import { Card, EmptyState, PageTitle, Spinner } from '../../components/shared/ui';
 import { Icon } from '../../components/shared/icons';
 import { useLeaderboard } from '../../hooks/useLeaderboard';
@@ -22,9 +23,12 @@ export function Leaderboard() {
           body="Rankings appear once the first matches have settled."
         />
       ) : (
-        <Card className="overflow-x-auto px-[22px] pt-2 pb-3">
-          <LeaderboardTable entries={entries} variant="full" />
-        </Card>
+        <>
+          <LeaderboardPodium entries={entries} />
+          <Card className="overflow-x-auto px-[22px] pt-2 pb-3">
+            <LeaderboardTable entries={entries} variant="full" />
+          </Card>
+        </>
       )}
     </>
   );

@@ -35,13 +35,13 @@ const CLUSTER = import.meta.env.VITE_SOLANA_CLUSTER || 'devnet';
  */
 const navRowClass = (active: boolean, fill = false) =>
   `flex w-full cursor-pointer items-center gap-3 rounded-[11px] border-none px-3
-   text-left text-sm font-semibold transition ${fill ? 'h-full min-h-0' : 'min-h-[46px]'} ${
+   text-left font-heading text-sm font-semibold transition ${fill ? 'h-full min-h-0' : 'min-h-[46px]'} ${
      active ? 'bg-green-solid/[0.14] text-green' : 'bg-transparent text-muted hover:text-text'
    }`;
 
 function Wordmark({ size = 19 }: { size?: number }) {
   return (
-    <span className="font-bold tracking-[-0.01em]" style={{ fontSize: size }}>
+    <span className="font-heading font-bold tracking-[-0.01em]" style={{ fontSize: size }}>
       Infinit <span className="text-green">Respawn</span>
     </span>
   );
@@ -176,7 +176,7 @@ function ThemeRow({ compact = false, collapsed = false }: { compact?: boolean; c
 function InviteCard() {
   return (
     <div className="relative overflow-hidden rounded-[15px] border border-green-solid/[0.24] bg-[linear-gradient(150deg,rgba(34,197,94,0.16),transparent_70%)] p-[18px]">
-      <div className="mb-1.5 text-[14.5px] font-bold text-green">Invite &amp; Earn</div>
+      <div className="mb-1.5 font-heading text-[14.5px] font-bold text-green">Invite &amp; Earn</div>
       <div className="mb-3.5 max-w-[150px] text-[12.5px] leading-[1.5] text-muted">
         Earn 5% of your friend&rsquo;s first winning game.
       </div>
@@ -338,7 +338,7 @@ function DrawerAccount({ onNavigate }: { onNavigate: () => void }) {
         <span className="block truncate font-mono text-[12px] font-semibold">
           {user.username || shortAddress(user.walletAddress, 5)}
         </span>
-        <span className="block text-[11px] text-green">
+        <span className="block font-mono text-[11px] text-green">
           {formatSol(balance?.availableBalance ?? '0')} SOL
         </span>
       </span>
@@ -386,7 +386,7 @@ function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         <div className="flex shrink-0 items-center gap-2.5">
           <div className="flex items-center gap-2 rounded-[11px] border border-green-solid/25 bg-green-solid/10 px-[15px] py-[11px]">
             <Icon name="coin" size={15} className="text-green" />
-            <span className="text-sm font-bold whitespace-nowrap text-green">
+            <span className="font-mono text-sm font-bold whitespace-nowrap text-green">
               {formatSol(balance?.availableBalance ?? '0')} SOL
             </span>
           </div>

@@ -1,7 +1,7 @@
 import { Decimal, toAmountString, toDecimal, type MoneyInput } from '../lib/money.js';
 
 /**
- * Doc 11 — the loyalty tier ladder.
+ * Doc 11 — the loyalty tier ladder (rank badges).
  *
  * ONE SOURCE OF TRUTH (00-Overview.md, Architecture Principle #5): the
  * thresholds are defined here and nowhere else. No route, no component and no
@@ -26,13 +26,26 @@ import { Decimal, toAmountString, toDecimal, type MoneyInput } from '../lib/mone
  * Thresholds are exact decimal STRINGS compared with `Decimal`. A float literal
  * like `0.1` cannot be represented exactly, and a tier boundary is precisely the
  * place where "just under" and "just over" must be decided correctly.
+ *
+ * 11 rungs: `unranked` (0 SOL, no badge — nobody has earned one yet) followed by
+ * the 10 earnable ranks, Recruit through Grandmaster. Recruit unlocks at 5 SOL
+ * wagered, not 0, so `unranked` exists specifically to keep `tierFor` honest for
+ * a brand-new player rather than claiming an unearned badge. Badge artwork for
+ * these 10 keys lives in the frontend only (`lib/tierBadges.ts`) — this table
+ * has no business knowing about image filenames.
  */
 export const TIERS = [
-  { key: 'bronze', label: 'Bronze', minWagered: '0' },
-  { key: 'silver', label: 'Silver', minWagered: '1' },
-  { key: 'gold', label: 'Gold', minWagered: '10' },
-  { key: 'platinum', label: 'Platinum', minWagered: '50' },
-  { key: 'diamond', label: 'Diamond', minWagered: '250' },
+  { key: 'unranked', label: 'Unranked', minWagered: '0' },
+  { key: 'recruit', label: 'Recruit', minWagered: '5' },
+  { key: 'scout', label: 'Scout', minWagered: '10' },
+  { key: 'raider', label: 'Raider', minWagered: '20' },
+  { key: 'striker', label: 'Striker', minWagered: '40' },
+  { key: 'veteran', label: 'Veteran', minWagered: '75' },
+  { key: 'elite', label: 'Elite', minWagered: '125' },
+  { key: 'champion', label: 'Champion', minWagered: '200' },
+  { key: 'master', label: 'Master', minWagered: '350' },
+  { key: 'legend', label: 'Legend', minWagered: '600' },
+  { key: 'grandmaster', label: 'Grandmaster', minWagered: '1000' },
 ] as const;
 
 export type TierKey = (typeof TIERS)[number]['key'];
@@ -81,9 +94,10 @@ export function tierFor(totalWagered: MoneyInput): TierKey {
   }
 
   // Unreachable: the first rung's threshold is 0 and a balance can never be
-  // negative (users_total_wagered_non_negative). Bronze is the honest fallback
-  // rather than a throw, because a profile page must always render something.
-  return 'bronze';
+  // negative (users_total_wagered_non_negative). Unranked is the honest
+  // fallback rather than a throw, because a profile page must always render
+  // something.
+  return 'unranked';
 }
 
 /**

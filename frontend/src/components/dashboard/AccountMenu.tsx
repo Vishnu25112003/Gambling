@@ -109,7 +109,7 @@ function AccountHeader({ user, balance }: { user: AppUser; balance: Balance | nu
           size={38}
         />
         <div className="min-w-0">
-          <div className="truncate text-[14px] font-bold">
+          <div className="truncate font-heading text-[14px] font-bold">
             {user.username || 'Unnamed player'}
           </div>
           <div className="text-[11.5px] text-muted">{user.gamesPlayed} games played</div>
@@ -170,7 +170,7 @@ function MenuLink({
       role="menuitem"
       to={to}
       onClick={onClick}
-      className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2.5 text-[13px] font-semibold text-muted transition hover:bg-line2 hover:text-text"
+      className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2.5 font-heading text-[13px] font-semibold text-muted transition hover:bg-line2 hover:text-text"
     >
       <Icon name={icon} size={16} />
       <span>{label}</span>

@@ -66,41 +66,53 @@ beforeEach(clearTables);
 
 describe('tier ladder', () => {
   it('places a player on the highest rung they have reached', () => {
-    expect(tierFor('0')).toBe('bronze');
-    expect(tierFor('0.999999999')).toBe('bronze');
-    expect(tierFor('1')).toBe('silver');
-    expect(tierFor('9.999999999')).toBe('silver');
-    expect(tierFor('10')).toBe('gold');
-    expect(tierFor('49.999999999')).toBe('gold');
-    expect(tierFor('50')).toBe('platinum');
-    expect(tierFor('249.999999999')).toBe('platinum');
-    expect(tierFor('250')).toBe('diamond');
-    expect(tierFor('999999')).toBe('diamond');
+    expect(tierFor('0')).toBe('unranked');
+    expect(tierFor('4.999999999')).toBe('unranked');
+    expect(tierFor('5')).toBe('recruit');
+    expect(tierFor('9.999999999')).toBe('recruit');
+    expect(tierFor('10')).toBe('scout');
+    expect(tierFor('19.999999999')).toBe('scout');
+    expect(tierFor('20')).toBe('raider');
+    expect(tierFor('39.999999999')).toBe('raider');
+    expect(tierFor('40')).toBe('striker');
+    expect(tierFor('74.999999999')).toBe('striker');
+    expect(tierFor('75')).toBe('veteran');
+    expect(tierFor('124.999999999')).toBe('veteran');
+    expect(tierFor('125')).toBe('elite');
+    expect(tierFor('199.999999999')).toBe('elite');
+    expect(tierFor('200')).toBe('champion');
+    expect(tierFor('349.999999999')).toBe('champion');
+    expect(tierFor('350')).toBe('master');
+    expect(tierFor('599.999999999')).toBe('master');
+    expect(tierFor('600')).toBe('legend');
+    expect(tierFor('999.999999999')).toBe('legend');
+    expect(tierFor('1000')).toBe('grandmaster');
+    expect(tierFor('999999')).toBe('grandmaster');
   });
 
   it('treats a threshold as inclusive to the lamport', () => {
     // The whole reason thresholds are compared as Decimal and not as floats: one
     // lamport either side of a boundary has to land on the correct side.
-    expect(tierFor('0.999999999')).toBe('bronze');
-    expect(tierFor('1.000000000')).toBe('silver');
+    expect(tierFor('4.999999999')).toBe('unranked');
+    expect(tierFor('5.000000000')).toBe('recruit');
   });
 
   it('reports exact remaining progress, never a float', () => {
-    const p = tierProgress('6.4');
+    const p = tierProgress('7.5');
 
-    expect(p.key).toBe('silver');
+    expect(p.key).toBe('recruit');
     expect(p.level).toBe(2);
-    expect(p.next?.key).toBe('gold');
-    expect(p.remainingToNext).toBe(sol('3.6'));
-    expect(p.wagered).toBe(sol('6.4'));
-    // (6.4 - 1) / (10 - 1) = 60%
-    expect(p.percentToNext).toBeCloseTo(60, 1);
+    expect(p.next?.key).toBe('scout');
+    expect(p.remainingToNext).toBe(sol('2.5'));
+    expect(p.wagered).toBe(sol('7.5'));
+    // (7.5 - 5) / (10 - 5) = 50%
+    expect(p.percentToNext).toBeCloseTo(50, 1);
   });
 
   it('caps out at the top of the ladder instead of dividing by nothing', () => {
     const p = tierProgress('10000');
 
-    expect(p.key).toBe('diamond');
+    expect(p.key).toBe('grandmaster');
     expect(p.next).toBeNull();
     expect(p.remainingToNext).toBeNull();
     // 100, not 0 — a maxed bar must read as complete, not as empty.
@@ -112,13 +124,19 @@ describe('tier ladder', () => {
 
     expect(p.ladder).toHaveLength(TIERS.length);
     expect(p.ladder.filter((r) => r.reached).map((r) => r.key)).toEqual([
-      'bronze',
-      'silver',
-      'gold',
+      'unranked',
+      'recruit',
+      'scout',
     ]);
     expect(p.ladder.filter((r) => !r.reached).map((r) => r.key)).toEqual([
-      'platinum',
-      'diamond',
+      'raider',
+      'striker',
+      'veteran',
+      'elite',
+      'champion',
+      'master',
+      'legend',
+      'grandmaster',
     ]);
   });
 });
