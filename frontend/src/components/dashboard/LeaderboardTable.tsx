@@ -46,11 +46,17 @@ export function LeaderboardTable({
   const full = variant === 'full';
   const grid = 'grid grid-cols-[34px_1fr_auto_auto] items-center';
   const TIER_LABEL: Record<LeaderboardEntry['tier'], string> = {
-    bronze: 'Bronze',
-    silver: 'Silver',
-    gold: 'Gold',
-    platinum: 'Platinum',
-    diamond: 'Diamond',
+    unranked: 'Unranked',
+    recruit: 'Recruit',
+    scout: 'Scout',
+    raider: 'Raider',
+    striker: 'Striker',
+    veteran: 'Veteran',
+    elite: 'Elite',
+    champion: 'Champion',
+    master: 'Master',
+    legend: 'Legend',
+    grandmaster: 'Grandmaster',
   };
   const gap = full ? 'gap-3.5' : 'gap-3';
 
@@ -108,13 +114,13 @@ export function LeaderboardTable({
               </span>
 
               <span
-                className={`text-right font-semibold whitespace-nowrap ${full ? 'text-[13.5px]' : 'text-[13px]'}`}
+                className={`text-right font-mono font-semibold whitespace-nowrap ${full ? 'text-[13.5px]' : 'text-[13px]'}`}
               >
                 {formatSol(p.totalWagered)} SOL
               </span>
 
               <span
-                className={`text-right font-bold whitespace-nowrap ${
+                className={`text-right font-mono font-bold whitespace-nowrap ${
                   full ? 'text-[13.5px]' : 'text-[13px]'
                 } ${profit >= 0 ? 'text-green' : 'text-red'}`}
               >

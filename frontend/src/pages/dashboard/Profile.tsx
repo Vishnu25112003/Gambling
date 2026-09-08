@@ -5,6 +5,7 @@ import { Card, EmptyState, PageTitle, Spinner } from '../../components/shared/ui
 import { Icon } from '../../components/shared/icons';
 import { ProfileHeader } from '../../components/profile/ProfileHeader';
 import { TierProgress } from '../../components/profile/TierProgress';
+import { BadgeVault } from '../../components/profile/BadgeVault';
 import { StatGrid } from '../../components/profile/StatGrid';
 import { ProfitCurve } from '../../components/profile/ProfitCurve';
 import { PerGameTable } from '../../components/profile/PerGameTable';
@@ -99,6 +100,10 @@ export function Profile() {
 
       <div className="mb-[22px]">
         <StatGrid stats={data.stats} />
+      </div>
+
+      <div className="mb-[22px]">
+        <BadgeVault tier={data.tier} />
       </div>
 
       <div className="mb-[22px]">

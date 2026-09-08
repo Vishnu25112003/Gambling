@@ -20,7 +20,11 @@ interface Chip {
 
 function StatChip({ chip }: { chip: Chip }) {
   return (
-    <div className="flex items-center gap-3.5 rounded-[15px] border border-line bg-card px-5 py-[18px]">
+    <div className="relative flex items-center gap-3.5 overflow-hidden rounded-[15px] border border-line bg-card px-5 py-[18px]">
+      <span
+        className="absolute top-0 right-0 left-0 h-[2px]"
+        style={{ background: chip.color }}
+      />
       <div
         className="flex size-11 shrink-0 items-center justify-center rounded-xl"
         style={{ background: chip.tint, color: chip.color }}
@@ -28,11 +32,11 @@ function StatChip({ chip }: { chip: Chip }) {
         <Icon name={chip.icon} size={20} />
       </div>
       <div className="min-w-0">
-        <div className="mb-1 text-[11.5px] font-semibold tracking-[0.04em] text-muted">
+        <div className="mb-1 font-mono text-[11px] font-semibold tracking-[0.04em] text-muted">
           {chip.label}
         </div>
         <div
-          className="text-[21px] font-extrabold whitespace-nowrap"
+          className="font-heading text-[21px] font-extrabold whitespace-nowrap"
           style={{ color: chip.color }}
         >
           {chip.value}
@@ -76,7 +80,7 @@ function WelcomeCard() {
         {isAuthenticated ? 'WALLET CONNECTED' : 'WALLET NOT CONNECTED'}
       </span>
 
-      <div className="text-[clamp(22px,3vw,30px)] leading-[1.15] font-extrabold">
+      <div className="font-heading text-[clamp(22px,3vw,30px)] leading-[1.15] font-extrabold">
         {isAuthenticated && user ? (
           <>
             Welcome back,
@@ -94,7 +98,7 @@ function WelcomeCard() {
 
       {isAuthenticated ? (
         <div className="flex items-baseline gap-2">
-          <span className="text-[34px] font-extrabold text-green">
+          <span className="font-mono text-[34px] font-extrabold text-green">
             {formatSol(balance?.availableBalance ?? '0')}
           </span>
           <span className="text-sm font-semibold text-muted">SOL available</span>

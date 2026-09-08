@@ -4,6 +4,7 @@ import type {
   Balance,
   GameManifest,
   HistoryPage,
+  WalletSummary,
   LeaderboardEntry,
   MatchHistoryPage,
   Profile,
@@ -109,6 +110,9 @@ export const walletApi = {
 
   history: (page = 1, limit = 25) =>
     api<HistoryPage>(`/wallet/history?page=${page}&limit=${limit}`),
+
+  /** Lifetime deposited/withdrawn/rewards/fees — the Transactions page's stat tiles. */
+  summary: () => api<WalletSummary>('/wallet/summary'),
 };
 
 // --- doc 09: invite & earn -------------------------------------------------

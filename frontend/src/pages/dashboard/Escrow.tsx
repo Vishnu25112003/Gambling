@@ -22,11 +22,28 @@ function BalanceCard({
 }) {
   return (
     <div className="rounded-[14px] border border-line bg-card p-5">
-      <div className="mb-2 text-[11.5px] font-semibold text-muted">{label}</div>
-      <div className="text-[22px] font-extrabold" style={color ? { color } : undefined}>
-        {amount} <span className="text-[13px] font-normal text-muted">SOL</span>
+      <div className="mb-2 font-mono text-[11.5px] font-semibold tracking-[0.03em] text-muted">
+        {label}
+      </div>
+      <div className="font-heading text-[22px] font-extrabold" style={color ? { color } : undefined}>
+        {amount} <span className="font-sans text-[13px] font-normal text-muted">SOL</span>
       </div>
       {note && <div className="mt-1.5 text-xs text-faint">{note}</div>}
+    </div>
+  );
+}
+
+/** The available/in-play split, as a single bar above the three balance cards. */
+function VaultSplitBar({ available, locked }: { available: string; locked: string }) {
+  const a = Number(available);
+  const l = Number(locked);
+  const total = a + l;
+  const availPct = total > 0 ? (a / total) * 100 : 100;
+
+  return (
+    <div className="mb-4 flex h-2 w-full overflow-hidden rounded-full bg-line2">
+      <div className="h-full bg-green-solid" style={{ width: `${availPct}%` }} />
+      <div className="h-full bg-gold" style={{ width: `${100 - availPct}%` }} />
     </div>
   );
 }
@@ -113,7 +130,7 @@ function DepositCard({ onDone }: { onDone: () => Promise<void> }) {
 
   return (
     <Card radius={16} className="p-[22px]">
-      <div className="mb-3.5 text-[15px] font-bold">Deposit</div>
+      <div className="mb-3.5 font-heading text-[15px] font-bold">Deposit</div>
 
       {info?.treasuryAddress ? (
         <p className="mb-3.5 text-xs text-faint">
@@ -196,7 +213,7 @@ function WithdrawCard({ onDone }: { onDone: () => Promise<void> }) {
 
   return (
     <Card radius={16} className="p-[22px]">
-      <div className="mb-3.5 text-[15px] font-bold">Withdraw</div>
+      <div className="mb-3.5 font-heading text-[15px] font-bold">Withdraw</div>
 
       <p className="mb-3.5 text-xs text-faint">
         Goes to the wallet you signed in with. The Solana network fee comes out of the amount you
@@ -263,6 +280,11 @@ export function Escrow() {
       <PageTitle
         title="Escrow"
         subtitle="Deposit once, then play across every game — stakes lock in escrow until a match settles."
+      />
+
+      <VaultSplitBar
+        available={balance?.availableBalance ?? '0'}
+        locked={balance?.lockedBalance ?? '0'}
       />
 
       <div className="mb-[22px] grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-4">

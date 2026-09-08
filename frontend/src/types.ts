@@ -62,6 +62,14 @@ export interface LedgerRow {
   timestamp: string;
 }
 
+/** Lifetime ledger totals for the Transactions page's stat tiles — GET /wallet/summary. */
+export interface WalletSummary {
+  totalDeposited: string;
+  totalWithdrawn: string;
+  totalRewards: string;
+  totalFees: string;
+}
+
 export interface HistoryPage {
   page: number;
   limit: number;
@@ -151,7 +159,18 @@ export interface WithdrawResponse {
 
 // --- doc 11: user profiles -------------------------------------------------
 
-export type TierKey = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond';
+export type TierKey =
+  | 'unranked'
+  | 'recruit'
+  | 'scout'
+  | 'raider'
+  | 'striker'
+  | 'veteran'
+  | 'elite'
+  | 'champion'
+  | 'master'
+  | 'legend'
+  | 'grandmaster';
 
 export interface TierRung {
   key: TierKey;

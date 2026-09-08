@@ -1,6 +1,7 @@
 import { Lock } from 'lucide-react';
 import { Card } from '../shared/ui';
-import { TierBadge, tierColor } from './TierBadge';
+import { TierBadge } from './TierBadge';
+import { TIER_BADGE_IMAGE } from '../../lib/tierBadges';
 import { formatSol } from '../../lib/format';
 import type { TierProgress as TierProgressData } from '../../types';
 
@@ -8,10 +9,11 @@ import type { TierProgress as TierProgressData } from '../../types';
  * Doc 11 — where the player stands and what the next rung costs.
  *
  * The remaining amount is shown as an exact figure rather than only as a bar,
- * because "3.6 SOL to Platinum" is actionable and a 60%-full bar is not.
+ * because "3.6 SOL to Elite" is actionable and a 60%-full bar is not.
  */
 export function TierProgress({ tier }: { tier: TierProgressData }) {
-  const color = tierColor(tier.key);
+  // The whole ladder minus `unranked` — that rung has no badge to show as locked.
+  const earnableLadder = tier.ladder.filter((rung) => rung.key !== 'unranked');
 
   return (
     <Card radius={20} className="flex flex-col gap-4 p-[22px]">
@@ -33,9 +35,7 @@ export function TierProgress({ tier }: { tier: TierProgressData }) {
             <span className="text-muted">
               {formatSol(tier.wagered)} / {formatSol(tier.next.minWagered)} SOL wagered
             </span>
-            <span className="font-semibold" style={{ color }}>
-              {tier.percentToNext.toFixed(0)}%
-            </span>
+            <span className="font-semibold text-green">{tier.percentToNext.toFixed(0)}%</span>
           </div>
 
           <div
@@ -48,7 +48,10 @@ export function TierProgress({ tier }: { tier: TierProgressData }) {
           >
             <div
               className="h-full rounded-full transition-[width] duration-500"
-              style={{ width: `${tier.percentToNext}%`, background: color }}
+              style={{
+                width: `${tier.percentToNext}%`,
+                background: 'linear-gradient(90deg, var(--green-deep), var(--green-solid))',
+              }}
             />
           </div>
 
@@ -67,7 +70,7 @@ export function TierProgress({ tier }: { tier: TierProgressData }) {
 
       {/* The whole ladder, so a player can see what is ahead without playing to find out. */}
       <div className="flex flex-wrap gap-1.5 border-t border-line2 pt-3.5">
-        {tier.ladder.map((rung) => (
+        {earnableLadder.map((rung) => (
           <span
             key={rung.key}
             title={`${rung.label} — ${formatSol(rung.minWagered)} SOL wagered`}
@@ -75,12 +78,20 @@ export function TierProgress({ tier }: { tier: TierProgressData }) {
             style={
               rung.reached
                 ? {
-                    color: tierColor(rung.key),
-                    background: `color-mix(in srgb, ${tierColor(rung.key)} 14%, transparent)`,
+                    color: 'var(--gold-bright)',
+                    background: 'color-mix(in srgb, var(--gold) 14%, transparent)',
                   }
                 : { color: 'var(--tier-locked)', background: 'var(--border2)' }
             }
           >
+            <img
+              src={TIER_BADGE_IMAGE[rung.key as keyof typeof TIER_BADGE_IMAGE]}
+              alt=""
+              width={14}
+              height={14}
+              className="shrink-0 object-contain"
+              style={rung.reached ? undefined : { filter: 'grayscale(1)', opacity: 0.6 }}
+            />
             {rung.label}
             {!rung.reached && <Lock aria-label="locked" className="size-2.5" />}
           </span>

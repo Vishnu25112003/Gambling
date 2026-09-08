@@ -68,7 +68,7 @@ export function Card({
 export function PageTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <>
-      <h1 className="mb-1 text-[22px] font-extrabold">{title}</h1>
+      <h1 className="mb-1 font-heading text-[22px] font-extrabold">{title}</h1>
       {subtitle && <p className="mb-[22px] text-[13.5px] text-muted">{subtitle}</p>}
     </>
   );
@@ -97,7 +97,7 @@ export function SectionHeading({
               {icon}
             </span>
           )}
-          <span className="text-lg font-bold">{title}</span>
+          <span className="font-heading text-lg font-bold">{title}</span>
         </div>
         {subtitle && <p className="mt-[5px] text-[13px] text-muted">{subtitle}</p>}
       </div>

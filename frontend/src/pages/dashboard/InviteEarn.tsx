@@ -79,6 +79,8 @@ export function InviteEarn() {
         />
       </div>
 
+      <MilestoneProgress invited={data.stats.invited} />
+
       <HowItWorks rate={rate} />
 
       {data.referredBy && (
@@ -166,9 +168,71 @@ function InviteLinkCard({ link, code, rate }: { link: string; code: string; rate
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="rounded-[14px] border border-line bg-card p-5">
-      <div className="mb-2 text-[11.5px] font-semibold text-muted">{label}</div>
-      <div className={`text-[22px] font-extrabold ${accent ? 'text-green' : ''}`}>{value}</div>
+      <div className="mb-2 font-mono text-[11px] font-semibold tracking-[0.03em] text-muted">
+        {label}
+      </div>
+      <div className={`font-heading text-[22px] font-extrabold ${accent ? 'text-green' : ''}`}>
+        {value}
+      </div>
     </div>
+  );
+}
+
+/** 1/5/10/25 friends invited → a reward tier. Cosmetic — thresholds aren't backend data. */
+const MILESTONES = [
+  { friends: 1, reward: 'Recruit badge' },
+  { friends: 5, reward: '0.02 SOL bonus' },
+  { friends: 10, reward: '0.05 SOL bonus' },
+  { friends: 25, reward: '0.15 SOL bonus' },
+];
+
+function MilestoneProgress({ invited }: { invited: number }) {
+  const top = MILESTONES[MILESTONES.length - 1]!.friends;
+  const pct = Math.min(100, (invited / top) * 100);
+
+  return (
+    <Card className="mt-4 p-6">
+      <SectionHeading icon={<Icon name="users" size={17} />} title="Recruit milestones" />
+
+      <div className="mb-1.5 flex items-baseline justify-between text-[12.5px]">
+        <span className="text-muted">{invited} friends invited</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-line2">
+        <div
+          className="h-full rounded-full bg-[linear-gradient(90deg,var(--green-deep),var(--green-solid))]"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(min(100%,130px),1fr))] gap-2.5">
+        {MILESTONES.map((m) => {
+          const reached = invited >= m.friends;
+          return (
+            <div
+              key={m.friends}
+              className="rounded-[11px] border p-3 text-center"
+              style={
+                reached
+                  ? {
+                      borderColor: 'color-mix(in srgb, var(--green-solid) 35%, transparent)',
+                      background: 'color-mix(in srgb, var(--green-solid) 8%, var(--bg2))',
+                    }
+                  : { borderColor: 'var(--line2)', background: 'var(--bg2)' }
+              }
+            >
+              <div className="font-heading text-[13px] font-bold">{m.friends} friends</div>
+              <div className="mt-1 text-[11px] text-muted">{m.reward}</div>
+              <div
+                className="mt-1.5 font-mono text-[10px] tracking-[0.06em]"
+                style={{ color: reached ? 'var(--green)' : 'var(--faint)' }}
+              >
+                {reached ? 'ACTIVE' : `${Math.max(0, m.friends - invited)} TO GO`}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
@@ -191,7 +255,7 @@ function HowItWorks({ rate }: { rate: number }) {
             <div className="mb-2 flex size-7 items-center justify-center rounded-full bg-green-solid/[0.16] text-[12.5px] font-bold text-green">
               {i + 1}
             </div>
-            <p className="mb-1 text-[14px] font-bold">{title}</p>
+            <p className="mb-1 font-heading text-[14px] font-bold">{title}</p>
             <p className="text-[12.5px] leading-[1.55] text-muted">{body}</p>
           </li>
         ))}
@@ -282,8 +346,10 @@ function FriendsTable({ friends, rate }: { friends: ReferredFriend[]; rate: numb
           <tbody>
             {friends.map((f) => (
               <tr key={f.id} className="border-b border-line2">
-                <td className="px-5 py-3 font-semibold">{f.name}</td>
-                <td className="px-5 py-3 whitespace-nowrap text-muted">{formatDate(f.joinedAt)}</td>
+                <td className="px-5 py-3 font-heading font-semibold">{f.name}</td>
+                <td className="px-5 py-3 font-mono whitespace-nowrap text-muted">
+                  {formatDate(f.joinedAt)}
+                </td>
                 <td className="px-5 py-3 text-right">
                   <Badge tone={f.status === 'earned' ? 'success' : 'warn'}>
                     {f.status === 'earned' ? 'paid' : 'awaiting first win'}

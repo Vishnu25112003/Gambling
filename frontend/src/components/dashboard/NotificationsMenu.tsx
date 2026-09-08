@@ -66,7 +66,7 @@ export function NotificationsMenu({ enabled }: { enabled: boolean }) {
           className="absolute top-[calc(100%+8px)] right-0 z-50 w-[min(92vw,340px)] overflow-hidden rounded-[14px] border border-line bg-bg2 shadow-[0_18px_44px_rgba(0,0,0,0.34)]"
         >
           <div className="flex items-center justify-between border-b border-line2 px-4 py-3">
-            <span className="text-[13.5px] font-bold">Notifications</span>
+            <span className="font-heading text-[13.5px] font-bold">Notifications</span>
             <Link
               to="/dashboard/transactions"
               onClick={close}
@@ -121,8 +121,8 @@ function Row({ n }: { n: Notification }) {
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-[13px] font-bold">{n.title}</span>
-          <span className="shrink-0 text-[11px] whitespace-nowrap text-faint">
+          <span className="truncate font-heading text-[13px] font-bold">{n.title}</span>
+          <span className="shrink-0 font-mono text-[11px] whitespace-nowrap text-faint">
             {formatRelative(n.timestamp)}
           </span>
         </div>

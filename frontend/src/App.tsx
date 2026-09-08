@@ -14,7 +14,9 @@ import { Settings } from './pages/dashboard/Settings';
 import { Profile } from './pages/dashboard/Profile';
 import { PublicProfile } from './pages/dashboard/PublicProfile';
 import { InviteEarn } from './pages/dashboard/InviteEarn';
-import { Placeholder } from './pages/dashboard/Placeholder';
+import { MyBets } from './pages/dashboard/MyBets';
+import { Rewards } from './pages/dashboard/Rewards';
+import { Support } from './pages/dashboard/Support';
 import { NotFound } from './pages/NotFound';
 import { CoinFlipBoard } from './games/coin-flip/CoinFlipBoard';
 import { LudoBoard } from './games/ludo/LudoBoard';
@@ -27,9 +29,9 @@ import { HandCricketBoard } from './games/hand-cricket/HandCricketBoard';
  * freely. Note that NO route is guarded here — gating happens per-section
  * inside the dashboard, which is exactly what the doc specifies.
  *
- * The dashboard's ten sections are the design's sidebar. The four with no
- * backend behind them yet render the shared placeholder rather than being
- * hidden, so the navigation matches the design at every stage.
+ * The dashboard's ten sections are the design's sidebar. Every section now
+ * renders real content — My Bets, Rewards and Support ship with static/mock
+ * data (their own `lib/*Mock.ts` module) until a backend exists for them.
  */
 export default function App() {
   return (
@@ -46,16 +48,16 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardShell />}>
                 <Route index element={<Overview />} />
                 <Route path="games" element={<Games />} />
-                <Route path="bets" element={<Placeholder navKey="mybets" />} />
+                <Route path="bets" element={<MyBets />} />
                 <Route path="transactions" element={<Transactions />} />
                 <Route path="escrow" element={<Escrow />} />
                 <Route path="leaderboard" element={<Leaderboard />} />
-                <Route path="rewards" element={<Placeholder navKey="rewards" />} />
+                <Route path="rewards" element={<Rewards />} />
                 {/* Doc 09. The path stays `affiliates` so existing links hold. */}
                 <Route path="affiliates" element={<InviteEarn />} />
                 <Route path="invite" element={<Navigate to="/dashboard/affiliates" replace />} />
                 <Route path="settings" element={<Settings />} />
-                <Route path="support" element={<Placeholder navKey="support" />} />
+                <Route path="support" element={<Support />} />
 
                 {/* Doc 11 — own profile, and anyone's by handle. */}
                 <Route path="profile" element={<Profile />} />

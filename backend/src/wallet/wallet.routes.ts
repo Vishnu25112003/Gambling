@@ -124,6 +124,37 @@ walletRouter.get(
   }),
 );
 
+/**
+ * GET /api/wallet/summary — lifetime ledger totals for the Transactions page's
+ * stat tiles. `history` is paginated, so these aggregates can't be derived
+ * client-side from a page of rows; they are summed server-side instead, over
+ * confirmed entries only (a pending or failed row is not yet, or never was, a
+ * real movement of funds).
+ */
+walletRouter.get(
+  '/summary',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const grouped = await prisma.ledgerEntry.groupBy({
+      by: ['type'],
+      where: { userId: req.user!.id, status: 'confirmed' },
+      _sum: { amount: true },
+    });
+
+    const sumOf = (type: string) =>
+      toDecimal(grouped.find((g) => g.type === type)?._sum.amount ?? 0);
+
+    res.json({
+      // Deposits and referral credits are stored positive; withdrawals and fees
+      // are stored negative (debits) — `.abs()` reports both as a magnitude.
+      totalDeposited: toAmountString(sumOf('deposit')),
+      totalWithdrawn: toAmountString(sumOf('withdrawal').abs()),
+      totalRewards: toAmountString(sumOf('referral')),
+      totalFees: toAmountString(sumOf('fee').abs()),
+    });
+  }),
+);
+
 /** GET /api/wallet/treasury — on-chain float, useful while testing on devnet. */
 walletRouter.get(
   '/treasury',
