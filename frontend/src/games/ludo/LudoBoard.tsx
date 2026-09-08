@@ -8,7 +8,6 @@ import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
 import { GameSetupWizard, GameJoinByCode, GameWaitingRoom } from '../../components/shared/gameSetup';
 import { StakeAmountStep } from '../../components/shared/gameSetup/StakeAmountStep';
-import { TurnBanner } from '../../components/shared/TurnBanner';
 import { formatSol } from '../../lib/format';
 import { gameVisual } from '../../lib/gameVisuals';
 import { ludoSetupConfig } from './ludoSetupConfig';
@@ -49,6 +48,7 @@ const LUDO = {
   MATCH_CREATED: 'ludo:created',
   MATCHES_LIST: 'ludo:matches',
   STAKE_REQUIRED: 'ludo:stake:required',
+  DICE_ROLLING: 'ludo:dice:rolling',
   DICE_ROLLED: 'ludo:dice:rolled',
   TOKEN_MOVED: 'ludo:token:moved',
   TURN_START: 'ludo:turn:start',
@@ -61,9 +61,9 @@ const LUDO = {
 
 const ROLL_TIMEOUT_MS = 15_000;
 const MOVE_TIMEOUT_MS = 10_000;
-/** Mirrors the backend's TURN_BANNER_MS — how long the "Your Turn" popup shows
- * before the visible roll countdown begins. */
-const TURN_BANNER_MS = 2_500;
+/** Minimum time the tumble animation plays for, so a roll is always visible
+ * even when DICE_ROLLING/DICE_ROLLED arrive almost back-to-back. */
+const MIN_SPIN_MS = 900;
 
 type Page =
   | 'lobby'
@@ -196,8 +196,10 @@ function LudoBoardInner() {
   const [pendingSubmit, setPendingSubmit] = useState(false);
   const [isMyTurn, setIsMyTurn] = useState(false);
   const [waitingReason, setWaitingReason] = useState<string | null>(null);
-  const [showTurnBanner, setShowTurnBanner] = useState(false);
-  const turnBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [rollingColor, setRollingColor] = useState<LudoColor | null>(null);
+  const rollStartRef = useRef<number>(0);
+  const pendingSettleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rollingFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // --- Dice cube rotation (cosmetic — the settled face always mirrors the
   // server's authoritative `lastDice`; this just makes it spin) ---
@@ -343,26 +345,13 @@ function LudoBoardInner() {
       setRollingDice(false);
       setPendingSubmit(false);
       clearTimer();
-      if (turnBannerTimerRef.current) {
-        clearTimeout(turnBannerTimerRef.current);
-        turnBannerTimerRef.current = null;
-      }
 
       if (data.currentPlayerId === user.id) {
         setIsMyTurn(true);
         setWaitingReason(null);
-        // Show the big "Your Turn" popup for TURN_BANNER_MS, then start the
-        // visible roll countdown — mirrors the server delaying its own roll
-        // timer by the same amount (see backend socket.ts), so the countdown
-        // shown here always has the real time left before the server acts.
-        setShowTurnBanner(true);
-        turnBannerTimerRef.current = setTimeout(() => {
-          setShowTurnBanner(false);
-          startTimer(ROLL_TIMEOUT_MS);
-        }, TURN_BANNER_MS);
+        startTimer(ROLL_TIMEOUT_MS);
       } else {
         setIsMyTurn(false);
-        setShowTurnBanner(false);
         setWaitingReason(`Waiting for ${getDisplayName(data.currentPlayerId)} to roll...`);
       }
     });
@@ -380,18 +369,42 @@ function LudoBoardInner() {
       setPage('stake_select');
     });
 
+    s.on(LUDO.DICE_ROLLING, (data: { playerId: string; color: LudoColor }) => {
+      if (rollingFallbackRef.current) clearTimeout(rollingFallbackRef.current);
+      setRollingColor(data.color);
+      rollStartRef.current = Date.now();
+      // Defense in depth: if DICE_ROLLED for this roll never arrives (a
+      // dropped socket event), stop the spin instead of leaving it forever.
+      rollingFallbackRef.current = setTimeout(() => {
+        setRollingColor((c) => (c === data.color ? null : c));
+      }, 8000);
+    });
+
     s.on(LUDO.DICE_ROLLED, (data: {
       playerId: string;
       diceValue: number;
       color: LudoColor;
       state?: LudoState;
     }) => {
-      setLastDice(data.diceValue);
-      setLastDiceColor(data.color);
-      setRollingDice(false);
-      setPendingSubmit(false);
-      if (data.state) setGameState(data.state);
-      clearTimer();
+      if (pendingSettleRef.current) {
+        clearTimeout(pendingSettleRef.current);
+        pendingSettleRef.current = null;
+      }
+      const applySettle = () => {
+        setLastDice(data.diceValue);
+        setLastDiceColor(data.color);
+        setRollingDice(false);
+        setRollingColor(null);
+        setPendingSubmit(false);
+        if (data.state) setGameState(data.state);
+        clearTimer();
+      };
+      const elapsed = Date.now() - rollStartRef.current;
+      if (elapsed < MIN_SPIN_MS) {
+        pendingSettleRef.current = setTimeout(applySettle, MIN_SPIN_MS - elapsed);
+      } else {
+        applySettle();
+      }
     });
 
     s.on(LUDO.MATCH_STATE, (data: {
@@ -489,7 +502,8 @@ function LudoBoardInner() {
 
     return () => {
       clearTimer();
-      if (turnBannerTimerRef.current) clearTimeout(turnBannerTimerRef.current);
+      if (pendingSettleRef.current) clearTimeout(pendingSettleRef.current);
+      if (rollingFallbackRef.current) clearTimeout(rollingFallbackRef.current);
       s.disconnect();
       socketRef.current = null;
     };
@@ -509,18 +523,27 @@ function LudoBoardInner() {
     }));
   }, [lastDice, lastDiceColor]);
 
-  // While waiting on the server's roll, keep my own die tumbling.
+  // While a roll is in flight (for whichever seated color is rolling, as
+  // broadcast by the server), keep that die tumbling smoothly via rAF —
+  // frame-rate independent, and writes land instantly since Dice3D disables
+  // its CSS transition while `spinning` so nothing fights these updates.
   useEffect(() => {
-    const myColor = gameState && myId ? gameState.colors[myId] : undefined;
-    if (!rollingDice || !myColor) return;
-    const id = setInterval(() => {
+    if (!rollingColor) return;
+    let frameId: number;
+    let last = performance.now();
+    const DEG_PER_MS = { x: 0.59, y: 0.88 };
+    const tick = (now: number) => {
+      const dt = now - last;
+      last = now;
       setDiceRot((prev) => {
-        const cur = prev[myColor] ?? IDLE_TILT[myColor];
-        return { ...prev, [myColor]: { x: cur.x + 53, y: cur.y + 79 } };
+        const cur = prev[rollingColor] ?? IDLE_TILT[rollingColor];
+        return { ...prev, [rollingColor]: { x: cur.x + DEG_PER_MS.x * dt, y: cur.y + DEG_PER_MS.y * dt } };
       });
-    }, 90);
-    return () => clearInterval(id);
-  }, [rollingDice, gameState, myId]);
+      frameId = requestAnimationFrame(tick);
+    };
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [rollingColor]);
 
   // Defense in depth for issue #2/#8: if a roll never gets a DICE_ROLLED or
   // ERROR response (a dropped socket event, not just a thrown server error),
@@ -630,7 +653,6 @@ function LudoBoardInner() {
     setError(null);
     setJoinStakeInfo(null);
     setStakeError(null);
-    setShowTurnBanner(false);
     // Reconnect
     const token = tokenStore.get();
     if (!token || !user) return;
@@ -861,6 +883,7 @@ function LudoBoardInner() {
         reversed={reversed}
         side={side}
         diceTransform={`rotateX(${rot.x}deg) rotateY(${rot.y}deg)`}
+        isRolling={rollingColor === color}
         onRoll={handleRollDice}
       />
     );
@@ -892,8 +915,6 @@ function LudoBoardInner() {
           {error}
         </Card>
       )}
-
-      <TurnBanner show={showTurnBanner} label="Your Turn" />
 
       <div
         className="relative mx-auto flex w-full max-w-[470px] flex-col gap-2 rounded-[22px] p-3 sm:max-w-[600px]"

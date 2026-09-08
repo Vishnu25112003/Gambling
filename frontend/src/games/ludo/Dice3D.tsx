@@ -81,9 +81,12 @@ export interface Dice3DProps {
   size: string;
   /** CSS transform, e.g. `"rotateX(-18deg) rotateY(24deg)"`. */
   transform: string;
+  /** While true, disables the settle transition so a driver (e.g. rAF) can
+   * apply `transform` updates instantly for a continuous spin. */
+  spinning?: boolean;
 }
 
-export function Dice3D({ size, transform }: Dice3DProps) {
+export function Dice3D({ size, transform, spinning }: Dice3DProps) {
   return (
     <div
       style={{
@@ -101,7 +104,7 @@ export function Dice3D({ size, transform }: Dice3DProps) {
           height: '62%',
           transformStyle: 'preserve-3d',
           transform,
-          transition: 'transform 1.15s cubic-bezier(.19,.75,.22,1)',
+          transition: spinning ? 'none' : 'transform 1.15s cubic-bezier(.19,.75,.22,1)',
         }}
       >
         {FACES.map((f) => (

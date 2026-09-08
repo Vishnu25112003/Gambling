@@ -26,6 +26,8 @@ interface PlayerPodProps {
   /** Top pods show pod-then-chip; bottom pods show chip-then-pod. */
   side: 'top' | 'bottom';
   diceTransform: string;
+  /** A roll is currently in flight for this color (broadcast to all seats). */
+  isRolling?: boolean;
   onRoll?: () => void;
 }
 
@@ -39,6 +41,7 @@ export function PlayerPod({
   reversed = false,
   side,
   diceTransform,
+  isRolling,
   onRoll,
 }: PlayerPodProps) {
   const sh = SHADE[color];
@@ -72,7 +75,7 @@ export function PlayerPod({
       >
         {name.charAt(0).toUpperCase()}
       </div>
-      <Dice3D size={DICE_SIZE} transform={diceTransform} />
+      <Dice3D size={DICE_SIZE} transform={diceTransform} spinning={isRolling} />
     </div>
   );
 
