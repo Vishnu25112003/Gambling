@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConnectWalletPlaceholder } from '../../components/dashboard/ConnectWalletPlaceholder';
-import { Badge, Button, Card, EmptyState, PageTitle, SectionHeading } from '../../components/shared/ui';
-import { Icon, type IconName } from '../../components/shared/icons';
+import { Panel, PanelHeader, StatTile, FilterPills, TableHead, TableRow, TableScroll, StatusChip } from '../../components/dashboard/panels';
+import { Icon } from '../../components/shared/icons';
 import { useAuth } from '../../hooks/useAuth';
 import { gameVisual } from '../../lib/gameVisuals';
 import { gameLabel } from '../../lib/gameLabel';
@@ -14,91 +14,79 @@ import {
   type MockBetResult,
 } from '../../lib/myBetsMock';
 
-const SUBTITLE = 'Every bet you place lands here — open, settled and cancelled.';
+const SUBTITLE = 'Every stake you have placed — open tables, settled matches and refunds.';
 const PAGE_SIZE = 5;
+const TEMPLATE = '1.5fr 1.3fr .7fr .7fr .8fr .9fr';
 
-const RESULT_TONE: Record<MockBetResult, 'success' | 'danger' | 'neutral'> = {
-  won: 'success',
-  lost: 'danger',
-  forfeited: 'danger',
-  refunded: 'neutral',
+const RESULT_CHIP: Record<MockBetResult, { bg: string; fg: string }> = {
+  won: { bg: 'rgba(47,224,138,.14)', fg: '#2fe08a' },
+  lost: { bg: 'rgba(239,83,80,.14)', fg: '#ff8a86' },
+  forfeited: { bg: 'rgba(239,83,80,.14)', fg: '#ff8a86' },
+  refunded: { bg: 'rgba(196,214,228,.1)', fg: '#c4d6e4' },
 };
 
 const RESULT_LABEL: Record<MockBetResult, string> = {
-  won: 'Won',
-  lost: 'Lost',
-  forfeited: 'Forfeited',
-  refunded: 'Refunded',
+  won: 'WON',
+  lost: 'LOST',
+  forfeited: 'FORFEITED',
+  refunded: 'REFUNDED',
 };
 
 const FILTERS: { key: 'all' | MockBetResult; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'won', label: 'Won' },
-  { key: 'lost', label: 'Lost' },
-  { key: 'refunded', label: 'Refunded' },
+  { key: 'all', label: 'ALL' },
+  { key: 'won', label: 'WON' },
+  { key: 'lost', label: 'LOST' },
+  { key: 'refunded', label: 'REFUNDED' },
 ];
-
-interface Tile {
-  label: string;
-  value: string;
-  color: string;
-  icon: IconName;
-}
-
-function StatTile({ tile }: { tile: Tile }) {
-  return (
-    <div className="relative flex items-center gap-3 overflow-hidden rounded-[14px] border border-line bg-card px-4 py-3.5">
-      <span className="absolute top-0 right-0 left-0 h-[2px]" style={{ background: tile.color }} />
-      <div
-        className="flex size-9 shrink-0 items-center justify-center rounded-lg"
-        style={{ background: 'var(--line2)', color: tile.color }}
-      >
-        <Icon name={tile.icon} size={17} />
-      </div>
-      <div className="min-w-0">
-        <div className="mb-0.5 font-mono text-[10px] font-semibold tracking-[0.04em] text-muted">
-          {tile.label}
-        </div>
-        <div className="font-heading text-[16px] font-extrabold" style={{ color: tile.color }}>
-          {tile.value}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function OpenBetCard({ bet }: { bet: (typeof MOCK_OPEN_BETS)[number] }) {
   const visual = gameVisual({ name: gameLabel(bet.gameType) });
-  const yourTurn = bet.state === 'your-turn';
-
   return (
-    <div className="flex items-center gap-3.5 rounded-[14px] border border-line bg-card p-4">
-      <div
-        className="flex size-11 shrink-0 items-center justify-center rounded-xl"
-        style={{ background: visual.tint, color: visual.tone }}
-      >
-        <Icon name={visual.icon} size={20} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate font-heading text-[14px] font-bold">
-            {gameLabel(bet.gameType)}
+    <div
+      className="flex flex-col gap-3 rounded-[13px] border p-4"
+      style={{ borderColor: 'var(--amber-border)', background: 'var(--panel-bg3)' }}
+    >
+      <div className="flex items-start justify-between gap-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            className="grid size-[34px] shrink-0 place-items-center rounded-[9px] font-heading text-[13px] font-bold text-[#04160c]"
+            style={{ background: visual.tone }}
+          >
+            {gameLabel(bet.gameType).charAt(0)}
           </span>
-          <Badge tone={yourTurn ? 'warn' : 'neutral'}>{yourTurn ? 'Your turn' : 'Waiting'}</Badge>
+          <div className="min-w-0">
+            <div className="font-heading text-[15px] font-bold text-[#eafff3]">{gameLabel(bet.gameType)}</div>
+            <div className="mt-0.5 font-mono text-[10.5px] text-[#a9c3b6]">{bet.meta}</div>
+          </div>
         </div>
-        <p className="mt-0.5 truncate text-[11.5px] text-muted">{bet.meta}</p>
-        <div className="mt-1.5 flex gap-4 font-mono text-[11.5px]">
-          <span className="text-muted">Stake {formatSol(bet.stake)} SOL</span>
-          <span className="text-green">To win {formatSol(bet.toWin)} SOL</span>
+        <StatusChip bg="rgba(240,180,41,.12)" fg="#f0b429">
+          {bet.state === 'your-turn' ? 'YOUR TURN' : 'WAITING'}
+        </StatusChip>
+      </div>
+      <div className="flex gap-2">
+        <div className="flex-1 rounded-[9px] border p-[9px_11px]" style={{ borderColor: 'rgba(47,224,138,.1)', background: '#0a140e' }}>
+          <div className="font-mono text-[9px] tracking-[0.14em] text-[#8fbfa6]">STAKE</div>
+          <div className="mt-0.5 font-mono text-[13px] text-[#eafff3]">{formatSol(bet.stake)} SOL</div>
+        </div>
+        <div className="flex-1 rounded-[9px] border p-[9px_11px]" style={{ borderColor: 'rgba(47,224,138,.1)', background: '#0a140e' }}>
+          <div className="font-mono text-[9px] tracking-[0.14em] text-[#8fbfa6]">TO WIN</div>
+          <div className="mt-0.5 font-mono text-[13px] text-green">{formatSol(bet.toWin)} SOL</div>
         </div>
       </div>
-      <div className="flex shrink-0 flex-col gap-1.5">
-        <Button size="sm" variant={yourTurn ? 'solid' : 'secondary'} disabled={!yourTurn}>
-          {yourTurn ? 'Play' : 'Waiting'}
-        </Button>
-        <Button size="sm" variant="danger">
-          Forfeit
-        </Button>
+      <div className="flex gap-2">
+        <button
+          disabled={bet.state !== 'your-turn'}
+          className="flex-1 cursor-pointer rounded-[9px] border-0 py-2.5 font-heading text-[13px] font-bold tracking-[0.06em] text-[#04160c] disabled:cursor-not-allowed disabled:opacity-60"
+          style={{ background: 'linear-gradient(180deg, #35eb95, #16a862)' }}
+        >
+          {bet.state === 'your-turn' ? 'PLAY' : 'WAITING'}
+        </button>
+        <button
+          className="shrink-0 cursor-pointer rounded-[9px] border px-3.5 py-2.5 font-heading text-[13px] font-bold tracking-[0.06em] text-red"
+          style={{ borderColor: 'rgba(239,83,80,.28)', background: 'rgba(239,83,80,.07)' }}
+        >
+          FORFEIT
+        </button>
       </div>
     </div>
   );
@@ -119,151 +107,141 @@ export function MyBets() {
   if (!isAuthenticated) {
     return (
       <>
-        <PageTitle title="My Bets" subtitle={SUBTITLE} />
+        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">MY BETS</h1>
+        <p className="mb-5 text-sm text-muted">{SUBTITLE}</p>
         <ConnectWalletPlaceholder what="your open and settled bets" icon="ticket" />
       </>
     );
   }
 
   const stats = mockBetStats();
-
   const filtered =
     filter === 'all' ? MOCK_SETTLED_BETS : MOCK_SETTLED_BETS.filter((b) => b.result === filter);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <>
-      <div className="mb-[18px] flex flex-wrap items-center justify-between gap-3">
-        <PageTitle title="My Bets" subtitle={SUBTITLE} />
-        <Button onClick={() => navigate('/dashboard/games')}>Place a Bet</Button>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3.5">
+        <div>
+          <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">MY BETS</h1>
+          <p className="text-sm text-muted">{SUBTITLE}</p>
+        </div>
+        <button
+          onClick={() => navigate('/dashboard/games')}
+          className="flex cursor-pointer items-center gap-2.5 rounded-[10px] border px-5 py-3 font-heading text-[13.5px] font-bold tracking-[0.06em] text-[#eafff3]"
+          style={{ borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.08)' }}
+        >
+          <Icon name="gamepad" size={19} className="text-green" />
+          PLACE A BET
+        </button>
       </div>
 
-      <div className="mb-[22px] grid grid-cols-[repeat(auto-fit,minmax(min(100%,190px),1fr))] gap-3">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
         {stats.map((s) => (
           <StatTile
             key={s.label}
-            tile={{ ...s, icon: s.label === 'OPEN BETS' ? 'ticket' : s.label === 'WIN RATE' ? 'percent' : s.label === 'SETTLED' ? 'chart' : 'coin' }}
+            icon={s.label === 'OPEN BETS' ? 'ticket' : s.label === 'WIN RATE' ? 'percent' : s.label === 'SETTLED' ? 'chart' : 'coin'}
+            label={s.label}
+            value={s.value}
+            color={s.color}
           />
         ))}
       </div>
 
-      <Card className="mb-[22px] p-[22px]">
-        <SectionHeading icon={<Icon name="ticket" size={18} />} title="Open Bets" />
+      <Panel amber>
+        <PanelHeader title="OPEN BETS" dot="#f0b429" meta={`${MOCK_OPEN_BETS.length} LOCKED`} />
         {MOCK_OPEN_BETS.length === 0 ? (
-          <EmptyState
-            radius={14}
-            icon={<Icon name="ticket" size={19} />}
-            scaleIcon
-            title="No open bets"
-            body="Join a table and it'll show up here until it settles."
-          />
+          <p className="py-8 text-center text-[13px] text-muted">No open bets right now.</p>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] gap-3">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] gap-3">
             {MOCK_OPEN_BETS.map((bet) => (
               <OpenBetCard key={bet.id} bet={bet} />
             ))}
           </div>
         )}
-      </Card>
+      </Panel>
 
-      <Card radius={16} className="overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line2 px-5 py-3.5">
-          <span className="font-heading text-[13.5px] font-bold tracking-[0.04em]">
-            SETTLED BETS
-          </span>
-          <div className="flex gap-1.5">
-            {FILTERS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => {
-                  setFilter(f.key);
-                  setPage(1);
-                }}
-                className={`cursor-pointer rounded-full border px-3 py-1 text-[11.5px] font-semibold transition ${
-                  filter === f.key
-                    ? 'border-green-solid/40 bg-green-solid/[0.14] text-green'
-                    : 'border-line bg-transparent text-muted hover:text-text'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
+      <Panel>
+        <PanelHeader
+          title="SETTLED BETS"
+          action={
+            <FilterPills
+              options={FILTERS}
+              active={filter}
+              onChange={(k) => {
+                setFilter(k);
+                setPage(1);
+              }}
+            />
+          }
+        />
 
         {pageRows.length === 0 ? (
-          <p className="px-5 py-12 text-center text-[13px] text-muted">
-            Nothing matches this filter yet.
-          </p>
+          <p className="py-10 text-center text-[13px] text-muted">Nothing matches this filter yet.</p>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-line2 text-left text-[11px] font-semibold tracking-[0.06em] text-faint">
-                    <th className="px-5 py-3.5">GAME</th>
-                    <th className="px-5 py-3.5">WHEN</th>
-                    <th className="px-5 py-3.5 text-right">STAKE</th>
-                    <th className="px-5 py-3.5 text-right">PAYOUT</th>
-                    <th className="px-5 py-3.5 text-right">NET</th>
-                    <th className="px-5 py-3.5 text-right">RESULT</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageRows.map((row) => (
-                    <tr key={row.id} className="border-b border-line2">
-                      <td className="px-5 py-3 font-heading font-semibold">
-                        {gameLabel(row.gameType)}
-                      </td>
-                      <td className="px-5 py-3 font-mono whitespace-nowrap text-muted">
-                        {formatDate(row.when)}
-                      </td>
-                      <td className="px-5 py-3 text-right font-mono whitespace-nowrap">
-                        {formatSol(row.stake)}
-                      </td>
-                      <td className="px-5 py-3 text-right font-mono whitespace-nowrap">
-                        {formatSol(row.payout)}
-                      </td>
-                      <td
-                        className={`px-5 py-3 text-right font-mono font-bold whitespace-nowrap ${
-                          Number(row.net) > 0 ? 'text-green' : Number(row.net) < 0 ? 'text-red' : 'text-muted'
-                        }`}
-                      >
-                        {formatSolSigned(row.net)}
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        <Badge tone={RESULT_TONE[row.result]}>{RESULT_LABEL[row.result]}</Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-line2 px-5 py-3">
-                <span className="text-xs text-muted">
-                  Page {page} of {totalPages}
-                </span>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                    Previous
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((p) => p + 1)}
+            <TableScroll minWidth={620}>
+              <TableHead
+                template={TEMPLATE}
+                columns={[
+                  { label: 'GAME' },
+                  { label: 'PLACED' },
+                  { label: 'STAKE', align: 'right' },
+                  { label: 'PAYOUT', align: 'right' },
+                  { label: 'NET', align: 'right' },
+                  { label: 'RESULT', align: 'right' },
+                ]}
+              />
+              {pageRows.map((row) => (
+                <TableRow key={row.id} template={TEMPLATE}>
+                  <span className="truncate font-heading text-[13.5px] font-semibold text-[#e8f2ec]">
+                    {gameLabel(row.gameType)}
+                  </span>
+                  <span className="font-mono text-[11.5px] text-[#a9c3b6]">{formatDate(row.when)}</span>
+                  <span className="text-right font-mono text-[11.5px] text-[#9fb6a9]">{formatSol(row.stake)}</span>
+                  <span className="text-right font-mono text-[11.5px] text-[#9fb6a9]">{formatSol(row.payout)}</span>
+                  <span
+                    className="text-right font-mono text-[11.5px]"
+                    style={{ color: Number(row.net) > 0 ? '#2fe08a' : Number(row.net) < 0 ? '#ef5350' : '#9fb6a9' }}
                   >
-                    Next
-                  </Button>
-                </div>
+                    {formatSolSigned(row.net)}
+                  </span>
+                  <span className="text-right">
+                    <StatusChip bg={RESULT_CHIP[row.result].bg} fg={RESULT_CHIP[row.result].fg}>
+                      {RESULT_LABEL[row.result]}
+                    </StatusChip>
+                  </span>
+                </TableRow>
+              ))}
+            </TableScroll>
+
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3.5">
+              <span className="font-mono text-[10.5px] text-[#8fbfa6]">
+                {filtered.length} BET{filtered.length === 1 ? '' : 'S'} · PAGE {page} OF {totalPages}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="cursor-pointer rounded-lg border px-4 py-2 font-heading text-[12.5px] font-semibold text-muted disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ borderColor: 'var(--panel-border-soft)' }}
+                >
+                  PREV
+                </button>
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="cursor-pointer rounded-lg border px-4 py-2 font-heading text-[12.5px] font-semibold text-green disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.1)' }}
+                >
+                  NEXT
+                </button>
               </div>
-            )}
+            </div>
           </>
         )}
-      </Card>
-    </>
+      </Panel>
+    </div>
   );
 }

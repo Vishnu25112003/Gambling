@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { GameTile } from '../../components/dashboard/GameTile';
-import { PageTitle, Spinner } from '../../components/shared/ui';
+import { GameCard } from '../../components/dashboard/GameCard';
+import { Spinner } from '../../components/shared/ui';
 import { useAuth } from '../../hooks/useAuth';
 import { useGames } from '../../hooks/useGames';
 import type { GameManifest } from '../../types';
@@ -24,27 +24,26 @@ export function Games() {
 
   return (
     <>
-      <PageTitle
-        title="Games"
-        subtitle={
-          isPlaceholder
-            ? 'No games are live yet — the foundation layer is built first.'
-            : 'Pick a game to start playing.'
-        }
-      />
+      <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold tracking-[0.02em] text-[#f2fff8]">
+        GAME LOBBY
+      </h1>
+      <p className="mb-5 text-sm text-muted">
+        {isPlaceholder
+          ? 'No games are live yet — the foundation layer is built first.'
+          : 'Five games, one wallet, one escrow layer. Pick your table.'}
+      </p>
 
       {loading ? (
         <div className="flex justify-center py-16">
           <Spinner />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-[18px] sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-4">
           {games.map((game) => (
-            <GameTile
+            <GameCard
               key={game.id}
               game={game}
-              size="large"
-              // A placeholder is not playable, so it gets no click affordance.
+              variant="lobby"
               onClick={isPlaceholder ? undefined : handlePlay}
             />
           ))}

@@ -32,25 +32,40 @@ export function ProfileHeader({
   const address = identity.walletAddress ?? identity.walletShort ?? '';
 
   return (
-    <div className="relative flex flex-col items-center gap-5 overflow-hidden rounded-[20px] border border-green-solid/[0.18] bg-[linear-gradient(135deg,rgba(34,197,94,0.10),transparent)] p-[clamp(20px,3vw,30px)] sm:flex-row sm:items-start">
-      {isYou ? (
-        <AvatarUploader size={92} onChanged={onAvatarChanged} />
-      ) : (
-        <Avatar
-          src={identity.avatarUrl}
-          name={name}
-          // A public profile only ever receives the shortened address. <Avatar>
-          // normalises every seed through shortAddress, so this produces exactly
-          // the same gradient as the full address does on the owner's own page.
-          address={identity.walletShort}
-          size={92}
-          radiusRatio={0.28}
-        />
-      )}
+    <div
+      className="relative flex flex-col items-center gap-5 overflow-hidden rounded-[20px] border p-[clamp(20px,3vw,30px)] sm:flex-row sm:items-start"
+      style={{
+        borderColor: 'rgba(47,224,138,.2)',
+        background: 'radial-gradient(600px 260px at 85% 0%, rgba(47,224,138,.18), rgba(6,9,7,0) 62%), linear-gradient(120deg, #0c1a12, #070d09)',
+      }}
+    >
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(47,224,138,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(47,224,138,.05) 1px, transparent 1px)',
+          backgroundSize: '42px 42px',
+        }}
+      />
+      <div className="relative shrink-0">
+        {isYou ? (
+          <AvatarUploader size={92} onChanged={onAvatarChanged} />
+        ) : (
+          <Avatar
+            src={identity.avatarUrl}
+            name={name}
+            // A public profile only ever receives the shortened address. <Avatar>
+            // normalises every seed through shortAddress, so this produces exactly
+            // the same gradient as the full address does on the owner's own page.
+            address={identity.walletShort}
+            size={92}
+            radiusRatio={0.28}
+          />
+        )}
+      </div>
 
-      <div className="min-w-0 flex-1 text-center sm:text-left">
+      <div className="relative min-w-0 flex-1 text-center sm:text-left">
         <div className="flex flex-wrap items-center justify-center gap-2.5 sm:justify-start">
-          <h2 className="truncate text-[clamp(19px,2.4vw,25px)] font-extrabold">{name}</h2>
+          <h2 className="truncate font-heading text-[clamp(19px,2.4vw,25px)] font-extrabold">{name}</h2>
           <TierBadge tier={tier.key} label={tier.label} />
           {isYou && <span className="text-[11.5px] font-bold text-green">you</span>}
         </div>

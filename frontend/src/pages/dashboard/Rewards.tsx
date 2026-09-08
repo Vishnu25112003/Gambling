@@ -1,5 +1,6 @@
+import { Flame, History } from 'lucide-react';
 import { ConnectWalletPlaceholder } from '../../components/dashboard/ConnectWalletPlaceholder';
-import { Badge, Button, Card, PageTitle, SectionHeading } from '../../components/shared/ui';
+import { Panel, PanelHeader, StatTile, TableHead, TableRow, TableScroll } from '../../components/dashboard/panels';
 import { Icon } from '../../components/shared/icons';
 import { useAuth } from '../../hooks/useAuth';
 import { formatDate, formatSol } from '../../lib/format';
@@ -11,34 +12,35 @@ import {
   RAKEBACK_TIERS,
 } from '../../lib/rewardsMock';
 
-const SUBTITLE = 'Rakeback, streak bonuses and seasonal drops.';
+const SUBTITLE = 'Rakeback, streak bonuses and season drops — claim them before the timer runs out.';
+const CLAIMS_TEMPLATE = '1.3fr 1.2fr 1fr .8fr';
 
 function StreakStrip() {
   return (
-    <div className="grid grid-cols-7 gap-2">
+    <div className="mt-3.5 flex gap-1.5">
       {MOCK_STREAK.map((d) => (
         <div
           key={d.day}
-          className="flex flex-col items-center gap-1.5 rounded-[11px] border p-2.5"
+          className="flex-1 rounded-[9px] border py-2.5 text-center"
           style={
-            d.state === 'done'
-              ? { borderColor: 'color-mix(in srgb, var(--green-solid) 35%, transparent)', background: 'color-mix(in srgb, var(--green-solid) 8%, var(--bg2))' }
-              : d.state === 'today'
-                ? { borderColor: 'color-mix(in srgb, var(--gold) 45%, transparent)', background: 'color-mix(in srgb, var(--gold) 10%, var(--bg2))' }
-                : { borderColor: 'var(--line2)', background: 'var(--bg2)' }
+            d.state === 'today'
+              ? { borderColor: 'rgba(240,180,41,.4)', background: 'rgba(240,180,41,.1)' }
+              : d.state === 'done'
+                ? { borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.08)' }
+                : { borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg3)' }
           }
         >
-          <span
-            className="font-mono text-[9.5px] tracking-[0.08em]"
-            style={{ color: d.state === 'locked' ? 'var(--faint)' : d.state === 'today' ? 'var(--gold-bright)' : 'var(--green)' }}
+          <Flame
+            size={16}
+            className="mx-auto"
+            style={{ color: d.state === 'today' ? '#f0b429' : d.state === 'done' ? '#2fe08a' : 'var(--faint)' }}
+          />
+          <div
+            className="mt-1 font-mono text-[9px] tracking-[0.08em]"
+            style={{ color: d.state === 'today' ? '#f7d774' : d.state === 'done' ? '#6ee7b7' : 'var(--faint)' }}
           >
             DAY {d.day}
-          </span>
-          <Icon
-            name={d.state === 'locked' ? 'lock' : 'bolt'}
-            size={16}
-            className={d.state === 'today' ? 'text-gold' : d.state === 'done' ? 'text-green' : 'text-faint'}
-          />
+          </div>
         </div>
       ))}
     </div>
@@ -50,77 +52,96 @@ function RakebackProgress({ wagered }: { wagered: number }) {
   const pct = Math.min(100, (wagered / top) * 100);
 
   return (
-    <Card className="p-6">
-      <SectionHeading icon={<Icon name="percent" size={17} />} title="Rakeback Tier" />
-      <div className="mb-1.5 flex items-baseline justify-between text-[12.5px]">
-        <span className="text-muted">{formatSol(String(wagered))} SOL wagered lifetime</span>
+    <Panel>
+      <PanelHeader title="RAKEBACK TIER" meta={`${wagered.toFixed(2)} SOL WAGERED`} />
+      <div className="relative h-2 overflow-hidden rounded-md border" style={{ background: '#0b1a12', borderColor: 'rgba(47,224,138,.14)' }}>
+        <div className="h-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #0f7d4d, #35eb95)', boxShadow: '0 0 16px rgba(47,224,138,.5)' }} />
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-line2">
-        <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,var(--gold-deep),var(--gold-bright))]"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-
-      <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(min(100%,110px),1fr))] gap-2.5">
+      <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2.5">
         {RAKEBACK_TIERS.map((t) => {
           const reached = wagered >= t.minWagered;
           return (
             <div
               key={t.pct}
-              className="rounded-[11px] border p-3 text-center"
+              className="rounded-xl border p-[14px_12px] text-center"
               style={
                 reached
-                  ? { borderColor: 'color-mix(in srgb, var(--gold) 35%, transparent)', background: 'color-mix(in srgb, var(--gold) 8%, var(--bg2))' }
-                  : { borderColor: 'var(--line2)', background: 'var(--bg2)' }
+                  ? { borderColor: 'rgba(240,180,41,.4)', background: 'rgba(240,180,41,.08)' }
+                  : { borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg3)' }
               }
             >
-              <div className="font-heading text-[16px] font-extrabold" style={{ color: reached ? 'var(--gold-bright)' : 'var(--text)' }}>
+              <div className="font-heading text-[22px] font-bold" style={{ color: reached ? '#f7d774' : 'var(--text)' }}>
                 {t.pct}
               </div>
-              <div className="mt-1 font-mono text-[10px] tracking-[0.06em]" style={{ color: reached ? 'var(--green)' : 'var(--faint)' }}>
+              <div className="mt-[5px] font-mono text-[10.5px] text-[#a9c3b6]">{t.minWagered} SOL</div>
+              <div className="mt-2 font-mono text-[9.5px] tracking-[0.12em]" style={{ color: reached ? '#f7d774' : 'var(--faint)' }}>
                 {reached ? 'ACTIVE' : `${(t.minWagered - wagered).toFixed(1)} SOL TO GO`}
               </div>
             </div>
           );
         })}
       </div>
-    </Card>
+    </Panel>
   );
 }
 
 function CrateCard({ crate }: { crate: (typeof MOCK_CRATES)[number] }) {
   const pct = crate.total > 0 ? Math.min(100, (crate.progress / crate.total) * 100) : 0;
+  const claimable = crate.claimable;
 
   return (
-    <div className="flex flex-col gap-3 rounded-[16px] border border-line bg-card p-4">
+    <article
+      className="relative flex flex-col gap-3 overflow-hidden rounded-2xl border p-[18px] transition"
+      style={
+        claimable
+          ? { borderColor: 'rgba(240,180,41,.4)', background: 'rgba(240,180,41,.06)' }
+          : { borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg3)' }
+      }
+    >
+      <div className="flex items-start justify-between gap-2.5">
+        <span
+          className="grid size-11 place-items-center rounded-xl border"
+          style={{ background: 'rgba(240,180,41,.12)', borderColor: 'rgba(240,180,41,.3)' }}
+        >
+          <Icon name={crate.icon} size={23} className="text-gold" />
+        </span>
+        <span
+          className="rounded-[5px] border px-2 py-1 font-mono text-[9px] tracking-[0.16em] text-gold"
+          style={{ background: 'rgba(6,14,9,.7)', borderColor: 'rgba(240,180,41,.3)' }}
+        >
+          {crate.tag}
+        </span>
+      </div>
+      <div>
+        <div className="font-heading text-[17px] font-bold tracking-[0.03em] text-[#eafff3]">{crate.name}</div>
+        <p className="mt-1.5 text-[12.5px] leading-[1.5] text-muted">{crate.desc}</p>
+      </div>
       <div className="flex items-center gap-2.5">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-line2 text-gold">
-          <Icon name={crate.icon} size={18} />
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: '#0a1a11' }}>
+          <div className="h-full" style={{ width: `${pct}%`, background: claimable ? 'linear-gradient(90deg,#d69a0e,#f7d774)' : 'linear-gradient(90deg,#16a862,#35eb95)' }} />
         </div>
-        <div className="min-w-0">
-          <div className="font-heading text-[14px] font-bold">{crate.name}</div>
-          <div className="font-mono text-[9.5px] tracking-[0.1em] text-faint">{crate.tag}</div>
-        </div>
+        <span className="font-mono text-[10.5px] text-muted">{crate.progress}/{crate.total}</span>
       </div>
-      <p className="text-[11.5px] text-muted">{crate.desc}</p>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-line2">
-        <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,var(--green-deep),var(--green-solid))]"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <Button size="sm" variant={crate.claimable ? 'solid' : 'secondary'} disabled={!crate.claimable}>
-        {crate.claimable ? 'Open Now' : `${crate.progress}/${crate.total}`}
-      </Button>
-    </div>
+      <button
+        disabled={!claimable}
+        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-[9px] border-0 py-[11px] font-heading text-[13.5px] font-bold tracking-[0.07em] disabled:cursor-not-allowed"
+        style={
+          claimable
+            ? { background: 'linear-gradient(180deg, #f7d774, #d69a0e)', color: '#241800' }
+            : { background: 'var(--panel-bg2)', color: 'var(--muted)' }
+        }
+      >
+        <Icon name={crate.icon} size={18} />
+        {claimable ? 'OPEN NOW' : `${crate.progress}/${crate.total}`}
+      </button>
+    </article>
   );
 }
 
 /**
  * Static/mock content for now (per project decision) — no backend concept of
- * streaks, crates or rakeback claims exists yet. `rewardsMock.ts` isolates the
- * placeholder data; the rakeback progress bar uses real `totalWagered`.
+ * streaks, crates or rakeback claims exists yet. `rewardsMock.ts` isolates
+ * the placeholder data; the rakeback progress bar uses real `totalWagered`.
  */
 export function Rewards() {
   const { isAuthenticated, user } = useAuth();
@@ -128,7 +149,8 @@ export function Rewards() {
   if (!isAuthenticated) {
     return (
       <>
-        <PageTitle title="Rewards" subtitle={SUBTITLE} />
+        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">REWARDS</h1>
+        <p className="mb-5 text-sm text-muted">{SUBTITLE}</p>
         <ConnectWalletPlaceholder what="your rewards, streaks and rakeback" icon="gift" />
       </>
     );
@@ -137,78 +159,112 @@ export function Rewards() {
   const wagered = Number(user?.totalWagered ?? '0');
 
   return (
-    <>
-      <PageTitle title="Rewards" subtitle={SUBTITLE} />
+    <div className="flex flex-col gap-4">
+      <div>
+        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">REWARDS</h1>
+        <p className="text-sm text-muted">{SUBTITLE}</p>
+      </div>
 
-      <div className="mb-[18px] grid grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] gap-[18px]">
-        <div className="relative overflow-hidden rounded-[18px] border border-[color-mix(in_srgb,var(--gold)_28%,transparent)] bg-[linear-gradient(135deg,rgba(234,179,8,0.14),transparent)] p-6">
-          <div className="font-mono text-[11px] font-semibold tracking-[0.06em] text-muted">
-            UNCLAIMED BALANCE
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
+        <section
+          className="relative flex min-w-0 flex-col overflow-hidden rounded-[18px] border p-[clamp(18px,2.4vw,26px)]"
+          style={{ borderColor: 'rgba(240,180,41,.24)', background: 'radial-gradient(600px 280px at 88% 0%, rgba(240,180,41,.18), rgba(6,9,7,0) 62%), linear-gradient(120deg, #16130a, #080c09)' }}
+        >
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{ backgroundImage: 'linear-gradient(rgba(240,180,41,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(240,180,41,.05) 1px, transparent 1px)', backgroundSize: '44px 44px' }}
+          />
+          <div className="relative flex h-full flex-col">
+            <span className="inline-flex w-fit items-center gap-2 rounded-[6px] border px-[11px] py-[5px]" style={{ borderColor: 'rgba(240,180,41,.32)', background: 'rgba(240,180,41,.14)' }}>
+              <span className="size-1.5 rounded-full bg-[#f0b429]" style={{ animation: 'irPulse 1.8s infinite' }} />
+              <span className="font-mono text-[10px] tracking-[0.18em] text-[#f7d774]">READY TO CLAIM</span>
+            </span>
+            <div className="mt-[18px] font-mono text-[10px] tracking-[0.18em] text-gold">UNCLAIMED BALANCE</div>
+            <div className="mt-1.5 flex items-end gap-2.5">
+              <span className="font-heading text-[clamp(38px,5vw,58px)] leading-none font-bold text-[#f7d774]" style={{ textShadow: '0 0 34px rgba(240,180,41,.35)' }}>
+                {formatSol(MOCK_UNCLAIMED)}
+              </span>
+              <span className="pb-[7px] font-mono text-[14px] text-gold">SOL</span>
+            </div>
+            <p className="mt-2.5 max-w-[380px] text-[13px] leading-[1.5] text-[#a89a72]">
+              Rakeback accrues on every settled match. Claims land in your playable balance instantly.
+            </p>
+            <div className="mt-auto flex flex-wrap gap-2 pt-[22px]">
+              <button
+                className="flex flex-1 basis-[170px] cursor-pointer items-center justify-center gap-2.5 rounded-[10px] border-0 px-5 py-[13px] font-heading text-sm font-bold tracking-[0.06em]"
+                style={{ background: 'linear-gradient(180deg, #f7d774, #d69a0e)', color: '#241800', boxShadow: '0 8px 24px rgba(240,180,41,.26)' }}
+              >
+                <Icon name="gift" size={19} />
+                CLAIM ALL
+              </button>
+              <button
+                className="flex flex-none cursor-pointer items-center gap-2 rounded-[10px] border px-[18px] py-[13px] font-heading text-[13.5px] font-bold tracking-[0.06em] text-[#f7d774]"
+                style={{ borderColor: 'rgba(240,180,41,.26)', background: 'rgba(240,180,41,.06)' }}
+              >
+                <History size={18} />
+                HISTORY
+              </button>
+            </div>
           </div>
-          <div className="mt-1.5 font-heading text-[32px] font-extrabold text-gold">
-            {formatSol(MOCK_UNCLAIMED)} <span className="text-[15px] font-normal text-muted">SOL</span>
+        </section>
+
+        <section className="flex min-w-0 flex-col gap-3">
+          <div className="rounded-[18px] border p-[18px]" style={{ borderColor: 'rgba(47,224,138,.16)', background: 'linear-gradient(160deg, rgba(47,224,138,.1), rgba(6,9,7,0) 62%), var(--panel-bg)' }}>
+            <div className="flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <Flame size={20} className="text-green" />
+                <span className="font-heading text-[15px] font-bold tracking-[0.05em] text-[#eafff3]">DAILY STREAK</span>
+              </div>
+              <span className="font-mono text-[11px] text-[#6ee7b7]">
+                DAY {MOCK_STREAK.filter((d) => d.state !== 'locked').length} / {MOCK_STREAK.length}
+              </span>
+            </div>
+            <StreakStrip />
+            <p className="mt-3 text-[12.5px] text-muted">Play one match a day. Day 7 pays 0.05 SOL.</p>
           </div>
-          <div className="mt-4 flex gap-2.5">
-            <Button variant="solid">Claim All</Button>
-            <Button variant="secondary">History</Button>
+          <div className="grid flex-1 grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-3">
+            <StatTile icon="chart" label="STREAK BONUS" value="0.008 SOL" color="var(--green)" />
+            <StatTile icon="percent" label="RAKEBACK RATE" value="4%" color="var(--gold-bright)" />
+            <StatTile icon="gift" label="CRATES OPEN" value="1" color="var(--text)" />
           </div>
+        </section>
+      </div>
+
+      <RakebackProgress wagered={wagered} />
+
+      <section>
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <h2 className="font-heading text-[20px] font-bold tracking-[0.05em] text-text">REWARD CRATES</h2>
+          <span className="font-mono text-[11px] text-[#8fbfa6]">SEASON 01</span>
         </div>
-
-        <Card className="p-6">
-          <SectionHeading icon={<Icon name="bolt" size={17} />} title="Daily Streak" subtitle="Day 7 pays 0.05 SOL." />
-          <StreakStrip />
-        </Card>
-      </div>
-
-      <div className="mb-[18px]">
-        <RakebackProgress wagered={wagered} />
-      </div>
-
-      <Card className="mb-[18px] p-6">
-        <SectionHeading icon={<Icon name="gift" size={17} />} title="Reward Crates" />
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-3.5">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-3.5">
           {MOCK_CRATES.map((c) => (
             <CrateCard key={c.id} crate={c} />
           ))}
         </div>
-      </Card>
+      </section>
 
-      <Card radius={16} className="overflow-hidden">
-        <div className="border-b border-line2 px-5 py-3.5">
-          <span className="font-heading text-[13.5px] font-bold tracking-[0.04em]">
-            CLAIM HISTORY
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line2 text-left text-[11px] font-semibold tracking-[0.06em] text-faint">
-                <th className="px-5 py-3.5">SOURCE</th>
-                <th className="px-5 py-3.5">WHEN</th>
-                <th className="px-5 py-3.5 text-right">AMOUNT</th>
-              </tr>
-            </thead>
-            <tbody>
-              {MOCK_CLAIMS.map((c) => (
-                <tr key={c.id} className="border-b border-line2 last:border-0">
-                  <td className="px-5 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-heading font-semibold">{c.name}</span>
-                      <Badge tone="neutral">{c.source}</Badge>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 font-mono whitespace-nowrap text-muted">
-                    {formatDate(c.when)}
-                  </td>
-                  <td className="px-5 py-3 text-right font-mono font-bold whitespace-nowrap text-green">
-                    +{formatSol(c.amount)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </>
+      <Panel>
+        <PanelHeader title="CLAIM HISTORY" meta="LAST 5" />
+        {MOCK_CLAIMS.length === 0 ? (
+          <p className="py-8 text-center text-[13px] text-muted">No claims yet.</p>
+        ) : (
+          <TableScroll minWidth={520}>
+            <TableHead template={CLAIMS_TEMPLATE} columns={[{ label: 'REWARD' }, { label: 'CLAIMED' }, { label: 'SOURCE' }, { label: 'AMOUNT', align: 'right' }]} />
+            {MOCK_CLAIMS.map((c) => (
+              <TableRow key={c.id} template={CLAIMS_TEMPLATE}>
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <Icon name="gift" size={18} className="text-gold" />
+                  <span className="truncate font-heading text-[13.5px] font-semibold text-[#e8f2ec]">{c.name}</span>
+                </span>
+                <span className="font-mono text-[11.5px] text-[#a9c3b6]">{formatDate(c.when)}</span>
+                <span className="font-mono text-[11.5px] text-[#9fb6a9]">{c.source}</span>
+                <span className="text-right font-mono text-[12.5px] text-green">+{formatSol(c.amount)}</span>
+              </TableRow>
+            ))}
+          </TableScroll>
+        )}
+      </Panel>
+    </div>
   );
 }

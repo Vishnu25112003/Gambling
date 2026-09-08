@@ -1,6 +1,6 @@
 import { LeaderboardTable } from '../../components/dashboard/LeaderboardTable';
 import { LeaderboardPodium } from '../../components/dashboard/LeaderboardPodium';
-import { Card, EmptyState, PageTitle, Spinner } from '../../components/shared/ui';
+import { EmptyState, Spinner } from '../../components/shared/ui';
 import { Icon } from '../../components/shared/icons';
 import { useLeaderboard } from '../../hooks/useLeaderboard';
 
@@ -10,12 +10,15 @@ export function Leaderboard() {
 
   return (
     <>
-      <PageTitle title="Leaderboard" subtitle="Ranked by lifetime net profit." />
+      <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">
+        LEADERBOARD
+      </h1>
+      <p className="mb-5 text-sm text-muted">Ranked by lifetime net profit — season 01.</p>
 
       {loading ? (
-        <Card className="flex justify-center py-16">
+        <div className="flex justify-center rounded-2xl border py-16" style={{ borderColor: 'var(--panel-border-soft)' }}>
           <Spinner />
-        </Card>
+        </div>
       ) : entries.length === 0 ? (
         <EmptyState
           icon={<Icon name="trophy" size={34} />}
@@ -25,9 +28,12 @@ export function Leaderboard() {
       ) : (
         <>
           <LeaderboardPodium entries={entries} />
-          <Card className="overflow-x-auto px-[22px] pt-2 pb-3">
+          <section
+            className="overflow-x-auto rounded-2xl border p-4"
+            style={{ borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg)' }}
+          >
             <LeaderboardTable entries={entries} variant="full" />
-          </Card>
+          </section>
         </>
       )}
     </>

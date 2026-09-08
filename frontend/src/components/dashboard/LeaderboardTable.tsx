@@ -1,31 +1,48 @@
 import { Link } from 'react-router-dom';
 import { formatSol, formatSolSigned } from '../../lib/format';
-import { PodiumBadge } from '../shared/icons';
 import { Avatar } from '../shared/Avatar';
 import { TierBadge } from '../profile/TierBadge';
 import type { LeaderboardEntry } from '../../types';
 
-/**
- * The design's rival five-gradient avatar palette used to live here. It is gone:
- * `<Avatar>` is now the one implementation, so a player is the same colour on this
- * board, in the top bar and on their profile — and it renders their uploaded image
- * when they have one.
- */
-
-/** Gold, silver and bronze for the podium; everyone else gets the muted chip. */
+/** Gold, silver and bronze for the podium ranks; everyone else gets the muted chip. */
 const RANK_STYLES: Record<number, { background: string; color: string }> = {
   1: { background: '#eab308', color: '#1a1505' },
   2: { background: '#cbd5c9', color: '#111a14' },
   3: { background: '#c2703a', color: '#1a1505' },
 };
+const DEFAULT_RANK = { background: 'var(--panel-bg2)', color: 'var(--muted)' };
 
-const DEFAULT_RANK = { background: 'var(--border2)', color: 'var(--muted)' };
+/** Top-3 rows get a faint accent-tinted card; everyone else gets the plain panel shade. */
+const ROW_BORDER: Record<number, string> = {
+  1: 'rgba(234,179,8,.28)',
+  2: 'rgba(203,213,201,.22)',
+  3: 'rgba(194,112,58,.26)',
+};
+const ROW_BG: Record<number, string> = {
+  1: 'rgba(234,179,8,.06)',
+  2: 'rgba(203,213,201,.05)',
+  3: 'rgba(194,112,58,.05)',
+};
 
-function RankPill({ rank }: { rank: number }) {
+const TIER_LABEL: Record<LeaderboardEntry['tier'], string> = {
+  unranked: 'Unranked',
+  recruit: 'Recruit',
+  scout: 'Scout',
+  raider: 'Raider',
+  striker: 'Striker',
+  veteran: 'Veteran',
+  elite: 'Elite',
+  champion: 'Champion',
+  master: 'Master',
+  legend: 'Legend',
+  grandmaster: 'Grandmaster',
+};
+
+function RankChip({ rank, size }: { rank: number; size: number }) {
   return (
     <span
-      className="flex size-[26px] items-center justify-center rounded-full text-xs font-bold"
-      style={RANK_STYLES[rank] ?? DEFAULT_RANK}
+      className="grid shrink-0 place-items-center rounded-[7px] font-heading text-[12.5px] font-bold"
+      style={{ width: size, height: size, ...(RANK_STYLES[rank] ?? DEFAULT_RANK) }}
     >
       {rank}
     </span>
@@ -33,8 +50,9 @@ function RankPill({ rank }: { rank: number }) {
 }
 
 /**
- * The design's ranking table. `compact` is the overview panel, `full` the
- * Leaderboard tab — same columns, slightly larger metrics on the full page.
+ * The mockup's ranking row: rank chip, avatar, tier badge, name, "tier ·
+ * wagered" subtext, profit. `compact` is the Overview panel, `full` the
+ * Leaderboard tab — same shape, larger metrics on the full page.
  */
 export function LeaderboardTable({
   entries,
@@ -44,92 +62,45 @@ export function LeaderboardTable({
   variant?: 'compact' | 'full';
 }) {
   const full = variant === 'full';
-  const grid = 'grid grid-cols-[34px_1fr_auto_auto] items-center';
-  const TIER_LABEL: Record<LeaderboardEntry['tier'], string> = {
-    unranked: 'Unranked',
-    recruit: 'Recruit',
-    scout: 'Scout',
-    raider: 'Raider',
-    striker: 'Striker',
-    veteran: 'Veteran',
-    elite: 'Elite',
-    champion: 'Champion',
-    master: 'Master',
-    legend: 'Legend',
-    grandmaster: 'Grandmaster',
-  };
-  const gap = full ? 'gap-3.5' : 'gap-3';
+  const rankSize = full ? 28 : 26;
+  const avatarSize = full ? 32 : 30;
 
   return (
-    <div className="overflow-x-auto">
-      <div className={full ? 'min-w-[360px]' : 'min-w-[340px]'}>
-        <div
-          className={`${grid} ${gap} border-b border-line2 px-1 pt-3.5 pb-2.5 text-[11px] font-semibold tracking-[0.06em] text-faint`}
-        >
-          <span>#</span>
-          <span>PLAYER</span>
-          <span className="text-right">WAGERED</span>
-          <span className="text-right">PROFIT</span>
-        </div>
+    <div className="flex flex-col gap-2">
+      {entries.map((p) => {
+        const profit = Number(p.netProfit);
+        return (
+          <div
+            key={`${p.rank}-${p.name}`}
+            className={`flex items-center gap-3 rounded-[11px] border ${full ? 'p-3' : 'p-2.5'}`}
+            style={{ borderColor: ROW_BORDER[p.rank] ?? 'var(--panel-border-soft)', background: ROW_BG[p.rank] ?? 'var(--panel-bg3)' }}
+          >
+            <RankChip rank={p.rank} size={rankSize} />
+            <Avatar src={p.avatarUrl} name={p.name} address={p.walletShort} size={avatarSize} radiusRatio={0.29} />
+            <TierBadge tier={p.tier} label={TIER_LABEL[p.tier]} iconOnly />
 
-        {entries.map((p) => {
-          const profit = Number(p.netProfit);
-          return (
-            <div
-              key={`${p.rank}-${p.name}`}
-              className={`${grid} ${gap} border-b border-line2 px-1 ${full ? 'py-3.5' : 'py-3'}`}
-            >
-              <RankPill rank={p.rank} />
-
-              <span className="flex min-w-0 items-center gap-2.5">
-                <Avatar
-                  src={p.avatarUrl}
-                  name={p.name}
-                  address={p.walletShort}
-                  size={full ? 32 : 30}
-                  radiusRatio={0.5}
-                />
-                {/*
-                  Only the NAME is the link, not the whole row — the numeric cells
-                  stay selectable, and a stray click on a figure doesn't navigate.
-                */}
-                <Link
-                  to={`/dashboard/u/${p.handle}`}
-                  className={`truncate font-semibold text-text hover:underline ${
-                    full ? 'text-sm' : 'text-[13.5px]'
-                  }`}
-                  title={`View ${p.name}'s profile`}
-                >
-                  {p.name}
-                </Link>
-                <TierBadge tier={p.tier} label={TIER_LABEL[p.tier]} iconOnly />
-                {p.rank <= 3 && (
-                  <span className="flex shrink-0 text-green" title={`Top ${p.rank}`}>
-                    <PodiumBadge />
-                  </span>
-                )}
-                {p.isYou && (
-                  <span className="shrink-0 text-[11px] font-bold text-green">you</span>
-                )}
-              </span>
-
-              <span
-                className={`text-right font-mono font-semibold whitespace-nowrap ${full ? 'text-[13.5px]' : 'text-[13px]'}`}
+            <div className="min-w-0 flex-1">
+              <Link
+                to={`/dashboard/u/${p.handle}`}
+                className={`truncate font-mono text-[#e8f2ec] hover:underline ${full ? 'text-[13.5px]' : 'text-[13px]'}`}
+                title={`View ${p.name}'s profile`}
               >
-                {formatSol(p.totalWagered)} SOL
-              </span>
-
-              <span
-                className={`text-right font-mono font-bold whitespace-nowrap ${
-                  full ? 'text-[13.5px]' : 'text-[13px]'
-                } ${profit >= 0 ? 'text-green' : 'text-red'}`}
-              >
-                {formatSolSigned(p.netProfit)} SOL
-              </span>
+                {p.name}
+                {p.isYou && <span className="ml-1.5 text-[11px] font-bold text-green">you</span>}
+              </Link>
+              <div className="mt-0.5 font-mono text-[10.5px] text-[#9ab5a6]">
+                {TIER_LABEL[p.tier]} · {formatSol(p.totalWagered)} wagered
+              </div>
             </div>
-          );
-        })}
-      </div>
+
+            <span
+              className={`shrink-0 font-mono whitespace-nowrap ${full ? 'text-[13px]' : 'text-[12.5px]'} ${profit >= 0 ? 'text-green' : 'text-red'}`}
+            >
+              {formatSolSigned(p.netProfit)}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
