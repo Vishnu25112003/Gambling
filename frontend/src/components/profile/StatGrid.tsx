@@ -18,12 +18,16 @@ interface Stat {
 
 function StatCard({ stat }: { stat: Stat }) {
   return (
-    <div className="rounded-[14px] border border-line bg-card p-[18px]">
-      <div className="mb-2 text-[11px] font-semibold tracking-[0.05em] text-muted">
+    <div
+      className="relative overflow-hidden rounded-[14px] border p-[18px]"
+      style={{ borderColor: 'var(--panel-border-soft)', background: 'linear-gradient(180deg, #0c130e, #090e0a)' }}
+    >
+      <span className="absolute top-0 right-0 left-0 h-[2px]" style={{ background: stat.color ?? 'var(--panel-border)' }} />
+      <div className="mb-2 font-mono text-[10.5px] font-semibold tracking-[0.14em] text-muted">
         {stat.label}
       </div>
       <div
-        className="text-[21px] leading-tight font-extrabold"
+        className="font-heading text-[21px] leading-tight font-bold"
         style={stat.color ? { color: stat.color } : undefined}
       >
         {stat.value}

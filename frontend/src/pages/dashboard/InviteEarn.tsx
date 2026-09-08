@@ -1,16 +1,10 @@
 import { useState } from 'react';
+import { Copy, Route, Send, Share2 } from 'lucide-react';
 import { ConnectWalletPlaceholder } from '../../components/dashboard/ConnectWalletPlaceholder';
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Input,
-  PageTitle,
-  SectionHeading,
-  Spinner,
-} from '../../components/shared/ui';
-import { Icon, InviteIcon } from '../../components/shared/icons';
+import { Panel, PanelHeader, StatTile, TableHead, TableRow, TableScroll, StatusChip } from '../../components/dashboard/panels';
+import { Input, PageTitle, Spinner } from '../../components/shared/ui';
+import { Icon } from '../../components/shared/icons';
+import { Avatar } from '../../components/shared/Avatar';
 import { useAuth } from '../../hooks/useAuth';
 import { useReferrals } from '../../hooks/useReferrals';
 import { referralApi } from '../../api/endpoints';
@@ -18,7 +12,20 @@ import { referralStore } from '../../lib/referralCapture';
 import { formatDate, formatSol } from '../../lib/format';
 import type { ReferredFriend } from '../../types';
 
-const SUBTITLE = 'Share your link and earn a cut of your friends’ first win.';
+const SUBTITLE = "Take 5% of every friend's first winning game — paid straight to your balance.";
+const REFERRALS_TEMPLATE = '1.2fr 1.2fr .9fr .8fr';
+
+const MILESTONES = [
+  { friends: 1, reward: 'Recruit badge', icon: 'gift' as const },
+  { friends: 5, reward: '0.02 SOL bonus', icon: 'coin' as const },
+  { friends: 10, reward: '0.05 SOL bonus', icon: 'coin' as const },
+  { friends: 25, reward: '0.15 SOL bonus', icon: 'trophy' as const },
+];
+
+const STEPS = [
+  { n: 1, icon: 'users' as const, title: 'Share your link', body: 'Your friend signs up with their Solana wallet through it.' },
+  { n: 2, icon: 'gamepad' as const, title: 'They play', body: 'Nothing is taken from them — their bets and payouts are untouched.' },
+];
 
 /** Doc 06: a GATED section — placeholder until connected. */
 export function InviteEarn() {
@@ -38,9 +45,9 @@ export function InviteEarn() {
     return (
       <>
         <PageTitle title="Invite & Earn" subtitle={SUBTITLE} />
-        <Card radius={16} className="flex justify-center py-16">
+        <div className="flex justify-center py-16">
           <Spinner />
-        </Card>
+        </div>
       </>
     );
   }
@@ -49,225 +56,253 @@ export function InviteEarn() {
     return (
       <>
         <PageTitle title="Invite & Earn" subtitle={SUBTITLE} />
-        <EmptyState
-          radius={16}
-          icon={<Icon name="users" size={19} />}
-          scaleIcon
-          title="Couldn’t load your invites"
-          body="The referral service didn’t respond. Refresh to try again."
-        />
+        <p className="py-10 text-center text-[13px] text-muted">
+          The referral service didn't respond. Refresh to try again.
+        </p>
       </>
     );
   }
 
   const rate = data.commissionBps / 100;
+  const step3Body = `The first time they finish a game in profit, ${rate}% of that profit lands in your balance. A loss doesn't cost you the reward — it just waits for their first win.`;
 
   return (
-    <>
-      <PageTitle title="Invite & Earn" subtitle={SUBTITLE} />
-
-      <InviteLinkCard link={data.link} code={data.code} rate={rate} />
-
-      <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-4">
-        <Stat label="FRIENDS INVITED" value={String(data.stats.invited)} />
-        <Stat label="AWAITING FIRST WIN" value={String(data.stats.pending)} />
-        <Stat label="REWARDS PAID" value={String(data.stats.earned)} />
-        <Stat
-          label="TOTAL EARNED"
-          value={`${formatSol(data.stats.totalEarned)} SOL`}
-          accent
-        />
+    <div className="flex flex-col gap-4">
+      <div>
+        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">
+          INVITE &amp; EARN
+        </h1>
+        <p className="text-sm text-muted">{SUBTITLE}</p>
       </div>
 
-      <MilestoneProgress invited={data.stats.invited} />
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] items-stretch gap-4">
+        <InviteHero link={data.link} code={data.code} rate={rate} />
 
-      <HowItWorks rate={rate} />
+        <section className="flex min-w-0 flex-col gap-3">
+          <div className="rounded-[18px] border p-5" style={{ borderColor: 'var(--amber-border)', background: 'linear-gradient(160deg, rgba(240,180,41,.08), rgba(6,9,7,0) 60%), var(--panel-bg)' }}>
+            <div className="font-mono text-[10px] tracking-[0.18em] text-[#8a6410]">TOTAL EARNED</div>
+            <div className="mt-1.5 flex items-end gap-2.5">
+              <span className="font-heading text-[clamp(34px,4.2vw,46px)] leading-none font-bold text-[#f7d774]">
+                {formatSol(data.stats.totalEarned)}
+              </span>
+              <span className="pb-1 font-mono text-[13px] text-gold">SOL</span>
+            </div>
+            <p className="mt-2 text-[12.5px] text-muted">
+              Paid out from {data.stats.earned} of {data.stats.invited} friends who have won.
+            </p>
+          </div>
+          <div className="grid flex-1 grid-cols-[repeat(auto-fit,minmax(130px,1fr))] items-stretch gap-3">
+            <StatTile icon="users" label="FRIENDS INVITED" value={String(data.stats.invited)} color="var(--green)" />
+            <StatTile icon="clock" label="AWAITING FIRST WIN" value={String(data.stats.pending)} color="var(--gold-bright)" />
+            <StatTile icon="gift" label="REWARDS PAID" value={String(data.stats.earned)} color="var(--text)" />
+          </div>
+        </section>
+      </div>
 
       {data.referredBy && (
-        <p className="mt-4 text-[12.5px] text-muted">
-          You joined through <span className="font-semibold text-text">{data.referredBy.name}</span>
-          ’s invite — your first win earns them {rate}%.
+        <p className="text-[12.5px] text-muted">
+          You joined through <span className="font-semibold text-text">{data.referredBy.name}</span>'s invite —
+          your first win earns them {rate}%.
         </p>
       )}
 
+      <Panel>
+        <PanelHeader title="RECRUIT MILESTONES" meta={`${data.stats.invited} / ${MILESTONES[MILESTONES.length - 1]!.friends} FRIENDS`} />
+        <div className="relative h-2 overflow-hidden rounded-md border" style={{ background: '#0b1a12', borderColor: 'rgba(47,224,138,.14)' }}>
+          <div
+            className="h-full"
+            style={{
+              width: `${Math.min(100, (data.stats.invited / MILESTONES[MILESTONES.length - 1]!.friends) * 100)}%`,
+              background: 'linear-gradient(90deg, #0f7d4d, #35eb95)',
+              boxShadow: '0 0 16px rgba(47,224,138,.5)',
+            }}
+          />
+        </div>
+        <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2.5">
+          {MILESTONES.map((m) => {
+            const reached = data.stats.invited >= m.friends;
+            return (
+              <div
+                key={m.friends}
+                className="rounded-xl border p-[14px_12px] text-center"
+                style={reached ? { borderColor: 'rgba(47,224,138,.35)', background: 'rgba(47,224,138,.08)' } : { borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg3)' }}
+              >
+                <Icon name={m.icon} size={22} className={reached ? 'text-green' : 'text-faint'} />
+                <div className="mt-1.5 font-heading text-sm font-bold tracking-[0.06em]" style={{ color: reached ? '#6ee7b7' : 'var(--text)' }}>
+                  {m.friends} friends
+                </div>
+                <div className="mt-1.5 font-mono text-[10.5px] text-[#a9c3b6]">{m.reward}</div>
+                <div className="mt-2 font-mono text-[9.5px] tracking-[0.12em]" style={{ color: reached ? '#2fe08a' : 'var(--faint)' }}>
+                  {reached ? 'ACTIVE' : `${m.friends - data.stats.invited} TO GO`}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Panel>
+
+      <Panel>
+        <div className="mb-[18px] flex items-center gap-2.5">
+          <Route size={20} className="text-green" />
+          <h2 className="font-heading text-[18px] font-bold tracking-[0.05em] text-text">HOW THE PAYOUT WORKS</h2>
+        </div>
+        <div className="flex flex-col">
+          {[...STEPS, { n: 3, icon: 'bolt' as const, title: 'You get paid', body: step3Body }].map((s, i, arr) => (
+            <div key={s.n} className="flex items-stretch gap-4">
+              <div className="flex w-[34px] flex-none flex-col items-center">
+                <span
+                  className="grid size-[34px] shrink-0 place-items-center rounded-full border font-mono text-[12.5px] font-semibold text-green"
+                  style={{ background: 'rgba(47,224,138,.12)', borderColor: 'rgba(47,224,138,.32)' }}
+                >
+                  {s.n}
+                </span>
+                {i < arr.length - 1 && <span className="min-h-3 w-px flex-1" style={{ background: 'rgba(47,224,138,.15)' }} />}
+              </div>
+              <div className="min-w-0 flex-1 pb-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Icon name={s.icon} size={18} className="text-[#6ee7b7]" />
+                  <span className="font-heading text-[15.5px] font-bold tracking-[0.03em] text-[#eafff3]">{s.title}</span>
+                </div>
+                <p className="mt-1.5 max-w-[620px] text-[13px] leading-[1.55] text-[#a9c3b6]">{s.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+
       {data.canEnterCode && <ClaimCodeCard onClaimed={reload} />}
 
-      <FriendsTable friends={data.friends} rate={rate} />
-    </>
+      <Panel>
+        <PanelHeader title="YOUR REFERRALS" meta={`${data.friends.length} FRIEND${data.friends.length === 1 ? '' : 'S'}`} />
+        {data.friends.length === 0 ? (
+          <p className="py-8 text-center text-[13px] text-muted">
+            Share your link — you'll earn {rate}% the first time someone you invited wins.
+          </p>
+        ) : (
+          <TableScroll minWidth={520}>
+            <TableHead template={REFERRALS_TEMPLATE} columns={[{ label: 'FRIEND' }, { label: 'JOINED' }, { label: 'STATUS' }, { label: 'EARNED', align: 'right' }]} />
+            {data.friends.map((f: ReferredFriend) => {
+              return (
+                <TableRow key={f.id} template={REFERRALS_TEMPLATE}>
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <Avatar name={f.name} size={28} radiusRatio={0.29} />
+                    <span className="font-mono text-[13px] text-[#e8f2ec]">{f.name}</span>
+                  </span>
+                  <span className="font-mono text-[11.5px] text-[#a9c3b6]">{formatDate(f.joinedAt)}</span>
+                  <span>
+                    <StatusChip
+                      bg={f.status === 'earned' ? 'rgba(47,224,138,.14)' : 'rgba(240,180,41,.14)'}
+                      fg={f.status === 'earned' ? '#2fe08a' : '#f0b429'}
+                    >
+                      {f.status === 'earned' ? 'PAID' : 'AWAITING WIN'}
+                    </StatusChip>
+                  </span>
+                  <span className="text-right font-mono text-[12.5px] text-green">
+                    {f.status === 'earned' ? `+${formatSol(f.earned)}` : '—'}
+                  </span>
+                </TableRow>
+              );
+            })}
+          </TableScroll>
+        )}
+      </Panel>
+    </div>
   );
 }
 
 /** The design's accent panel treatment, same as the sidebar's Invite card. */
-function InviteLinkCard({ link, code, rate }: { link: string; code: string; rate: number }) {
+function InviteHero({ link, code, rate }: { link: string; code: string; rate: number }) {
   const [copied, setCopied] = useState<'link' | 'code' | null>(null);
 
-  // No toast library in this project — feedback is inline, as in Settings/Escrow.
   const copy = async (value: string, which: 'link' | 'code') => {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(which);
       window.setTimeout(() => setCopied(null), 2000);
     } catch {
-      // Clipboard is blocked outside a secure context. The link is selectable
-      // on screen either way, so there is nothing worth interrupting them for.
+      // Clipboard is blocked outside a secure context — the link stays selectable.
     }
   };
 
   const share = (url: string) => window.open(url, '_blank', 'noopener,noreferrer');
-  const pitch = `Play on Infinit Respawn with me — provably fair games on Solana.`;
+  const pitch = 'Play on Infinit Respawn with me — provably fair games on Solana.';
 
   return (
-    <div className="rounded-[20px] border border-green-solid/[0.22] bg-[linear-gradient(135deg,rgba(34,197,94,0.14),transparent)] p-6">
-      <SectionHeading
-        icon={<InviteIcon size={17} />}
-        title="Your invite link"
-        subtitle={`Anyone who joins through this link earns you ${rate}% of their first winning game.`}
+    <section
+      className="relative flex min-w-0 flex-col overflow-hidden rounded-[18px] border p-[clamp(18px,2.4vw,26px)]"
+      style={{ borderColor: 'rgba(47,224,138,.22)', background: 'radial-gradient(600px 300px at 90% 0%, rgba(47,224,138,.16), rgba(6,9,7,0) 62%), linear-gradient(120deg, #0c1a12, #070d09)' }}
+    >
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ backgroundImage: 'linear-gradient(rgba(47,224,138,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(47,224,138,.05) 1px, transparent 1px)', backgroundSize: '44px 44px' }}
       />
-
-      <div className="flex flex-wrap items-center gap-2.5">
-        <code className="min-w-0 flex-1 overflow-x-auto rounded-[10px] border border-line bg-bg2 px-3.5 py-[11px] font-mono text-[13px] whitespace-nowrap text-text">
-          {link}
-        </code>
-        <Button variant="solid" onClick={() => void copy(link, 'link')}>
-          {copied === 'link' ? 'Copied' : 'Copy link'}
-        </Button>
-      </div>
-
-      <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-        <span className="text-[12.5px] text-muted">Or share your code:</span>
-        <button
-          onClick={() => void copy(code, 'code')}
-          className="cursor-pointer rounded-[9px] border border-line bg-bg2 px-3 py-1.5 font-mono text-[13px] font-bold tracking-[0.08em] text-green"
-          title="Copy code"
-        >
-          {code}
-        </button>
-        {copied === 'code' && <span className="text-[12px] text-green">Copied.</span>}
-
-        <span className="ml-auto flex gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => share(`https://x.com/intent/tweet?text=${encodeURIComponent(pitch)}&url=${encodeURIComponent(link)}`)}
-          >
-            Share on X
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => share(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(pitch)}`)}
-          >
-            Telegram
-          </Button>
+      <div className="relative flex h-full flex-col">
+        <span className="inline-flex w-fit items-center gap-2 rounded-[6px] border px-[11px] py-[5px]" style={{ borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.14)' }}>
+          <Icon name="bolt" size={15} className="text-green" />
+          <span className="font-mono text-[10px] tracking-[0.18em] text-[#6ee7b7]">{rate}% OF FIRST WIN · FOREVER</span>
         </span>
-      </div>
-    </div>
-  );
-}
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div className="rounded-[14px] border border-line bg-card p-5">
-      <div className="mb-2 font-mono text-[11px] font-semibold tracking-[0.03em] text-muted">
-        {label}
-      </div>
-      <div className={`font-heading text-[22px] font-extrabold ${accent ? 'text-green' : ''}`}>
-        {value}
-      </div>
-    </div>
-  );
-}
+        <div className="mt-4 font-heading text-[clamp(26px,3.4vw,38px)] leading-none font-bold text-[#f2fff8]">
+          RECRUIT YOUR
+          <br />
+          <span className="text-green" style={{ textShadow: '0 0 30px rgba(47,224,138,.45)' }}>SQUAD</span>
+        </div>
+        <p className="my-3 max-w-[380px] text-[13.5px] leading-[1.5] text-[#8fa89b]">
+          Every friend who joins on your link pays you {rate}% of their first winning game. Their bets and payouts stay untouched.
+        </p>
 
-/** 1/5/10/25 friends invited → a reward tier. Cosmetic — thresholds aren't backend data. */
-const MILESTONES = [
-  { friends: 1, reward: 'Recruit badge' },
-  { friends: 5, reward: '0.02 SOL bonus' },
-  { friends: 10, reward: '0.05 SOL bonus' },
-  { friends: 25, reward: '0.15 SOL bonus' },
-];
-
-function MilestoneProgress({ invited }: { invited: number }) {
-  const top = MILESTONES[MILESTONES.length - 1]!.friends;
-  const pct = Math.min(100, (invited / top) * 100);
-
-  return (
-    <Card className="mt-4 p-6">
-      <SectionHeading icon={<Icon name="users" size={17} />} title="Recruit milestones" />
-
-      <div className="mb-1.5 flex items-baseline justify-between text-[12.5px]">
-        <span className="text-muted">{invited} friends invited</span>
-      </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-line2">
-        <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,var(--green-deep),var(--green-solid))]"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-
-      <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(min(100%,130px),1fr))] gap-2.5">
-        {MILESTONES.map((m) => {
-          const reached = invited >= m.friends;
-          return (
-            <div
-              key={m.friends}
-              className="rounded-[11px] border p-3 text-center"
-              style={
-                reached
-                  ? {
-                      borderColor: 'color-mix(in srgb, var(--green-solid) 35%, transparent)',
-                      background: 'color-mix(in srgb, var(--green-solid) 8%, var(--bg2))',
-                    }
-                  : { borderColor: 'var(--line2)', background: 'var(--bg2)' }
-              }
+        <div className="mt-auto flex flex-col gap-2.5">
+          <div className="flex items-center gap-2.5 rounded-[11px] border p-[12px_14px]" style={{ borderColor: 'rgba(47,224,138,.16)', background: '#08110b' }}>
+            <Icon name="key" size={18} className="text-muted" />
+            <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-[#cfe4d8]">{link}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => void copy(link, 'link')}
+              className="flex flex-1 basis-[150px] cursor-pointer items-center justify-center gap-2 rounded-[10px] border-0 px-[18px] py-3 font-heading text-[13.5px] font-bold tracking-[0.06em] text-[#04160c]"
+              style={{ background: 'linear-gradient(180deg, #35eb95, #16a862)', boxShadow: '0 8px 22px rgba(47,224,138,.24)' }}
             >
-              <div className="font-heading text-[13px] font-bold">{m.friends} friends</div>
-              <div className="mt-1 text-[11px] text-muted">{m.reward}</div>
-              <div
-                className="mt-1.5 font-mono text-[10px] tracking-[0.06em]"
-                style={{ color: reached ? 'var(--green)' : 'var(--faint)' }}
-              >
-                {reached ? 'ACTIVE' : `${Math.max(0, m.friends - invited)} TO GO`}
-              </div>
-            </div>
-          );
-        })}
+              <Copy size={18} />
+              {copied === 'link' ? 'COPIED' : 'COPY LINK'}
+            </button>
+            <button
+              title="Share on X"
+              onClick={() => share(`https://x.com/intent/tweet?text=${encodeURIComponent(pitch)}&url=${encodeURIComponent(link)}`)}
+              className="grid w-[46px] flex-none cursor-pointer place-items-center rounded-[10px] border py-3 text-[#6ee7b7]"
+              style={{ borderColor: 'rgba(47,224,138,.22)', background: '#0c150f' }}
+            >
+              <Share2 size={19} />
+            </button>
+            <button
+              title="Telegram"
+              onClick={() => share(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(pitch)}`)}
+              className="grid w-[46px] flex-none cursor-pointer place-items-center rounded-[10px] border py-3 text-[#6ee7b7]"
+              style={{ borderColor: 'rgba(47,224,138,.22)', background: '#0c150f' }}
+            >
+              <Send size={19} />
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5 pt-1">
+            <span className="font-mono text-[10.5px] tracking-[0.14em] text-[#8fbfa6]">OR CODE</span>
+            <button
+              onClick={() => void copy(code, 'code')}
+              className="cursor-pointer rounded-lg border border-dashed px-3.5 py-1.5 font-mono text-sm font-semibold tracking-[0.2em] text-green"
+              style={{ borderColor: 'rgba(47,224,138,.34)', background: 'rgba(47,224,138,.07)' }}
+            >
+              {code}
+            </button>
+            {copied === 'code' && <span className="text-[12px] text-green">Copied.</span>}
+          </div>
+        </div>
       </div>
-    </Card>
-  );
-}
-
-function HowItWorks({ rate }: { rate: number }) {
-  const steps = [
-    ['Share your link', 'Your friend signs up with their Solana wallet through it.'],
-    ['They play', 'Nothing is taken from them — their bets and payouts are untouched.'],
-    [
-      'You get paid',
-      `The first time they finish a game in profit, ${rate}% of that profit lands in your balance. A loss doesn’t cost you the reward — it just waits for their first win.`,
-    ],
-  ];
-
-  return (
-    <Card className="mt-4 p-6">
-      <SectionHeading icon={<Icon name="bolt" size={17} />} title="How it works" />
-      <ol className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-5">
-        {steps.map(([title, body], i) => (
-          <li key={title}>
-            <div className="mb-2 flex size-7 items-center justify-center rounded-full bg-green-solid/[0.16] text-[12.5px] font-bold text-green">
-              {i + 1}
-            </div>
-            <p className="mb-1 font-heading text-[14px] font-bold">{title}</p>
-            <p className="text-[12.5px] leading-[1.55] text-muted">{body}</p>
-          </li>
-        ))}
-      </ol>
-    </Card>
+    </section>
   );
 }
 
 /**
- * Shown only while the player is still eligible — no referrer yet and no games
- * played. Pre-filled from a captured link code, which covers the case where
- * someone clicked an invite but had already created an account earlier.
+ * Shown only while the player is still eligible — no referrer yet and no
+ * games played. Pre-filled from a captured link code, which covers the case
+ * where someone clicked an invite but had already created an account earlier.
  */
 function ClaimCodeCard({ onClaimed }: { onClaimed: () => void }) {
   const [code, setCode] = useState(referralStore.peek() ?? '');
@@ -282,7 +317,7 @@ function ClaimCodeCard({ onClaimed }: { onClaimed: () => void }) {
     try {
       const res = await referralApi.claim(code.trim());
       referralStore.clear();
-      setStatus(`You’re now linked to ${res.referredBy.name}.`);
+      setStatus(`You're now linked to ${res.referredBy.name}.`);
       onClaimed();
     } catch (e) {
       setErr((e as Error).message);
@@ -292,10 +327,9 @@ function ClaimCodeCard({ onClaimed }: { onClaimed: () => void }) {
   };
 
   return (
-    <Card className="mt-4 p-6">
-      <SectionHeading
-        icon={<Icon name="gift" size={17} />}
-        title="Got an invite code?"
+    <Panel amber>
+      <PanelHeader
+        title="GOT AN INVITE CODE?"
         subtitle="Add it before your first game and your friend earns a cut of your first win."
       />
       <div className="flex flex-wrap items-center gap-2.5">
@@ -306,67 +340,17 @@ function ClaimCodeCard({ onClaimed }: { onClaimed: () => void }) {
           maxLength={12}
           className="w-44 font-mono tracking-[0.08em]"
         />
-        <Button variant="secondary" disabled={busy || code.trim().length < 4} onClick={() => void submit()}>
+        <button
+          disabled={busy || code.trim().length < 4}
+          onClick={() => void submit()}
+          className="cursor-pointer rounded-[10px] border px-5 py-3 font-heading text-sm font-bold text-text disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ borderColor: 'var(--panel-border)', background: 'var(--panel-bg2)' }}
+        >
           {busy ? 'Applying…' : 'Apply code'}
-        </Button>
+        </button>
       </div>
       {status && <p className="mt-3 text-sm text-green">{status}</p>}
       {err && <p className="mt-3 text-sm text-red">{err}</p>}
-    </Card>
-  );
-}
-
-function FriendsTable({ friends, rate }: { friends: ReferredFriend[]; rate: number }) {
-  if (friends.length === 0) {
-    return (
-      <div className="mt-4">
-        <EmptyState
-          radius={16}
-          icon={<Icon name="users" size={19} />}
-          scaleIcon
-          title="No friends yet"
-          body={`Share your link — you’ll earn ${rate}% the first time someone you invited wins.`}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <Card radius={16} className="mt-4 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-line2 text-left text-[11px] font-semibold tracking-[0.06em] text-faint">
-              <th className="px-5 py-3.5">FRIEND</th>
-              <th className="px-5 py-3.5">JOINED</th>
-              <th className="px-5 py-3.5 text-right">STATUS</th>
-              <th className="px-5 py-3.5 text-right">EARNED</th>
-            </tr>
-          </thead>
-          <tbody>
-            {friends.map((f) => (
-              <tr key={f.id} className="border-b border-line2">
-                <td className="px-5 py-3 font-heading font-semibold">{f.name}</td>
-                <td className="px-5 py-3 font-mono whitespace-nowrap text-muted">
-                  {formatDate(f.joinedAt)}
-                </td>
-                <td className="px-5 py-3 text-right">
-                  <Badge tone={f.status === 'earned' ? 'success' : 'warn'}>
-                    {f.status === 'earned' ? 'paid' : 'awaiting first win'}
-                  </Badge>
-                </td>
-                <td
-                  className={`px-5 py-3 text-right font-mono font-bold whitespace-nowrap ${
-                    f.status === 'earned' ? 'text-green' : 'text-faint'
-                  }`}
-                >
-                  {f.status === 'earned' ? `+${formatSol(f.earned)}` : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+    </Panel>
   );
 }

@@ -4,6 +4,7 @@ import type {
   Balance,
   GameManifest,
   HistoryPage,
+  LedgerType,
   WalletSummary,
   LeaderboardEntry,
   MatchHistoryPage,
@@ -108,8 +109,10 @@ export const walletApi = {
       body: { txSignature },
     }),
 
-  history: (page = 1, limit = 25) =>
-    api<HistoryPage>(`/wallet/history?page=${page}&limit=${limit}`),
+  history: (page = 1, limit = 25, type?: LedgerType) =>
+    api<HistoryPage>(
+      `/wallet/history?page=${page}&limit=${limit}${type ? `&type=${type}` : ''}`,
+    ),
 
   /** Lifetime deposited/withdrawn/rewards/fees — the Transactions page's stat tiles. */
   summary: () => api<WalletSummary>('/wallet/summary'),

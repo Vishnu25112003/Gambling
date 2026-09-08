@@ -54,6 +54,23 @@
   --tier-silver: #cbd5c9;
   --tier-gold: #eab308;
   --tier-locked: #3a4a3f;
+
+  /*
+   * Infinit Respawn mockup — exact panel/border shades, distinct from the
+   * generic --card/--border pair above (a translucent white overlay, used
+   * site-wide including the landing page). The dashboard's own sections use
+   * a green-tinted border and a handful of literal near-black panel shades
+   * that --card/--border don't reproduce — scoped here rather than changing
+   * --card/--border globally, which would also repaint the landing page and
+   * every game board.
+   */
+  --panel-border: rgba(47, 224, 138, 0.14);
+  --panel-border-soft: rgba(47, 224, 138, 0.1);
+  --panel-bg: #0a110c;
+  --panel-bg2: #0c150f;
+  --panel-bg3: #0d150f;
+  --row-hover: #0e1710;
+  --amber-border: rgba(240, 180, 41, 0.2);
 }
 
 html[data-theme='light'] {
@@ -91,6 +108,17 @@ html[data-theme='light'] {
   --tier-silver: #6b7a70;
   --tier-gold: #a16207;
   --tier-locked: #b6c1b8;
+
+  /* Light-theme equivalents of the panel tokens above — the mockup itself is
+     dark-only, so these are derived to sit consistently on the app's real
+     light palette rather than transcribed from the design. */
+  --panel-border: rgba(21, 128, 61, 0.16);
+  --panel-border-soft: rgba(21, 128, 61, 0.12);
+  --panel-bg: #ffffff;
+  --panel-bg2: #eef5ef;
+  --panel-bg3: #eaf0ea;
+  --row-hover: #eef5ef;
+  --amber-border: rgba(161, 98, 7, 0.22);
 }
 
 /*
@@ -231,6 +259,22 @@ html[data-theme='light'] .wallet-adapter-modal-wrapper {
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--green), transparent);
   opacity: 0.75;
+}
+
+/* Infinit Respawn mockup — the live-indicator dot pulse (Panel/PanelHeader
+   in components/dashboard/panels.tsx) and the data-table row hover. */
+@keyframes irPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.table-row-hover:hover {
+  background: var(--row-hover);
 }
 
 /* Used by CoinFlipLiveCard's round-result reveal (animate-[fadeUp_.35s_ease-out]). */

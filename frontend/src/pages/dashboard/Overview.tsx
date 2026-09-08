@@ -1,154 +1,36 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { SceneCanvas } from '../../components/shared/SceneCanvas';
-import { GameTile } from '../../components/dashboard/GameTile';
+import { GameCard } from '../../components/dashboard/GameCard';
 import { LeaderboardTable } from '../../components/dashboard/LeaderboardTable';
-import { Card, SectionHeading, Spinner } from '../../components/shared/ui';
-import { FeaturedArtIcon, Icon, type IconName } from '../../components/shared/icons';
+import { Panel, PanelHeader, StatTile } from '../../components/dashboard/panels';
+import { Icon } from '../../components/shared/icons';
 import { useAuth } from '../../hooks/useAuth';
 import { useGames } from '../../hooks/useGames';
 import { useLeaderboard } from '../../hooks/useLeaderboard';
+import { useProfile } from '../../hooks/useProfile';
+import { gameVisual } from '../../lib/gameVisuals';
+import { gameLabel } from '../../lib/gameLabel';
+import { TIER_BADGE_IMAGE } from '../../lib/tierBadges';
 import { formatSol, formatSolSigned, shortAddress } from '../../lib/format';
+import { MOCK_LIVE_MATCHES, MOCK_MISSIONS } from '../../lib/overviewMock';
 import type { GameManifest } from '../../types';
 
-interface Chip {
-  label: string;
-  value: string;
-  color: string;
-  tint: string;
-  icon: IconName;
-}
-
-function StatChip({ chip }: { chip: Chip }) {
-  return (
-    <div className="relative flex items-center gap-3.5 overflow-hidden rounded-[15px] border border-line bg-card px-5 py-[18px]">
-      <span
-        className="absolute top-0 right-0 left-0 h-[2px]"
-        style={{ background: chip.color }}
-      />
-      <div
-        className="flex size-11 shrink-0 items-center justify-center rounded-xl"
-        style={{ background: chip.tint, color: chip.color }}
-      >
-        <Icon name={chip.icon} size={20} />
-      </div>
-      <div className="min-w-0">
-        <div className="mb-1 font-mono text-[11px] font-semibold tracking-[0.04em] text-muted">
-          {chip.label}
-        </div>
-        <div
-          className="font-heading text-[21px] font-extrabold whitespace-nowrap"
-          style={{ color: chip.color }}
-        >
-          {chip.value}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ViewAll({ to }: { to: string }) {
-  return (
-    <Link to={to} className="text-[13px] font-semibold whitespace-nowrap">
-      View all →
-    </Link>
-  );
-}
-
-/** The welcome panel: the design's gradient card with the 3D wallet behind it. */
-function WelcomeCard() {
-  const { isAuthenticated, isAuthenticating, user, balance, signIn } = useAuth();
-  const navigate = useNavigate();
-
-  return (
-    <div className="relative isolate flex flex-col justify-center gap-4 overflow-hidden rounded-[20px] border border-green-solid/[0.22] bg-[linear-gradient(135deg,rgba(34,197,94,0.14),transparent)] p-[clamp(20px,3vw,34px)]">
-      <SceneCanvas
-        scene="card"
-        style={{
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          width: '62%',
-          height: '100%',
-          display: 'block',
-          pointerEvents: 'none',
-          zIndex: -1,
-        }}
-      />
-
-      <span className="flex w-fit items-center gap-[7px] rounded-full bg-green-solid/[0.14] px-3 py-[5px] text-xs font-bold text-green">
-        <span className="size-1.5 rounded-full bg-green" />
-        {isAuthenticated ? 'WALLET CONNECTED' : 'WALLET NOT CONNECTED'}
-      </span>
-
-      <div className="font-heading text-[clamp(22px,3vw,30px)] leading-[1.15] font-extrabold">
-        {isAuthenticated && user ? (
-          <>
-            Welcome back,
-            <br />
-            {user.username || shortAddress(user.walletAddress)}
-          </>
-        ) : (
-          <>
-            Welcome to
-            <br />
-            the Hub
-          </>
-        )}
-      </div>
-
-      {isAuthenticated ? (
-        <div className="flex items-baseline gap-2">
-          <span className="font-mono text-[34px] font-extrabold text-green">
-            {formatSol(balance?.availableBalance ?? '0')}
-          </span>
-          <span className="text-sm font-semibold text-muted">SOL available</span>
-        </div>
-      ) : (
-        <p className="max-w-[420px] text-sm leading-[1.6] text-muted">
-          Connect a Solana wallet to see your balance. Browsing the hub needs no wallet at all.
-        </p>
-      )}
-
-      <div className="mt-1 flex gap-3">
-        {isAuthenticated ? (
-          <button
-            onClick={() => navigate('/dashboard/escrow')}
-            className="cursor-pointer rounded-[10px] border-none bg-green-solid px-[22px] py-3 text-sm font-bold text-on-green transition hover:brightness-110"
-          >
-            Deposit
-          </button>
-        ) : (
-          <button
-            onClick={() => void signIn()}
-            disabled={isAuthenticating}
-            className="cursor-pointer rounded-[10px] border-none bg-green-solid px-[22px] py-3 text-sm font-bold text-on-green transition hover:brightness-110 disabled:opacity-60"
-          >
-            {isAuthenticating ? 'Check your wallet…' : 'Connect Wallet'}
-          </button>
-        )}
-        <button
-          onClick={() => navigate('/dashboard/games')}
-          className="cursor-pointer rounded-[10px] border border-line bg-line2 px-[22px] py-3 text-sm font-semibold text-text transition hover:brightness-110"
-        >
-          Browse Games
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /**
- * The dashboard index from the design: welcome panel, featured-art slot, four
- * stat chips, then the games grid beside the top-players table.
+ * The Infinit Respawn mockup's dashboard index: a two-column hero (welcome +
+ * rank progress, live-matches panel), four stat tiles, "THE ARENA" games
+ * grid, then top players beside daily missions.
  *
- * Doc 06 keeps the games list and the leaderboard ungated — both render
- * whether or not a wallet is connected. Only the personal figures fall back
- * to zero when there is no session.
+ * Doc 06 keeps the games list and leaderboard ungated — both render whether
+ * or not a wallet is connected. Live Matches and Daily Missions have no
+ * backend concept yet (no cross-game open-table feed, no missions/reset-timer
+ * system) and render static content from `lib/overviewMock.ts` until one
+ * exists — everything else on this page is real data.
  */
 export function Overview() {
-  const { isAuthenticated, user, balance, signIn } = useAuth();
+  const { isAuthenticated, user, balance, signIn, isAuthenticating } = useAuth();
   const { games, loading: gamesLoading, isPlaceholder } = useGames();
   const { entries, loading: boardLoading } = useLeaderboard(5);
+  const { data: profile } = useProfile(isAuthenticated ? 'me' : null);
   const navigate = useNavigate();
 
   const handlePlay = (game: GameManifest) => {
@@ -160,122 +42,315 @@ export function Overview() {
   };
 
   const netProfit = user?.netProfit ?? '0';
-  const chips: Chip[] = [
-    {
-      label: 'AVAILABLE BALANCE',
-      value: `${formatSol(balance?.availableBalance ?? '0')} SOL`,
-      color: 'var(--green)',
-      tint: 'rgba(34,197,94,0.12)',
-      icon: 'wallet',
-    },
-    {
-      label: 'IN PLAY',
-      value: `${formatSol(balance?.lockedBalance ?? '0')} SOL`,
-      color: 'var(--gold)',
-      tint: 'rgba(234,179,8,0.13)',
-      icon: 'play',
-    },
-    {
-      label: 'GAMES PLAYED',
-      value: String(user?.gamesPlayed ?? 0),
-      color: 'var(--text)',
-      tint: 'rgba(248,113,113,0.12)',
-      icon: 'gamepad',
-    },
-    {
-      label: 'NET PROFIT',
-      value: `${formatSolSigned(netProfit)} SOL`,
-      color: Number(netProfit) < 0 ? 'var(--red)' : 'var(--green)',
-      tint: 'rgba(34,197,94,0.12)',
-      icon: 'chart',
-    },
-  ];
+  const streak = profile?.stats.currentStreak;
+  const streakLabel = !streak || streak.kind === 'none' ? '—' : `${streak.count}${streak.kind === 'win' ? 'W' : 'L'}`;
 
-  // Limit to top 4 games for the dashboard overview
-  const topGames = games.slice(0, 4);
+  const tier = profile?.tier;
+  const badgeImage = tier && tier.key !== 'unranked' ? TIER_BADGE_IMAGE[tier.key as keyof typeof TIER_BADGE_IMAGE] : null;
 
   return (
-    <>
-      <div className="mb-[22px] grid grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] gap-[22px]">
-        <WelcomeCard />
-
-        <div className="relative flex min-h-[260px] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[20px] border border-line bg-card p-6 text-center">
-          <span className="absolute top-4 left-4 rounded-full bg-gold/[0.16] px-3 py-1.5 text-[11.5px] font-bold text-gold">
-            Coming Soon
-          </span>
-          <div className="mb-1.5">
-            <FeaturedArtIcon />
-          </div>
-          <div className="text-[19px] font-semibold text-muted">Featured game art</div>
-          <div className="text-[13.5px] text-faint">Stay tuned for exciting games!</div>
-        </div>
-      </div>
-
-      <div className="mb-[30px] grid grid-cols-[repeat(auto-fit,minmax(min(100%,210px),1fr))] gap-4">
-        {chips.map((c) => (
-          <StatChip key={c.label} chip={c} />
-        ))}
-      </div>
-
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,420px),1fr))] items-start gap-[22px]">
-        <Card className="p-[22px]">
-          <SectionHeading
-            icon={<Icon name="dice" size={18} />}
-            title="The Games"
-            subtitle="Each game plugs into the same wallet, balance and escrow layer."
-            action={<ViewAll to="/dashboard/games" />}
+    <div className="flex flex-col gap-[18px]">
+      {/* ── Hero: welcome + rank progress, beside Live Matches ────────── */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
+        <section
+          className="relative col-span-2 min-w-0 overflow-hidden rounded-[18px] border p-[clamp(18px,2.6vw,34px)] max-[820px]:col-span-1"
+          style={{
+            borderColor: 'rgba(47,224,138,.2)',
+            background:
+              'radial-gradient(700px 300px at 88% 0%, rgba(47,224,138,.2), rgba(6,9,7,0) 65%), linear-gradient(120deg, #0c1a12, #070d09)',
+          }}
+        >
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage:
+                'linear-gradient(rgba(47,224,138,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(47,224,138,.05) 1px, transparent 1px)',
+              backgroundSize: '46px 46px',
+            }}
           />
-          {gamesLoading ? (
-            <div className="flex justify-center py-12">
-              <Spinner />
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 xl:grid-cols-4">
-              {topGames.map((g, index) => {
-                // Responsive visibility:
-                // Index 0, 1: Shown on all screen sizes (2 columns on mobile)
-                // Index 2: Shown from sm and up (3 columns on tablet/medium)
-                // Index 3: Shown from xl and up (4 columns on desktop)
-                const responsiveVisibility =
-                  index === 3
-                    ? 'hidden xl:block'
-                    : index === 2
-                      ? 'hidden sm:block'
-                      : 'block';
 
-                return (
-                  <div key={g.id} className={responsiveVisibility}>
-                    <GameTile
-                      game={g}
-                      onClick={isPlaceholder ? undefined : handlePlay}
-                    />
+          <div className="relative grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] items-center gap-[22px]">
+            <div className="min-w-0">
+              <span
+                className="inline-flex items-center gap-2 rounded-[6px] border px-[11px] py-[5px]"
+                style={{ borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.14)' }}
+              >
+                <span className="size-1.5 rounded-full bg-[#2fe08a]" style={{ animation: 'irPulse 1.6s infinite' }} />
+                <span className="font-mono text-[10px] tracking-[0.2em] text-[#6ee7b7]">
+                  SEASON 01 · LIVE
+                </span>
+              </span>
+
+              <h1 className="mt-3.5 font-heading text-[clamp(30px,4.4vw,52px)] leading-[.98] font-bold tracking-[-0.01em] text-[#f2fff8]">
+                {isAuthenticated && user ? (
+                  <>
+                    WELCOME BACK,
+                    <br />
+                    <span className="text-green" style={{ textShadow: '0 0 34px rgba(47,224,138,.5)' }}>
+                      {(user.username || shortAddress(user.walletAddress)).toUpperCase()}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    WELCOME TO
+                    <br />
+                    <span className="text-green" style={{ textShadow: '0 0 34px rgba(47,224,138,.5)' }}>
+                      INFINIT RESPAWN
+                    </span>
+                  </>
+                )}
+              </h1>
+
+              {isAuthenticated ? (
+                <div className="mt-5 mb-1 flex flex-wrap items-end gap-[18px]">
+                  <div>
+                    <div className="font-mono text-[10px] tracking-[0.18em] text-[#8fbfa6]">READY TO BET</div>
+                    <div className="font-heading text-[34px] leading-[1.1] font-bold text-[#eafff3]">
+                      {formatSol(balance?.availableBalance ?? '0')}{' '}
+                      <span className="text-[15px] text-[#6ee7b7]">SOL</span>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
+                  <div className="h-10 w-px" style={{ background: 'rgba(47,224,138,.18)' }} />
+                  <div>
+                    <div className="font-mono text-[10px] tracking-[0.18em] text-[#8fbfa6]">MATCHES</div>
+                    <div className="font-heading text-[34px] leading-[1.1] font-bold text-[#eafff3]">
+                      {user?.gamesPlayed ?? 0}
+                    </div>
+                  </div>
+                  <div className="h-10 w-px" style={{ background: 'rgba(47,224,138,.18)' }} />
+                  <div>
+                    <div className="font-mono text-[10px] tracking-[0.18em] text-[#8fbfa6]">STREAK</div>
+                    <div className="font-heading text-[34px] leading-[1.1] font-bold text-green">
+                      {streakLabel}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-5 max-w-[420px] text-sm leading-[1.6] text-muted">
+                  Connect a Solana wallet to see your balance. Browsing the hub needs no wallet at all.
+                </p>
+              )}
 
-        <Card className="p-[22px]">
-          <SectionHeading
-            icon={<Icon name="trophy" size={18} />}
-            iconColor="var(--gold)"
-            title="Top Players"
-            action={<ViewAll to="/dashboard/leaderboard" />}
-          />
+              {isAuthenticated && tier && (
+                <div
+                  className="mt-[18px] flex max-w-[460px] items-center gap-3.5 rounded-xl border p-[12px_14px]"
+                  style={{ borderColor: 'rgba(240,180,41,.22)', background: 'linear-gradient(90deg, rgba(240,180,41,.08), rgba(6,9,7,0))' }}
+                >
+                  <span
+                    className="size-[52px] shrink-0 bg-contain bg-center bg-no-repeat"
+                    style={badgeImage ? { backgroundImage: `url(${badgeImage})` } : undefined}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-[7px] flex justify-between gap-2.5 font-mono text-[10.5px] tracking-[0.12em] text-[#8fbfa6]">
+                      <span className="text-[#f7d774]">
+                        {tier.next ? `NEXT: ${tier.next.label.toUpperCase()}` : 'MAX RANK'}
+                      </span>
+                      <span className="text-[#6ee7b7]">
+                        {tier.next
+                          ? `${formatSol(tier.wagered)} / ${formatSol(tier.next.minWagered)} SOL`
+                          : 'COMPLETE'}
+                      </span>
+                    </div>
+                    <div
+                      className="h-[9px] overflow-hidden rounded-md border"
+                      style={{ background: '#0b1a12', borderColor: 'rgba(47,224,138,.16)' }}
+                    >
+                      <div
+                        className="h-full"
+                        style={{
+                          width: `${tier.percentToNext}%`,
+                          background: 'linear-gradient(90deg, #0f7d4d, #35eb95)',
+                          boxShadow: '0 0 16px rgba(47,224,138,.6)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-[22px] flex flex-wrap gap-2.5">
+                {isAuthenticated ? (
+                  <button
+                    onClick={() => navigate('/dashboard/escrow')}
+                    className="flex cursor-pointer items-center gap-[9px] rounded-[10px] border-0 px-6 py-3 font-heading text-sm font-bold whitespace-nowrap text-[#04160c] transition hover:brightness-110"
+                    style={{
+                      background: 'linear-gradient(180deg, #35eb95, #16a862)',
+                      boxShadow: '0 8px 26px rgba(47,224,138,.28)',
+                    }}
+                  >
+                    <Icon name="bolt" size={19} />
+                    DEPOSIT SOL
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => void signIn()}
+                    disabled={isAuthenticating}
+                    className="flex cursor-pointer items-center gap-[9px] rounded-[10px] border-0 px-6 py-3 font-heading text-sm font-bold whitespace-nowrap text-[#04160c] transition hover:brightness-110 disabled:opacity-60"
+                    style={{
+                      background: 'linear-gradient(180deg, #35eb95, #16a862)',
+                      boxShadow: '0 8px 26px rgba(47,224,138,.28)',
+                    }}
+                  >
+                    <Icon name="bolt" size={19} />
+                    {isAuthenticating ? 'CHECK YOUR WALLET…' : 'CONNECT WALLET'}
+                  </button>
+                )}
+                <button
+                  onClick={() => navigate('/dashboard/games')}
+                  className="flex cursor-pointer items-center gap-[9px] rounded-[10px] border px-6 py-3 font-heading text-sm font-bold whitespace-nowrap text-[#eafff3] transition hover:brightness-110"
+                  style={{ borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.06)' }}
+                >
+                  <Icon name="gamepad" size={19} className="text-green" />
+                  ENTER LOBBY
+                </button>
+              </div>
+            </div>
+
+            <div
+              className="relative grid aspect-[4/3] min-w-0 place-items-center overflow-hidden rounded-[14px] border"
+              style={{
+                borderColor: 'rgba(47,224,138,.22)',
+                background:
+                  'repeating-linear-gradient(135deg, rgba(47,224,138,.08) 0 10px, rgba(6,9,7,0) 10px 20px), #08110b',
+              }}
+            >
+              <SceneCanvas
+                scene="card"
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}
+              />
+            </div>
+          </div>
+        </section>
+
+        <Panel>
+          <PanelHeader title="LIVE MATCHES" dot="#ef5350" meta="24 IN PLAY" />
+          <div className="flex flex-col gap-2">
+            {MOCK_LIVE_MATCHES.map((m) => {
+              const visual = gameVisual({ name: gameLabel(m.gameType) });
+              return (
+                <div
+                  key={m.id}
+                  className="flex items-center gap-3 rounded-[11px] border p-[11px_12px] transition"
+                  style={{ borderColor: 'rgba(47,224,138,.08)', background: 'var(--panel-bg3)' }}
+                >
+                  <span
+                    className="grid size-[30px] shrink-0 place-items-center rounded-lg font-heading text-[12px] font-bold text-[#04160c]"
+                    style={{ background: visual.tone }}
+                  >
+                    {m.initial}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-heading text-[13.5px] font-semibold text-[#e8f2ec]">
+                      {m.title}
+                    </div>
+                    <div className="mt-0.5 font-mono text-[10.5px] text-[#9ab5a6]">{m.meta}</div>
+                  </div>
+                  <span className="font-mono text-[12px] text-[#6ee7b7]">{m.stake}</span>
+                </div>
+              );
+            })}
+          </div>
+          <button
+            onClick={() => navigate('/dashboard/games')}
+            className="mt-3 w-full cursor-pointer rounded-[9px] border border-dashed py-2.5 font-heading text-[12.5px] font-semibold tracking-[0.08em] text-green"
+            style={{ borderColor: 'rgba(47,224,138,.24)' }}
+          >
+            JOIN A TABLE →
+          </button>
+        </Panel>
+      </div>
+
+      {/* ── Stat tiles ──────────────────────────────────────────────── */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3">
+        <StatTile icon="wallet" label="AVAILABLE BALANCE" value={`${formatSol(balance?.availableBalance ?? '0')} SOL`} color="var(--green)" />
+        <StatTile icon="play" label="IN PLAY" value={`${formatSol(balance?.lockedBalance ?? '0')} SOL`} color="var(--gold)" />
+        <StatTile icon="gamepad" label="GAMES PLAYED" value={String(user?.gamesPlayed ?? 0)} color="var(--text)" />
+        <StatTile
+          icon="chart"
+          label="NET PROFIT"
+          value={`${formatSolSigned(netProfit)} SOL`}
+          color={Number(netProfit) < 0 ? 'var(--red)' : 'var(--green)'}
+        />
+      </div>
+
+      {/* ── THE ARENA ───────────────────────────────────────────────── */}
+      <section>
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <h2 className="font-heading text-[20px] font-bold tracking-[0.05em] text-text">THE ARENA</h2>
+          <Link to="/dashboard/games" className="font-mono text-[11.5px] tracking-[0.1em] text-green">
+            ALL GAMES →
+          </Link>
+        </div>
+        {gamesLoading ? (
+          <div className="flex justify-center py-12">
+            <span className="inline-block size-6 animate-spin rounded-full border-2 border-line border-t-green" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3.5">
+            {games.map((g) => (
+              <GameCard key={g.id} game={g} variant="arena" onClick={isPlaceholder ? undefined : handlePlay} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── Top players + Daily missions ───────────────────────────── */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
+        <section className="min-w-0 rounded-2xl border p-[18px]" style={{ borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg)' }}>
+          <div className="mb-4 flex items-center justify-between gap-2.5">
+            <h2 className="font-heading text-[17px] font-bold tracking-[0.06em] text-text">TOP PLAYERS</h2>
+            <Link to="/dashboard/leaderboard" className="font-mono text-[11px] tracking-[0.1em] text-green">
+              FULL BOARD →
+            </Link>
+          </div>
           {boardLoading ? (
-            <div className="flex justify-center py-12">
-              <Spinner />
+            <div className="flex justify-center py-10">
+              <span className="inline-block size-6 animate-spin rounded-full border-2 border-line border-t-green" />
             </div>
           ) : entries.length === 0 ? (
-            <p className="py-10 text-center text-[13px] text-muted">
+            <p className="py-8 text-center text-[13px] text-muted">
               Nobody on the board yet — rankings appear once the first matches settle.
             </p>
           ) : (
             <LeaderboardTable entries={entries} />
           )}
-        </Card>
+        </section>
+
+        <section
+          className="min-w-0 rounded-2xl border p-[18px]"
+          style={{
+            borderColor: 'var(--amber-border)',
+            background: 'linear-gradient(160deg, rgba(240,180,41,.08), rgba(6,9,7,0) 60%), var(--panel-bg)',
+          }}
+        >
+          <h2 className="mb-1 font-heading text-[17px] font-bold tracking-[0.06em] text-text">DAILY MISSIONS</h2>
+          <div className="mb-4 font-mono text-[10.5px] text-[#8fbfa6]">RESETS DAILY</div>
+          <div className="flex flex-col gap-2.5">
+            {MOCK_MISSIONS.map((q) => {
+              const pct = Math.min(100, (q.progress / q.total) * 100);
+              return (
+                <div key={q.id} className="rounded-[11px] border p-3" style={{ borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg3)' }}>
+                  <div className="flex items-center justify-between gap-2.5">
+                    <span className="font-heading text-[13.5px] font-semibold text-[#e8f2ec]">{q.title}</span>
+                    <span className="font-mono text-[11px] text-gold">+{q.reward}</span>
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-2.5">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: '#0a1a11' }}>
+                      <div
+                        className="h-full"
+                        style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #16a862, #35eb95)' }}
+                      />
+                    </div>
+                    <span className="font-mono text-[10.5px] text-[#9ab5a6]">
+                      {q.progress}/{q.total}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       </div>
-    </>
+    </div>
   );
 }
