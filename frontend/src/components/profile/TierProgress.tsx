@@ -1,7 +1,5 @@
-import { Lock } from 'lucide-react';
 import { Card } from '../shared/ui';
 import { TierBadge } from './TierBadge';
-import { TIER_BADGE_IMAGE } from '../../lib/tierBadges';
 import { formatSol } from '../../lib/format';
 import type { TierProgress as TierProgressData } from '../../types';
 
@@ -10,13 +8,14 @@ import type { TierProgress as TierProgressData } from '../../types';
  *
  * The remaining amount is shown as an exact figure rather than only as a bar,
  * because "3.6 SOL to Elite" is actionable and a 60%-full bar is not.
+ *
+ * The full ladder used to repeat here as a row of small pills — it now only
+ * lives in `BadgeVault`, which is the one place that actually has room to
+ * show each rank's badge art and unlock progress instead of a cramped chip.
  */
 export function TierProgress({ tier }: { tier: TierProgressData }) {
-  // The whole ladder minus `unranked` — that rung has no badge to show as locked.
-  const earnableLadder = tier.ladder.filter((rung) => rung.key !== 'unranked');
-
   return (
-    <Card radius={20} className="flex flex-col gap-4 p-[22px]">
+    <Card radius={20} className="flex h-full flex-col gap-4 p-[22px]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="mb-1.5 text-[11.5px] font-semibold tracking-[0.04em] text-muted">
@@ -67,36 +66,6 @@ export function TierProgress({ tier }: { tier: TierProgressData }) {
           Top of the ladder — there is no tier above {tier.label}.
         </p>
       )}
-
-      {/* The whole ladder, so a player can see what is ahead without playing to find out. */}
-      <div className="flex flex-wrap gap-1.5 border-t border-line2 pt-3.5">
-        {earnableLadder.map((rung) => (
-          <span
-            key={rung.key}
-            title={`${rung.label} — ${formatSol(rung.minWagered)} SOL wagered`}
-            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10.5px] font-bold"
-            style={
-              rung.reached
-                ? {
-                    color: 'var(--gold-bright)',
-                    background: 'color-mix(in srgb, var(--gold) 14%, transparent)',
-                  }
-                : { color: 'var(--tier-locked)', background: 'var(--border2)' }
-            }
-          >
-            <img
-              src={TIER_BADGE_IMAGE[rung.key as keyof typeof TIER_BADGE_IMAGE]}
-              alt=""
-              width={14}
-              height={14}
-              className="shrink-0 object-contain"
-              style={rung.reached ? undefined : { filter: 'grayscale(1)', opacity: 0.6 }}
-            />
-            {rung.label}
-            {!rung.reached && <Lock aria-label="locked" className="size-2.5" />}
-          </span>
-        ))}
-      </div>
     </Card>
   );
 }

@@ -88,7 +88,7 @@ export function Profile() {
     <>
       <PageTitle title="Profile" subtitle={SUBTITLE} />
 
-      <div className="mb-[22px] grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] items-start gap-[22px]">
+      <div className="mb-[22px] grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] items-stretch gap-[22px]">
         <ProfileHeader
           identity={data.identity}
           tier={data.tier}

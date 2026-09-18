@@ -29,7 +29,7 @@ export function BadgeVault({ tier }: { tier: TierProgressData }) {
         }
       />
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
+      <div className="flex snap-x gap-3 overflow-x-auto pb-1">
         {earnable.map((rung, i) => {
           const floor = i === 0 ? 0 : Number(earnable[i - 1]!.minWagered);
           const ceiling = Number(rung.minWagered);
@@ -40,7 +40,7 @@ export function BadgeVault({ tier }: { tier: TierProgressData }) {
           return (
             <div
               key={rung.key}
-              className="relative flex flex-col items-center overflow-hidden rounded-2xl border p-3.5 text-center"
+              className="relative flex w-[160px] shrink-0 snap-start flex-col items-center overflow-hidden rounded-2xl border p-3.5 text-center"
               style={
                 rung.reached
                   ? {
