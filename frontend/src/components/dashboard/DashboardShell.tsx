@@ -7,7 +7,6 @@ import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed';
 import { formatSol, shortAddress } from '../../lib/format';
 import { Avatar } from '../shared/Avatar';
 import {
-  ChevronDown,
   CloseIcon,
   Icon,
   InviteIcon,
@@ -140,34 +139,53 @@ function SessionButton({ onDone, bare = false }: { onDone?: () => void; bare?: b
   );
 }
 
-function ThemeRow({ compact = false, collapsed = false }: { compact?: boolean; collapsed?: boolean }) {
-  const { isDark, toggleTheme } = useTheme();
+/**
+ * The mockup's own theme control: a two-button pill in the TOPBAR (not the
+ * sidebar), each button a bare icon — the active mode painted green-solid,
+ * the inactive one transparent. Used by `TopBar`; the sidebar and mobile
+ * drawer no longer carry a separate theme row now that this exists.
+ */
+function ThemeToggle() {
+  const { isDark, setTheme } = useTheme();
 
-  if (compact) {
-    return (
+  return (
+    <div
+      className="flex gap-[3px] rounded-[11px] border p-[3px]"
+      style={{ borderColor: 'var(--panel-border)', background: 'var(--panel-bg2)' }}
+    >
       <button
-        onClick={toggleTheme}
-        title={collapsed ? (isDark ? 'Light mode' : 'Dark mode') : undefined}
-        className={`flex w-full cursor-pointer items-center gap-3 rounded-[11px] border-none bg-transparent px-3 py-2.5 text-sm font-semibold text-muted ${
-          collapsed ? 'justify-center px-0' : ''
-        }`}
+        onClick={() => setTheme('dark')}
+        title="Dark mode"
+        aria-pressed={isDark}
+        className="grid size-9 cursor-pointer place-items-center rounded-lg border-0"
+        style={isDark ? { background: 'var(--green-solid)', color: 'var(--on-green)' } : { background: 'transparent', color: 'var(--muted)' }}
       >
-        <span className="flex">{isDark ? <SunIcon /> : <MoonIcon />}</span>
-        {!collapsed && <span>{isDark ? 'Light mode' : 'Dark mode'}</span>}
+        <MoonIcon />
       </button>
-    );
-  }
+      <button
+        onClick={() => setTheme('light')}
+        title="Light mode"
+        aria-pressed={!isDark}
+        className="grid size-9 cursor-pointer place-items-center rounded-lg border-0"
+        style={!isDark ? { background: 'var(--green-solid)', color: 'var(--on-green)' } : { background: 'transparent', color: 'var(--muted)' }}
+      >
+        <SunIcon />
+      </button>
+    </div>
+  );
+}
+
+/** Compact single-row version for the mobile drawer's footer, where the pill above has no room. */
+function ThemeRow() {
+  const { isDark, toggleTheme } = useTheme();
 
   return (
     <button
       onClick={toggleTheme}
-      className="flex min-h-[48px] w-full cursor-pointer items-center justify-between rounded-xl border border-line bg-card px-3.5 text-[13.5px] font-semibold text-text"
+      className="flex w-full cursor-pointer items-center gap-3 rounded-[11px] border-none bg-transparent px-3 py-2.5 text-sm font-semibold text-muted"
     >
-      <span className="flex items-center gap-2.5">
-        <span className="flex text-muted">{isDark ? <SunIcon /> : <MoonIcon />}</span>
-        <span>{isDark ? 'Dark' : 'Light'}</span>
-      </span>
-      <ChevronDown color="var(--faint)" />
+      <span className="flex">{isDark ? <SunIcon /> : <MoonIcon />}</span>
+      <span>{isDark ? 'Light mode' : 'Dark mode'}</span>
     </button>
   );
 }
@@ -222,17 +240,17 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         onClick={onToggle}
         title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        className={`flex min-h-[42px] cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-card text-[13px] font-semibold text-muted transition hover:text-text ${
-          collapsed ? 'justify-center px-0' : 'px-3.5'
+        className={`flex min-h-[42px] cursor-pointer items-center gap-2.5 rounded-[9px] border font-heading text-[12.5px] font-semibold tracking-[0.1em] text-[#8fa89b] transition hover:text-[#eafff3] ${
+          collapsed ? 'justify-center px-0' : 'px-3'
         }`}
+        style={{ borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg2)' }}
       >
         <PanelIcon />
-        {!collapsed && <span>Collapse</span>}
+        {!collapsed && <span>COLLAPSE</span>}
       </button>
 
       <div className="mt-3 flex shrink-0 flex-col gap-3">
         {!collapsed && <InviteCard />}
-        <ThemeRow compact={collapsed} collapsed={collapsed} />
         {!collapsed && (
           <p className="text-[11.5px] leading-[1.5] text-faint">
             © 2026 Infinit Respawn
@@ -297,7 +315,7 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
         </nav>
 
         <div className="flex shrink-0 flex-col gap-0.5 border-t border-line2 pt-2">
-          <ThemeRow compact />
+          <ThemeRow />
           <SessionButton bare onDone={onClose} />
         </div>
       </div>
@@ -372,7 +390,8 @@ function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         <div
           aria-hidden
           title="Search arrives with the first games"
-          className="flex max-w-[500px] min-w-0 flex-1 items-center gap-[11px] rounded-xl border border-line bg-card px-3.5 py-3"
+          className="flex max-w-[500px] min-w-0 flex-1 items-center gap-[11px] rounded-xl border px-3.5 py-3"
+          style={{ borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg2)' }}
         >
           <SearchIcon />
           <span className="flex-1 truncate text-[13.5px] text-faint">Search games, players...</span>
@@ -390,6 +409,9 @@ function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
               {formatSol(balance?.availableBalance ?? '0')} SOL
             </span>
           </div>
+
+          {/* The mockup's own control — a two-icon pill, not a sidebar row. */}
+          {!isMobile && <ThemeToggle />}
 
           {/*
             The bell is shown on every width — a settled match or a credited

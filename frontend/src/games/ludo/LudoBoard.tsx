@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { Dices } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { tokenStore } from '../../api/client';
 import { walletApi } from '../../api/endpoints';
-import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
+import { Button, Card, PageTitle } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
-import { GameSetupWizard, GameJoinByCode, GameWaitingRoom } from '../../components/shared/gameSetup';
+import { GameSetupWizard, GameJoinByCode, GameWaitingRoom, GameLobby } from '../../components/shared/gameSetup';
 import { StakeAmountStep } from '../../components/shared/gameSetup/StakeAmountStep';
 import { formatSol } from '../../lib/format';
 import { gameVisual } from '../../lib/gameVisuals';
@@ -666,57 +665,23 @@ function LudoBoardInner() {
   // --- Lobby ---
   if (page === 'lobby') {
     return (
-      <>
-        <div className="mb-6 flex items-center justify-between">
-          <PageTitle title="Ludo" subtitle="Join a match or create your own." />
-          <Button variant="primary" size="sm" onClick={() => setPage('create')} disabled={!connected}>
-            + Create Game
-          </Button>
-        </div>
-
-        {!connected ? (
-          <Card className="px-6 py-12 text-center">
-            <Spinner className="mb-3 size-5" />
-            <p className="text-sm text-muted">Connecting...</p>
-          </Card>
-        ) : matches.length === 0 ? (
-          <Card className="px-6 py-12 text-center">
-            <Dices className="mx-auto mb-3 size-8 text-muted" />
-            <p className="mb-1 text-sm font-bold">No open matches</p>
-            <p className="text-xs text-muted">Create one or join with a room code.</p>
-            <Button variant="secondary" size="sm" className="mt-4" onClick={() => setPage('join_code')}>
-              Join with Code
-            </Button>
-          </Card>
-        ) : (
-          <>
-            <div className="mb-3 flex justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setPage('join_code')}>
-                Join with Code
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {matches.map((m) => (
-                <Card key={m.matchId} className="flex items-center justify-between px-5 py-3">
-                  <div>
-                    <p className="text-sm font-bold">{m.hostName}</p>
-                    <p className="text-xs text-muted">
-                      {m.seatCount} players · {m.betMode === 'fixed' ? 'Fixed' : 'Free'} bet
-                      {m.betMode === 'free' && m.minBet ? ` · min ${formatSol(m.minBet)}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-green">{formatSol(m.stake)} SOL</span>
-                    <Button variant="solid" size="sm" onClick={() => handleJoinRandom(m.matchId)}>
-                      Join
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </>
-        )}
-      </>
+      <GameLobby
+        title="Ludo"
+        subtitle="Join a match or create your own."
+        connected={connected}
+        error={error}
+        matches={matches.map((m) => ({
+          matchId: m.matchId,
+          hostName: m.hostName,
+          meta: `${m.seatCount} players · ${m.betMode === 'fixed' ? 'Fixed' : 'Free'} bet${
+            m.betMode === 'free' && m.minBet ? ` · min ${formatSol(m.minBet)}` : ''
+          } · ${formatSol(m.stake)} SOL`,
+        }))}
+        onCreate={() => setPage('create')}
+        onJoinByCode={() => setPage('join_code')}
+        onJoinMatch={handleJoinRandom}
+        onRefresh={() => socketRef.current?.emit(LUDO.LIST_MATCHES, { gameType: 'ludo' })}
+      />
     );
   }
 

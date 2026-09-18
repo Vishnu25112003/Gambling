@@ -8,9 +8,14 @@ import type { GameManifest } from '../../types';
  * PAYOUT chip). When a game has commissioned art (`gameVisuals.ts`), that PNG
  * already renders the card's full look (tag, name, CTA) as pixels — laying
  * this component's tag/name/desc overlay on top of it would duplicate what's
- * already drawn, so art-backed games render as the plain clickable image
- * (unchanged from before). Only games without commissioned art (placeholder
- * games) get the mockup's live CSS-drawn card.
+ * already drawn, so art-backed games render as the plain clickable image,
+ * cropped to a SQUARE exactly as the original GameTile.tsx always did. That
+ * crop matters: these assets were commissioned as squares with their own
+ * baked-in text near the edges, so forcing the mockup's 4:3/16:11 ratio onto
+ * them (an earlier version of this component did) crops that text off —
+ * only the CSS-drawn fallback cards below use the mockup's own ratios. Only
+ * games without commissioned art (placeholder games) get the mockup's live
+ * CSS-drawn card.
  */
 export function GameCard({
   game,
@@ -40,8 +45,7 @@ export function GameCard({
           src={visual.art}
           alt={game.name}
           loading="lazy"
-          className="block w-full object-cover"
-          style={{ aspectRatio: lobby ? '4 / 3' : '16 / 11' }}
+          className="block aspect-square w-full object-cover"
         />
       </Wrapper>
     );
