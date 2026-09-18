@@ -103,7 +103,7 @@ export function Transactions() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">
+        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-text">
           TRANSACTIONS
         </h1>
         <p className="text-sm text-muted">{SUBTITLE}</p>
@@ -156,13 +156,13 @@ export function Transactions() {
                     <span style={{ color: TYPE_COLOR[row.type] }}>
                       <Icon name={TYPE_ICON[row.type]} size={18} />
                     </span>
-                    <span className="truncate font-heading text-[13.5px] font-semibold text-[#e8f2ec]">
+                    <span className="truncate font-heading text-[13.5px] font-semibold text-text">
                       {ledgerLabel(row.type)}
                     </span>
                   </span>
-                  <span className="font-mono text-[11.5px] text-[#a9c3b6]">{formatDate(row.timestamp)}</span>
+                  <span className="font-mono text-[11.5px] text-muted">{formatDate(row.timestamp)}</span>
                   <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate font-mono text-[11px] text-[#9ab5a6]">
+                    <span className="truncate font-mono text-[11px] text-muted">
                       {row.txSignature ?? '—'}
                     </span>
                     {row.explorerUrl && (
@@ -193,7 +193,7 @@ export function Transactions() {
             </TableScroll>
 
             <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3.5">
-              <span className="font-mono text-[10.5px] text-[#8fbfa6]">
+              <span className="font-mono text-[10.5px] text-muted">
                 {data.total} TRANSACTION{data.total === 1 ? '' : 'S'} · PAGE {data.page} OF {totalPages}
               </span>
               <div className="flex flex-wrap items-center gap-2">

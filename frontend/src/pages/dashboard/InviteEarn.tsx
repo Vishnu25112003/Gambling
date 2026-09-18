@@ -69,7 +69,7 @@ export function InviteEarn() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">
+        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-text">
           INVITE &amp; EARN
         </h1>
         <p className="text-sm text-muted">{SUBTITLE}</p>
@@ -82,7 +82,7 @@ export function InviteEarn() {
           <div className="rounded-[18px] border p-5" style={{ borderColor: 'var(--amber-border)', background: 'linear-gradient(160deg, rgba(240,180,41,.08), rgba(6,9,7,0) 60%), var(--panel-bg)' }}>
             <div className="font-mono text-[10px] tracking-[0.18em] text-[#8a6410]">TOTAL EARNED</div>
             <div className="mt-1.5 flex items-end gap-2.5">
-              <span className="font-heading text-[clamp(34px,4.2vw,46px)] leading-none font-bold text-[#f7d774]">
+              <span className="font-heading text-[clamp(34px,4.2vw,46px)] leading-none font-bold text-gold-bright">
                 {formatSol(data.stats.totalEarned)}
               </span>
               <span className="pb-1 font-mono text-[13px] text-gold">SOL</span>
@@ -108,7 +108,7 @@ export function InviteEarn() {
 
       <Panel>
         <PanelHeader title="RECRUIT MILESTONES" meta={`${data.stats.invited} / ${MILESTONES[MILESTONES.length - 1]!.friends} FRIENDS`} />
-        <div className="relative h-2 overflow-hidden rounded-md border" style={{ background: '#0b1a12', borderColor: 'rgba(47,224,138,.14)' }}>
+        <div className="relative h-2 overflow-hidden rounded-md border" style={{ background: 'var(--panel-bg2)', borderColor: 'rgba(47,224,138,.14)' }}>
           <div
             className="h-full"
             style={{
@@ -131,7 +131,7 @@ export function InviteEarn() {
                 <div className="mt-1.5 font-heading text-sm font-bold tracking-[0.06em]" style={{ color: reached ? '#6ee7b7' : 'var(--text)' }}>
                   {m.friends} friends
                 </div>
-                <div className="mt-1.5 font-mono text-[10.5px] text-[#a9c3b6]">{m.reward}</div>
+                <div className="mt-1.5 font-mono text-[10.5px] text-muted">{m.reward}</div>
                 <div className="mt-2 font-mono text-[9.5px] tracking-[0.12em]" style={{ color: reached ? '#2fe08a' : 'var(--faint)' }}>
                   {reached ? 'ACTIVE' : `${m.friends - data.stats.invited} TO GO`}
                 </div>
@@ -161,9 +161,9 @@ export function InviteEarn() {
               <div className="min-w-0 flex-1 pb-5">
                 <div className="flex flex-wrap items-center gap-2">
                   <Icon name={s.icon} size={18} className="text-[#6ee7b7]" />
-                  <span className="font-heading text-[15.5px] font-bold tracking-[0.03em] text-[#eafff3]">{s.title}</span>
+                  <span className="font-heading text-[15.5px] font-bold tracking-[0.03em] text-text">{s.title}</span>
                 </div>
-                <p className="mt-1.5 max-w-[620px] text-[13px] leading-[1.55] text-[#a9c3b6]">{s.body}</p>
+                <p className="mt-1.5 max-w-[620px] text-[13px] leading-[1.55] text-muted">{s.body}</p>
               </div>
             </div>
           ))}
@@ -186,9 +186,9 @@ export function InviteEarn() {
                 <TableRow key={f.id} template={REFERRALS_TEMPLATE}>
                   <span className="flex min-w-0 items-center gap-2.5">
                     <Avatar name={f.name} size={28} radiusRatio={0.29} />
-                    <span className="font-mono text-[13px] text-[#e8f2ec]">{f.name}</span>
+                    <span className="font-mono text-[13px] text-text">{f.name}</span>
                   </span>
-                  <span className="font-mono text-[11.5px] text-[#a9c3b6]">{formatDate(f.joinedAt)}</span>
+                  <span className="font-mono text-[11.5px] text-muted">{formatDate(f.joinedAt)}</span>
                   <span>
                     <StatusChip
                       bg={f.status === 'earned' ? 'rgba(47,224,138,.14)' : 'rgba(240,180,41,.14)'}
@@ -230,7 +230,7 @@ function InviteHero({ link, code, rate }: { link: string; code: string; rate: nu
   return (
     <section
       className="relative flex min-w-0 flex-col overflow-hidden rounded-[18px] border p-[clamp(18px,2.4vw,26px)]"
-      style={{ borderColor: 'rgba(47,224,138,.22)', background: 'radial-gradient(600px 300px at 90% 0%, rgba(47,224,138,.16), rgba(6,9,7,0) 62%), linear-gradient(120deg, #0c1a12, #070d09)' }}
+      style={{ borderColor: 'rgba(47,224,138,.22)', background: 'radial-gradient(600px 300px at 90% 0%, rgba(47,224,138,.16), rgba(6,9,7,0) 62%), linear-gradient(120deg, var(--panel-bg2), var(--panel-bg))' }}
     >
       <div
         className="pointer-events-none absolute inset-0"
@@ -242,19 +242,19 @@ function InviteHero({ link, code, rate }: { link: string; code: string; rate: nu
           <span className="font-mono text-[10px] tracking-[0.18em] text-[#6ee7b7]">{rate}% OF FIRST WIN · FOREVER</span>
         </span>
 
-        <div className="mt-4 font-heading text-[clamp(26px,3.4vw,38px)] leading-none font-bold text-[#f2fff8]">
+        <div className="mt-4 font-heading text-[clamp(26px,3.4vw,38px)] leading-none font-bold text-text">
           RECRUIT YOUR
           <br />
           <span className="text-green" style={{ textShadow: '0 0 30px rgba(47,224,138,.45)' }}>SQUAD</span>
         </div>
-        <p className="my-3 max-w-[380px] text-[13.5px] leading-[1.5] text-[#8fa89b]">
+        <p className="my-3 max-w-[380px] text-[13.5px] leading-[1.5] text-muted">
           Every friend who joins on your link pays you {rate}% of their first winning game. Their bets and payouts stay untouched.
         </p>
 
         <div className="mt-auto flex flex-col gap-2.5">
-          <div className="flex items-center gap-2.5 rounded-[11px] border p-[12px_14px]" style={{ borderColor: 'rgba(47,224,138,.16)', background: '#08110b' }}>
+          <div className="flex items-center gap-2.5 rounded-[11px] border p-[12px_14px]" style={{ borderColor: 'rgba(47,224,138,.16)', background: 'var(--panel-bg)' }}>
             <Icon name="key" size={18} className="text-muted" />
-            <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-[#cfe4d8]">{link}</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-text">{link}</span>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -269,7 +269,7 @@ function InviteHero({ link, code, rate }: { link: string; code: string; rate: nu
               title="Share on X"
               onClick={() => share(`https://x.com/intent/tweet?text=${encodeURIComponent(pitch)}&url=${encodeURIComponent(link)}`)}
               className="grid w-[46px] flex-none cursor-pointer place-items-center rounded-[10px] border py-3 text-[#6ee7b7]"
-              style={{ borderColor: 'rgba(47,224,138,.22)', background: '#0c150f' }}
+              style={{ borderColor: 'rgba(47,224,138,.22)', background: 'var(--panel-bg2)' }}
             >
               <Share2 size={19} />
             </button>
@@ -277,13 +277,13 @@ function InviteHero({ link, code, rate }: { link: string; code: string; rate: nu
               title="Telegram"
               onClick={() => share(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(pitch)}`)}
               className="grid w-[46px] flex-none cursor-pointer place-items-center rounded-[10px] border py-3 text-[#6ee7b7]"
-              style={{ borderColor: 'rgba(47,224,138,.22)', background: '#0c150f' }}
+              style={{ borderColor: 'rgba(47,224,138,.22)', background: 'var(--panel-bg2)' }}
             >
               <Send size={19} />
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2.5 pt-1">
-            <span className="font-mono text-[10.5px] tracking-[0.14em] text-[#8fbfa6]">OR CODE</span>
+            <span className="font-mono text-[10.5px] tracking-[0.14em] text-muted">OR CODE</span>
             <button
               onClick={() => void copy(code, 'code')}
               className="cursor-pointer rounded-lg border border-dashed px-3.5 py-1.5 font-mono text-sm font-semibold tracking-[0.2em] text-green"

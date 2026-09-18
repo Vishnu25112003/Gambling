@@ -52,7 +52,7 @@ export function AccountMenu() {
         <Avatar src={user.avatarUrl} address={user.walletAddress} name={user.username ?? undefined} size={30} radiusRatio={0.27} />
         <span className="flex flex-col items-start leading-[1.1]">
           <span className="max-w-[130px] truncate font-mono text-[12.5px]">{label}</span>
-          {rank && <span className="mt-[3px] font-mono text-[9px] tracking-[0.14em] text-[#8fbfa6]">{rank}</span>}
+          {rank && <span className="mt-[3px] font-mono text-[9px] tracking-[0.14em] text-muted">{rank}</span>}
         </span>
         <ChevronDown size={14} color="var(--faint)" className={open ? 'rotate-180 transition' : 'transition'} />
       </button>
@@ -61,7 +61,7 @@ export function AccountMenu() {
         <div
           role="menu"
           className="absolute top-[calc(100%+8px)] right-0 z-50 w-[262px] max-w-[84vw] overflow-hidden rounded-[14px] border shadow-[0_24px_60px_rgba(0,0,0,.6)]"
-          style={{ borderColor: 'rgba(47,224,138,.22)', background: '#0a120d' }}
+          style={{ borderColor: 'rgba(47,224,138,.22)', background: 'var(--panel-bg)' }}
         >
           <AccountHeader user={user} balance={balance} rank={rank} />
 
@@ -117,10 +117,10 @@ function AccountHeader({ user, balance, rank }: { user: AppUser; balance: Balanc
       <div className="flex items-center gap-[11px]">
         <Avatar src={user.avatarUrl} address={user.walletAddress} name={user.username ?? undefined} size={38} radiusRatio={0.28} />
         <div className="min-w-0">
-          <div className="truncate font-heading text-[15px] font-bold text-[#eafff3]">
+          <div className="truncate font-heading text-[15px] font-bold text-text">
             {user.username || 'Unnamed player'}
           </div>
-          <div className="mt-[3px] font-mono text-[10px] tracking-[0.1em] text-[#8fbfa6]">
+          <div className="mt-[3px] font-mono text-[10px] tracking-[0.1em] text-muted">
             {rank ? `${rank} · ` : ''}
             {user.gamesPlayed} GAMES
           </div>
@@ -137,9 +137,9 @@ function AccountHeader({ user, balance, rank }: { user: AppUser; balance: Balanc
         onClick={() => void copy()}
         title="Copy wallet address"
         className="mt-3 flex w-full cursor-pointer items-start gap-2 rounded-[9px] border p-2.5 text-left"
-        style={{ borderColor: 'rgba(47,224,138,.14)', background: '#08110b' }}
+        style={{ borderColor: 'rgba(47,224,138,.14)', background: 'var(--panel-bg)' }}
       >
-        <span className="min-w-0 flex-1 font-mono text-[11px] leading-[1.45] break-all text-[#a9c3b6]">
+        <span className="min-w-0 flex-1 font-mono text-[11px] leading-[1.45] break-all text-muted">
           {user.walletAddress}
         </span>
         <span className="shrink-0 font-mono text-[11px] font-bold text-green">
@@ -157,8 +157,8 @@ function AccountHeader({ user, balance, rank }: { user: AppUser; balance: Balanc
 
 function Figure({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="flex-1 rounded-[9px] border p-[8px_10px]" style={{ borderColor: 'rgba(47,224,138,.1)', background: '#0d160f' }}>
-      <div className="font-mono text-[9px] tracking-[0.14em] text-[#8fbfa6]">{label}</div>
+    <div className="flex-1 rounded-[9px] border p-[8px_10px]" style={{ borderColor: 'rgba(47,224,138,.1)', background: 'var(--panel-bg3)' }}>
+      <div className="font-mono text-[9px] tracking-[0.14em] text-muted">{label}</div>
       <div className="mt-0.5 font-mono text-[12.5px]" style={{ color }}>
         {value}
       </div>
@@ -182,7 +182,7 @@ function MenuLink({
       role="menuitem"
       to={to}
       onClick={onClick}
-      className="flex items-center gap-[11px] rounded-[9px] px-3 py-2.5 font-heading text-[14px] font-semibold text-[#cfe4d8] transition hover:bg-[#101b13]"
+      className="flex items-center gap-[11px] rounded-[9px] px-3 py-2.5 font-heading text-[14px] font-semibold text-text transition hover:bg-line2"
     >
       <Icon name={icon} size={16} className="text-green" />
       <span className="min-w-0 flex-1">{label}</span>

@@ -20,7 +20,7 @@ function StatCard({ stat }: { stat: Stat }) {
   return (
     <div
       className="relative overflow-hidden rounded-[14px] border p-[18px]"
-      style={{ borderColor: 'var(--panel-border-soft)', background: 'linear-gradient(180deg, #0c130e, #090e0a)' }}
+      style={{ borderColor: 'var(--panel-border-soft)', background: 'linear-gradient(180deg, var(--panel-bg2), var(--panel-bg))' }}
     >
       <span className="absolute top-0 right-0 left-0 h-[2px]" style={{ background: stat.color ?? 'var(--panel-border)' }} />
       <div className="mb-2 font-mono text-[10.5px] font-semibold tracking-[0.14em] text-muted">

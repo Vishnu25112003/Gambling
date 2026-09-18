@@ -55,8 +55,8 @@ function OpenBetCard({ bet }: { bet: (typeof MOCK_OPEN_BETS)[number] }) {
             {gameLabel(bet.gameType).charAt(0)}
           </span>
           <div className="min-w-0">
-            <div className="font-heading text-[15px] font-bold text-[#eafff3]">{gameLabel(bet.gameType)}</div>
-            <div className="mt-0.5 font-mono text-[10.5px] text-[#a9c3b6]">{bet.meta}</div>
+            <div className="font-heading text-[15px] font-bold text-text">{gameLabel(bet.gameType)}</div>
+            <div className="mt-0.5 font-mono text-[10.5px] text-muted">{bet.meta}</div>
           </div>
         </div>
         <StatusChip bg="rgba(240,180,41,.12)" fg="#f0b429">
@@ -64,12 +64,12 @@ function OpenBetCard({ bet }: { bet: (typeof MOCK_OPEN_BETS)[number] }) {
         </StatusChip>
       </div>
       <div className="flex gap-2">
-        <div className="flex-1 rounded-[9px] border p-[9px_11px]" style={{ borderColor: 'rgba(47,224,138,.1)', background: '#0a140e' }}>
-          <div className="font-mono text-[9px] tracking-[0.14em] text-[#8fbfa6]">STAKE</div>
-          <div className="mt-0.5 font-mono text-[13px] text-[#eafff3]">{formatSol(bet.stake)} SOL</div>
+        <div className="flex-1 rounded-[9px] border p-[9px_11px]" style={{ borderColor: 'rgba(47,224,138,.1)', background: 'var(--panel-bg)' }}>
+          <div className="font-mono text-[9px] tracking-[0.14em] text-muted">STAKE</div>
+          <div className="mt-0.5 font-mono text-[13px] text-text">{formatSol(bet.stake)} SOL</div>
         </div>
-        <div className="flex-1 rounded-[9px] border p-[9px_11px]" style={{ borderColor: 'rgba(47,224,138,.1)', background: '#0a140e' }}>
-          <div className="font-mono text-[9px] tracking-[0.14em] text-[#8fbfa6]">TO WIN</div>
+        <div className="flex-1 rounded-[9px] border p-[9px_11px]" style={{ borderColor: 'rgba(47,224,138,.1)', background: 'var(--panel-bg)' }}>
+          <div className="font-mono text-[9px] tracking-[0.14em] text-muted">TO WIN</div>
           <div className="mt-0.5 font-mono text-[13px] text-green">{formatSol(bet.toWin)} SOL</div>
         </div>
       </div>
@@ -107,7 +107,7 @@ export function MyBets() {
   if (!isAuthenticated) {
     return (
       <>
-        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">MY BETS</h1>
+        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-text">MY BETS</h1>
         <p className="mb-5 text-sm text-muted">{SUBTITLE}</p>
         <ConnectWalletPlaceholder what="your open and settled bets" icon="ticket" />
       </>
@@ -124,12 +124,12 @@ export function MyBets() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3.5">
         <div>
-          <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">MY BETS</h1>
+          <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-text">MY BETS</h1>
           <p className="text-sm text-muted">{SUBTITLE}</p>
         </div>
         <button
           onClick={() => navigate('/dashboard/games')}
-          className="flex cursor-pointer items-center gap-2.5 rounded-[10px] border px-5 py-3 font-heading text-[13.5px] font-bold tracking-[0.06em] text-[#eafff3]"
+          className="flex cursor-pointer items-center gap-2.5 rounded-[10px] border px-5 py-3 font-heading text-[13.5px] font-bold tracking-[0.06em] text-text"
           style={{ borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.08)' }}
         >
           <Icon name="gamepad" size={19} className="text-green" />
@@ -195,12 +195,12 @@ export function MyBets() {
               />
               {pageRows.map((row) => (
                 <TableRow key={row.id} template={TEMPLATE}>
-                  <span className="truncate font-heading text-[13.5px] font-semibold text-[#e8f2ec]">
+                  <span className="truncate font-heading text-[13.5px] font-semibold text-text">
                     {gameLabel(row.gameType)}
                   </span>
-                  <span className="font-mono text-[11.5px] text-[#a9c3b6]">{formatDate(row.when)}</span>
-                  <span className="text-right font-mono text-[11.5px] text-[#9fb6a9]">{formatSol(row.stake)}</span>
-                  <span className="text-right font-mono text-[11.5px] text-[#9fb6a9]">{formatSol(row.payout)}</span>
+                  <span className="font-mono text-[11.5px] text-muted">{formatDate(row.when)}</span>
+                  <span className="text-right font-mono text-[11.5px] text-muted">{formatSol(row.stake)}</span>
+                  <span className="text-right font-mono text-[11.5px] text-muted">{formatSol(row.payout)}</span>
                   <span
                     className="text-right font-mono text-[11.5px]"
                     style={{ color: Number(row.net) > 0 ? '#2fe08a' : Number(row.net) < 0 ? '#ef5350' : '#9fb6a9' }}
@@ -217,7 +217,7 @@ export function MyBets() {
             </TableScroll>
 
             <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3.5">
-              <span className="font-mono text-[10.5px] text-[#8fbfa6]">
+              <span className="font-mono text-[10.5px] text-muted">
                 {filtered.length} BET{filtered.length === 1 ? '' : 'S'} · PAGE {page} OF {totalPages}
               </span>
               <div className="flex gap-2">

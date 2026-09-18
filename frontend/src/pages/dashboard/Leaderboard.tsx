@@ -10,7 +10,7 @@ export function Leaderboard() {
 
   return (
     <>
-      <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">
+      <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-text">
         LEADERBOARD
       </h1>
       <p className="mb-5 text-sm text-muted">Ranked by lifetime net profit — season 01.</p>

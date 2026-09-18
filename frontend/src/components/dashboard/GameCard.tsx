@@ -77,13 +77,13 @@ export function GameCard({
           >
             {tag}
           </span>
-          <span className="rounded-[5px] px-2 py-1 font-mono text-[9.5px] text-[#9fb6a9]" style={{ background: 'rgba(4,20,12,.6)' }}>
+          <span className="rounded-[5px] px-2 py-1 font-mono text-[9.5px] text-muted" style={{ background: 'rgba(4,20,12,.6)' }}>
             {players}
           </span>
         </div>
         <div className="relative">
           <div
-            className="font-heading text-[clamp(22px,2.4vw,30px)] leading-[.95] font-bold tracking-[-0.01em] text-[#f2fff8]"
+            className="font-heading text-[clamp(22px,2.4vw,30px)] leading-[.95] font-bold tracking-[-0.01em] text-text"
             style={{ textShadow: '0 4px 24px rgba(0,0,0,.6)' }}
           >
             {game.name}
@@ -96,7 +96,7 @@ export function GameCard({
         {lobby && (
           <div
             className="flex items-center gap-[7px] rounded-lg border px-2.5 py-2"
-            style={{ background: '#0e1710', borderColor: 'rgba(47,224,138,.1)' }}
+            style={{ background: 'var(--row-hover)', borderColor: 'rgba(47,224,138,.1)' }}
           >
             <Icon name="bolt" size={17} className="text-green" />
             <span className="font-mono text-[11px] tracking-[0.1em] text-[#6ee7b7]">INSTANT PAYOUT</span>
