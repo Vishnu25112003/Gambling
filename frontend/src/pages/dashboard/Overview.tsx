@@ -211,7 +211,7 @@ export function Overview() {
               style={{
                 borderColor: 'rgba(47,224,138,.22)',
                 background:
-                  'repeating-linear-gradient(135deg, rgba(47,224,138,.08) 0 10px, rgba(6,9,7,0) 10px 20px), #08110b',
+                  'repeating-linear-gradient(135deg, rgba(47,224,138,.08) 0 10px, rgba(6,9,7,0) 10px 20px), var(--panel-bg)',
               }}
             >
               <SceneCanvas
