@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import { useDismissable } from '../../hooks/useDismissable';
 import { useNotifications, type Notification } from '../../hooks/useNotifications';
 import { formatRelative } from '../../lib/format';
@@ -14,7 +13,7 @@ import { Spinner } from '../shared/ui';
  * only what has arrived since this browser last opened the panel.
  */
 export function NotificationsMenu({ enabled }: { enabled: boolean }) {
-  const { open, toggle, close, ref } = useDismissable<HTMLDivElement>();
+  const { open, toggle, ref } = useDismissable<HTMLDivElement>();
   const { notifications, unreadCount, loading, markAllRead, reload } = useNotifications(enabled);
 
   // Refetch on open, so the panel never shows a stale feed.
@@ -48,9 +47,8 @@ export function NotificationsMenu({ enabled }: { enabled: boolean }) {
         aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         aria-expanded={open}
         aria-haspopup="menu"
-        className={`relative flex size-[42px] cursor-pointer items-center justify-center rounded-[11px] border bg-card transition ${
-          open ? 'border-green-solid/40 text-green' : 'border-line text-muted hover:text-text'
-        }`}
+        className="relative grid size-11 cursor-pointer place-items-center rounded-[11px] border transition"
+        style={{ borderColor: open ? 'rgba(47,224,138,.34)' : 'var(--panel-border-soft)', background: 'var(--panel-bg2)', color: open ? 'var(--green)' : 'var(--muted)' }}
       >
         <BellIcon />
         {unreadCount > 0 && (
@@ -63,17 +61,22 @@ export function NotificationsMenu({ enabled }: { enabled: boolean }) {
       {open && (
         <div
           role="menu"
-          className="absolute top-[calc(100%+8px)] right-0 z-50 w-[min(92vw,340px)] overflow-hidden rounded-[14px] border border-line bg-bg2 shadow-[0_18px_44px_rgba(0,0,0,0.34)]"
+          className="absolute top-[calc(100%+8px)] right-0 z-50 w-[320px] max-w-[86vw] overflow-hidden rounded-[14px] border shadow-[0_24px_60px_rgba(0,0,0,.6)]"
+          style={{ borderColor: 'rgba(47,224,138,.22)', background: '#0a120d' }}
         >
-          <div className="flex items-center justify-between border-b border-line2 px-4 py-3">
-            <span className="font-heading text-[13.5px] font-bold">Notifications</span>
-            <Link
-              to="/dashboard/transactions"
-              onClick={close}
-              className="text-[12px] font-semibold text-green hover:underline"
+          <div
+            className="flex items-center justify-between gap-2.5 p-[13px_14px]"
+            style={{ borderBottom: '1px solid rgba(47,224,138,.1)', background: 'linear-gradient(160deg, rgba(47,224,138,.1), rgba(6,9,7,0))' }}
+          >
+            <span className="font-heading text-[14px] font-bold tracking-[0.06em] text-[#eafff3]">
+              NOTIFICATIONS
+            </span>
+            <button
+              onClick={() => markAllRead()}
+              className="cursor-pointer border-0 bg-transparent font-mono text-[10px] tracking-[0.1em] text-green"
             >
-              View all
-            </Link>
+              MARK ALL READ
+            </button>
           </div>
 
           {loading && notifications.length === 0 ? (

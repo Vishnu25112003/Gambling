@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { Coins, Dices, Frown, PartyPopper, Trophy, Users } from 'lucide-react';
+import { Coins, Frown, PartyPopper, Trophy } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { tokenStore } from '../../api/client';
-import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
+import { Button, Card, PageTitle } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
-import { GameSetupWizard, GameJoinByCode, GameWaitingRoom, type GameSetupConfig } from '../../components/shared/gameSetup';
+import { GameSetupWizard, GameJoinByCode, GameWaitingRoom, GameLobby, type GameSetupConfig } from '../../components/shared/gameSetup';
 import { StakeAmountStep } from '../../components/shared/gameSetup/StakeAmountStep';
 import { formatSol } from '../../lib/format';
 import { gameVisual } from '../../lib/gameVisuals';
@@ -541,69 +541,23 @@ function CoinFlipBoardInner() {
   // --- Lobby ---
   if (page === 'lobby') {
     return (
-      <>
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <PageTitle title="Coin Flip" subtitle="Two ways to play — jump into a random match, or join a friend." />
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setPage('join_code')} disabled={!connected}>
-              <Users className="mr-1.5 inline size-4" />
-              Join with Code
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleCreateGame} disabled={!connected}>
-              + Create Game
-            </Button>
-          </div>
-        </div>
-
-        {/*
-          Random Play (a public, auto-populated list) and Friends Play (a
-          private code you enter) are two distinct discovery modes — see Rule
-          4. They used to share one screen, with "Join with Code" tucked
-          inside/above the random list as if it were a variant of it. Giving
-          each its own header-level action keeps them structurally separate:
-          this section is Random Play only, and always is.
-        */}
-        <h2 className="mb-3 flex items-center gap-1.5 text-xs font-bold tracking-wide text-muted uppercase">
-          <Dices className="size-3.5" />
-          Random Play — Open Matches
-        </h2>
-
-        {!connected ? (
-          <Card className="px-6 py-12 text-center">
-            <Spinner className="mb-3 size-5" />
-            <p className="text-sm text-muted">Connecting…</p>
-          </Card>
-        ) : matches.length === 0 ? (
-          <Card className="px-6 py-12 text-center">
-            <Coins className="mx-auto mb-3 size-8 text-muted" />
-
-            <p className="mb-1 text-sm font-bold">No open random matches right now</p>
-            <p className="text-xs text-muted">
-              Create one, or use "Join with Code" above if a friend sent you one.
-            </p>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {matches.map((m) => (
-              <Card key={m.matchId} className="flex items-center justify-between px-5 py-3">
-                <div>
-                  <p className="text-sm font-bold">{m.hostName}</p>
-                  <p className="text-xs text-muted">
-                    {m.rounds} rounds · {m.betMode === 'fixed' ? 'Fixed' : 'Free'} bet
-                    {m.betMode === 'free' && m.minBet ? ` · min ${formatSol(m.minBet)}` : ''}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-green">{formatSol(m.stake)} SOL</span>
-                  <Button variant="solid" size="sm" onClick={() => handleJoinRandom(m.matchId)}>
-                    Join
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </>
+      <GameLobby
+        title="Coin Flip"
+        subtitle="Two ways to play — jump into a random match, or join a friend."
+        connected={connected}
+        error={error}
+        matches={matches.map((m) => ({
+          matchId: m.matchId,
+          hostName: m.hostName,
+          meta: `${m.rounds} rounds · ${m.betMode === 'fixed' ? 'Fixed' : 'Free'} bet${
+            m.betMode === 'free' && m.minBet ? ` · min ${formatSol(m.minBet)}` : ''
+          } · ${formatSol(m.stake)} SOL`,
+        }))}
+        onCreate={handleCreateGame}
+        onJoinByCode={() => setPage('join_code')}
+        onJoinMatch={handleJoinRandom}
+        onRefresh={() => socketRef.current?.emit(CF.LIST_MATCHES, { gameType: 'coin-flip' })}
+      />
     );
   }
 

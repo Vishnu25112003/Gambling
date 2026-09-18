@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { tokenStore } from '../../api/client';
 import { Button, Card, PageTitle, Spinner } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
-import { GameSetupWizard, GameJoinByCode, GameWaitingRoom } from '../../components/shared/gameSetup';
+import { GameSetupWizard, GameJoinByCode, GameWaitingRoom, GameLobby } from '../../components/shared/gameSetup';
 import { StakeAmountStep } from '../../components/shared/gameSetup/StakeAmountStep';
 import { formatSol } from '../../lib/format';
 import { mineCatcherSetupConfig } from './mineCatcherSetupConfig';
@@ -519,57 +519,26 @@ export function MineCatcherBoard() {
   // --- Render ---
 
   if (page === 'lobby') {
+    const boardSizeLabel = (size: number) =>
+      size === 25 ? '5×5' : size === 49 ? '7×7' : size === 81 ? '9×9' : '10×10';
     return (
       <GameShell title="Mine Catcher">
-        <PageTitle title="Mine Catcher" subtitle="1v1 mine-hiding race" />
-        {error && (
-          <div className="mx-auto mb-4 max-w-sm rounded-[10px] border border-red/30 bg-red/10 px-4 py-2 text-center text-xs text-red">
-            {error}
-          </div>
-        )}
-
-        <div className="mx-auto max-w-sm space-y-4">
-          <Button variant="primary" size="lg" className="w-full" onClick={() => setPage('create')}>
-            Create Match
-          </Button>
-
-          <Button variant="ghost" size="sm" className="w-full" onClick={() => setPage('join_code')}>
-            Join by Room Code
-          </Button>
-
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-muted">Random Play</p>
-            <button
-              type="button"
-              onClick={handleRefresh}
-              className="text-xs text-green hover:underline"
-            >
-              Refresh
-            </button>
-          </div>
-
-          {listedMatches.length === 0 && (
-            <Card className="px-4 py-8 text-center">
-              <p className="text-sm text-muted">No open matches. Create one!</p>
-            </Card>
-          )}
-
-          {listedMatches.map((m) => (
-            <Card key={m.matchId} className="flex items-center justify-between px-4 py-3">
-              <div>
-                <p className="text-sm font-bold">{m.hostName}</p>
-                <p className="text-xs text-muted">
-                  {m.boardSize === 25 ? '5×5' : m.boardSize === 49 ? '7×7' : m.boardSize === 81 ? '9×9' : '10×10'} ·{' '}
-                  {m.betMode === 'fixed' ? 'Fixed' : 'Free'} bet
-                  {m.betMode === 'free' && m.minBet ? ` · min ${formatSol(m.minBet)}` : ''} · {formatSol(m.stake)} SOL
-                </p>
-              </div>
-              <Button variant="primary" size="sm" onClick={() => handleJoin(m.matchId)}>
-                Join
-              </Button>
-            </Card>
-          ))}
-        </div>
+        <GameLobby
+          title="Mine Catcher"
+          subtitle="1v1 mine-hiding race"
+          error={error}
+          matches={listedMatches.map((m) => ({
+            matchId: m.matchId,
+            hostName: m.hostName,
+            meta: `${boardSizeLabel(m.boardSize)} · ${m.betMode === 'fixed' ? 'Fixed' : 'Free'} bet${
+              m.betMode === 'free' && m.minBet ? ` · min ${formatSol(m.minBet)}` : ''
+            } · ${formatSol(m.stake)} SOL`,
+          }))}
+          onCreate={() => setPage('create')}
+          onJoinByCode={() => setPage('join_code')}
+          onJoinMatch={handleJoin}
+          onRefresh={handleRefresh}
+        />
       </GameShell>
     );
   }
