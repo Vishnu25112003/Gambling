@@ -240,7 +240,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         onClick={onToggle}
         title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        className={`flex min-h-[42px] cursor-pointer items-center gap-2.5 rounded-[9px] border font-heading text-[12.5px] font-semibold tracking-[0.1em] text-[#8fa89b] transition hover:text-[#eafff3] ${
+        className={`flex min-h-[42px] cursor-pointer items-center gap-2.5 rounded-[9px] border font-heading text-[12.5px] font-semibold tracking-[0.1em] text-muted transition hover:text-text ${
           collapsed ? 'justify-center px-0' : 'px-3'
         }`}
         style={{ borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg2)' }}

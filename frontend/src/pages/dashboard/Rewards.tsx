@@ -54,7 +54,7 @@ function RakebackProgress({ wagered }: { wagered: number }) {
   return (
     <Panel>
       <PanelHeader title="RAKEBACK TIER" meta={`${wagered.toFixed(2)} SOL WAGERED`} />
-      <div className="relative h-2 overflow-hidden rounded-md border" style={{ background: '#0b1a12', borderColor: 'rgba(47,224,138,.14)' }}>
+      <div className="relative h-2 overflow-hidden rounded-md border" style={{ background: 'var(--panel-bg2)', borderColor: 'rgba(47,224,138,.14)' }}>
         <div className="h-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #0f7d4d, #35eb95)', boxShadow: '0 0 16px rgba(47,224,138,.5)' }} />
       </div>
       <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2.5">
@@ -73,7 +73,7 @@ function RakebackProgress({ wagered }: { wagered: number }) {
               <div className="font-heading text-[22px] font-bold" style={{ color: reached ? '#f7d774' : 'var(--text)' }}>
                 {t.pct}
               </div>
-              <div className="mt-[5px] font-mono text-[10.5px] text-[#a9c3b6]">{t.minWagered} SOL</div>
+              <div className="mt-[5px] font-mono text-[10.5px] text-muted">{t.minWagered} SOL</div>
               <div className="mt-2 font-mono text-[9.5px] tracking-[0.12em]" style={{ color: reached ? '#f7d774' : 'var(--faint)' }}>
                 {reached ? 'ACTIVE' : `${(t.minWagered - wagered).toFixed(1)} SOL TO GO`}
               </div>
@@ -113,11 +113,11 @@ function CrateCard({ crate }: { crate: (typeof MOCK_CRATES)[number] }) {
         </span>
       </div>
       <div>
-        <div className="font-heading text-[17px] font-bold tracking-[0.03em] text-[#eafff3]">{crate.name}</div>
+        <div className="font-heading text-[17px] font-bold tracking-[0.03em] text-text">{crate.name}</div>
         <p className="mt-1.5 text-[12.5px] leading-[1.5] text-muted">{crate.desc}</p>
       </div>
       <div className="flex items-center gap-2.5">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: '#0a1a11' }}>
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'var(--panel-bg2)' }}>
           <div className="h-full" style={{ width: `${pct}%`, background: claimable ? 'linear-gradient(90deg,#d69a0e,#f7d774)' : 'linear-gradient(90deg,#16a862,#35eb95)' }} />
         </div>
         <span className="font-mono text-[10.5px] text-muted">{crate.progress}/{crate.total}</span>
@@ -149,7 +149,7 @@ export function Rewards() {
   if (!isAuthenticated) {
     return (
       <>
-        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">REWARDS</h1>
+        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-text">REWARDS</h1>
         <p className="mb-5 text-sm text-muted">{SUBTITLE}</p>
         <ConnectWalletPlaceholder what="your rewards, streaks and rakeback" icon="gift" />
       </>
@@ -161,14 +161,14 @@ export function Rewards() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">REWARDS</h1>
+        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-text">REWARDS</h1>
         <p className="text-sm text-muted">{SUBTITLE}</p>
       </div>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
         <section
           className="relative flex min-w-0 flex-col overflow-hidden rounded-[18px] border p-[clamp(18px,2.4vw,26px)]"
-          style={{ borderColor: 'rgba(240,180,41,.24)', background: 'radial-gradient(600px 280px at 88% 0%, rgba(240,180,41,.18), rgba(6,9,7,0) 62%), linear-gradient(120deg, #16130a, #080c09)' }}
+          style={{ borderColor: 'rgba(240,180,41,.24)', background: 'radial-gradient(600px 280px at 88% 0%, rgba(240,180,41,.18), rgba(6,9,7,0) 62%), linear-gradient(120deg, var(--panel-bg2), var(--panel-bg))' }}
         >
           <div
             className="pointer-events-none absolute inset-0"
@@ -177,11 +177,11 @@ export function Rewards() {
           <div className="relative flex h-full flex-col">
             <span className="inline-flex w-fit items-center gap-2 rounded-[6px] border px-[11px] py-[5px]" style={{ borderColor: 'rgba(240,180,41,.32)', background: 'rgba(240,180,41,.14)' }}>
               <span className="size-1.5 rounded-full bg-[#f0b429]" style={{ animation: 'irPulse 1.8s infinite' }} />
-              <span className="font-mono text-[10px] tracking-[0.18em] text-[#f7d774]">READY TO CLAIM</span>
+              <span className="font-mono text-[10px] tracking-[0.18em] text-gold-bright">READY TO CLAIM</span>
             </span>
             <div className="mt-[18px] font-mono text-[10px] tracking-[0.18em] text-gold">UNCLAIMED BALANCE</div>
             <div className="mt-1.5 flex items-end gap-2.5">
-              <span className="font-heading text-[clamp(38px,5vw,58px)] leading-none font-bold text-[#f7d774]" style={{ textShadow: '0 0 34px rgba(240,180,41,.35)' }}>
+              <span className="font-heading text-[clamp(38px,5vw,58px)] leading-none font-bold text-gold-bright" style={{ textShadow: '0 0 34px rgba(240,180,41,.35)' }}>
                 {formatSol(MOCK_UNCLAIMED)}
               </span>
               <span className="pb-[7px] font-mono text-[14px] text-gold">SOL</span>
@@ -198,7 +198,7 @@ export function Rewards() {
                 CLAIM ALL
               </button>
               <button
-                className="flex flex-none cursor-pointer items-center gap-2 rounded-[10px] border px-[18px] py-[13px] font-heading text-[13.5px] font-bold tracking-[0.06em] text-[#f7d774]"
+                className="flex flex-none cursor-pointer items-center gap-2 rounded-[10px] border px-[18px] py-[13px] font-heading text-[13.5px] font-bold tracking-[0.06em] text-gold-bright"
                 style={{ borderColor: 'rgba(240,180,41,.26)', background: 'rgba(240,180,41,.06)' }}
               >
                 <History size={18} />
@@ -213,7 +213,7 @@ export function Rewards() {
             <div className="flex items-center justify-between gap-2.5">
               <div className="flex items-center gap-2.5">
                 <Flame size={20} className="text-green" />
-                <span className="font-heading text-[15px] font-bold tracking-[0.05em] text-[#eafff3]">DAILY STREAK</span>
+                <span className="font-heading text-[15px] font-bold tracking-[0.05em] text-text">DAILY STREAK</span>
               </div>
               <span className="font-mono text-[11px] text-[#6ee7b7]">
                 DAY {MOCK_STREAK.filter((d) => d.state !== 'locked').length} / {MOCK_STREAK.length}
@@ -235,7 +235,7 @@ export function Rewards() {
       <section>
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <h2 className="font-heading text-[20px] font-bold tracking-[0.05em] text-text">REWARD CRATES</h2>
-          <span className="font-mono text-[11px] text-[#8fbfa6]">SEASON 01</span>
+          <span className="font-mono text-[11px] text-muted">SEASON 01</span>
         </div>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-3.5">
           {MOCK_CRATES.map((c) => (
@@ -255,10 +255,10 @@ export function Rewards() {
               <TableRow key={c.id} template={CLAIMS_TEMPLATE}>
                 <span className="flex min-w-0 items-center gap-2.5">
                   <Icon name="gift" size={18} className="text-gold" />
-                  <span className="truncate font-heading text-[13.5px] font-semibold text-[#e8f2ec]">{c.name}</span>
+                  <span className="truncate font-heading text-[13.5px] font-semibold text-text">{c.name}</span>
                 </span>
-                <span className="font-mono text-[11.5px] text-[#a9c3b6]">{formatDate(c.when)}</span>
-                <span className="font-mono text-[11.5px] text-[#9fb6a9]">{c.source}</span>
+                <span className="font-mono text-[11.5px] text-muted">{formatDate(c.when)}</span>
+                <span className="font-mono text-[11.5px] text-muted">{c.source}</span>
                 <span className="text-right font-mono text-[12.5px] text-green">+{formatSol(c.amount)}</span>
               </TableRow>
             ))}

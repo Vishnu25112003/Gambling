@@ -24,7 +24,7 @@ export function Games() {
 
   return (
     <>
-      <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold tracking-[0.02em] text-[#f2fff8]">
+      <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold tracking-[0.02em] text-text">
         GAME LOBBY
       </h1>
       <p className="mb-5 text-sm text-muted">

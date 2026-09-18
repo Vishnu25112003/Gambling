@@ -62,13 +62,13 @@ export function NotificationsMenu({ enabled }: { enabled: boolean }) {
         <div
           role="menu"
           className="absolute top-[calc(100%+8px)] right-0 z-50 w-[320px] max-w-[86vw] overflow-hidden rounded-[14px] border shadow-[0_24px_60px_rgba(0,0,0,.6)]"
-          style={{ borderColor: 'rgba(47,224,138,.22)', background: '#0a120d' }}
+          style={{ borderColor: 'rgba(47,224,138,.22)', background: 'var(--panel-bg)' }}
         >
           <div
             className="flex items-center justify-between gap-2.5 p-[13px_14px]"
             style={{ borderBottom: '1px solid rgba(47,224,138,.1)', background: 'linear-gradient(160deg, rgba(47,224,138,.1), rgba(6,9,7,0))' }}
           >
-            <span className="font-heading text-[14px] font-bold tracking-[0.06em] text-[#eafff3]">
+            <span className="font-heading text-[14px] font-bold tracking-[0.06em] text-text">
               NOTIFICATIONS
             </span>
             <button

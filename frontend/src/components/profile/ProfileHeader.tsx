@@ -36,7 +36,7 @@ export function ProfileHeader({
       className="relative flex flex-col items-center gap-5 overflow-hidden rounded-[20px] border p-[clamp(20px,3vw,30px)] sm:flex-row sm:items-start"
       style={{
         borderColor: 'rgba(47,224,138,.2)',
-        background: 'radial-gradient(600px 260px at 85% 0%, rgba(47,224,138,.18), rgba(6,9,7,0) 62%), linear-gradient(120deg, #0c1a12, #070d09)',
+        background: 'radial-gradient(600px 260px at 85% 0%, rgba(47,224,138,.18), rgba(6,9,7,0) 62%), linear-gradient(120deg, var(--panel-bg2), var(--panel-bg))',
       }}
     >
       <div

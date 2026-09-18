@@ -95,7 +95,7 @@ export function StatTile({
   return (
     <div
       className="relative overflow-hidden rounded-[14px] border p-[15px_16px]"
-      style={{ borderColor: 'var(--panel-border-soft)', background: 'linear-gradient(180deg, #0c130e, #090e0a)' }}
+      style={{ borderColor: 'var(--panel-border-soft)', background: 'linear-gradient(180deg, var(--panel-bg2), var(--panel-bg))' }}
     >
       <span className="absolute top-0 right-0 left-0 h-[2px]" style={{ background: color }} />
       <div className="flex items-center gap-2">

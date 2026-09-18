@@ -50,7 +50,7 @@ function VaultBalanceHero({
       className="relative min-w-0 overflow-hidden rounded-[18px] border p-[clamp(18px,2.4vw,26px)]"
       style={{
         borderColor: 'rgba(47,224,138,.22)',
-        background: 'radial-gradient(600px 300px at 90% 0%, rgba(47,224,138,.16), rgba(6,9,7,0) 62%), linear-gradient(120deg, #0c1a12, #070d09)',
+        background: 'radial-gradient(600px 300px at 90% 0%, rgba(47,224,138,.16), rgba(6,9,7,0) 62%), linear-gradient(120deg, var(--panel-bg2), var(--panel-bg))',
       }}
     >
       <div
@@ -66,28 +66,28 @@ function VaultBalanceHero({
           <span className="font-mono text-[10px] tracking-[0.18em] text-[#6ee7b7]">VAULT BALANCE</span>
         </div>
         <div className="mt-3 flex items-end gap-2.5">
-          <span className="font-heading text-[clamp(38px,5vw,58px)] leading-none font-bold text-[#f2fff8]" style={{ textShadow: '0 0 34px rgba(47,224,138,.3)' }}>
+          <span className="font-heading text-[clamp(38px,5vw,58px)] leading-none font-bold text-text" style={{ textShadow: '0 0 34px rgba(47,224,138,.3)' }}>
             {formatSol(total)}
           </span>
           <span className="pb-[7px] font-mono text-[14px] text-[#6ee7b7]">SOL</span>
         </div>
-        <div className="mt-5 flex h-2.5 overflow-hidden rounded-md border" style={{ background: '#0b1a12', borderColor: 'rgba(47,224,138,.16)' }}>
+        <div className="mt-5 flex h-2.5 overflow-hidden rounded-md border" style={{ background: 'var(--panel-bg2)', borderColor: 'rgba(47,224,138,.16)' }}>
           <div className="h-full" style={{ width: `${availPct}%`, background: 'linear-gradient(90deg, #0f7d4d, #35eb95)' }} />
           <div className="h-full" style={{ width: `${100 - availPct}%`, background: 'linear-gradient(90deg, #8a6410, #f0b429)' }} />
         </div>
         <div className="mt-3.5 flex flex-wrap gap-4.5">
           <span className="flex items-center gap-2">
             <span className="size-2 rounded-sm bg-[#35eb95]" />
-            <span className="font-mono text-[11.5px] text-[#cfe4d8]">{formatSol(available)} AVAILABLE</span>
+            <span className="font-mono text-[11.5px] text-text">{formatSol(available)} AVAILABLE</span>
           </span>
           <span className="flex items-center gap-2">
             <span className="size-2 rounded-sm bg-[#f0b429]" />
-            <span className="font-mono text-[11.5px] text-[#cfe4d8]">{formatSol(locked)} IN PLAY</span>
+            <span className="font-mono text-[11.5px] text-text">{formatSol(locked)} IN PLAY</span>
           </span>
         </div>
-        <div className="mt-5 flex items-center gap-2.5 rounded-[10px] border p-[10px_12px]" style={{ background: '#08110b', borderColor: 'rgba(47,224,138,.12)' }}>
+        <div className="mt-5 flex items-center gap-2.5 rounded-[10px] border p-[10px_12px]" style={{ background: 'var(--panel-bg)', borderColor: 'rgba(47,224,138,.12)' }}>
           <Icon name="key" size={17} className="text-muted" />
-          <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-[#a9c3b6]">
+          <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-muted">
             TREASURY {treasury ? shortAddress(treasury, 6) : 'not configured'}
           </span>
           {treasury && (
@@ -129,7 +129,7 @@ function AmountEditor({
 }) {
   return (
     <>
-      <div className="mt-[18px] flex items-center gap-2.5 rounded-[11px] border p-3.5" style={{ borderColor: 'rgba(47,224,138,.18)', background: '#08110b' }}>
+      <div className="mt-[18px] flex items-center gap-2.5 rounded-[11px] border p-3.5" style={{ borderColor: 'rgba(47,224,138,.18)', background: 'var(--panel-bg)' }}>
         <input
           type="number"
           min="0"
@@ -137,14 +137,14 @@ function AmountEditor({
           value={amount}
           onChange={(e) => onAmountChange(e.target.value)}
           aria-label="Amount in SOL"
-          className="min-w-0 flex-1 border-0 bg-transparent font-heading text-[26px] font-bold text-[#eafff3] outline-none"
+          className="min-w-0 flex-1 border-0 bg-transparent font-heading text-[26px] font-bold text-text outline-none"
         />
-        <span className="font-mono text-xs text-[#8fbfa6]">SOL</span>
+        <span className="font-mono text-xs text-muted">SOL</span>
         <span className="flex-1" />
         <button
           onClick={() => onAmountChange('')}
           title="Clear"
-          className="grid cursor-pointer place-items-center border-0 bg-transparent text-[#8fbfa6]"
+          className="grid cursor-pointer place-items-center border-0 bg-transparent text-muted"
         >
           <Delete size={19} />
         </button>
@@ -155,8 +155,8 @@ function AmountEditor({
           <button
             key={c.label}
             onClick={() => onAmountChange(c.value)}
-            className="flex-1 basis-[70px] cursor-pointer rounded-lg border px-3 py-2.5 font-mono text-xs text-[#cfe4d8] transition hover:text-[#eafff3]"
-            style={{ borderColor: 'rgba(47,224,138,.16)', background: '#0d160f' }}
+            className="flex-1 basis-[70px] cursor-pointer rounded-lg border px-3 py-2.5 font-mono text-xs text-text transition hover:text-text"
+            style={{ borderColor: 'rgba(47,224,138,.16)', background: 'var(--panel-bg3)' }}
           >
             {c.label}
           </button>
@@ -173,7 +173,7 @@ function AmountEditor({
         {busy ? 'WORKING…' : ctaLabel}
       </button>
 
-      <div className="mt-3 flex justify-between gap-2.5 font-mono text-[10.5px] text-[#8fbfa6]">
+      <div className="mt-3 flex justify-between gap-2.5 font-mono text-[10.5px] text-muted">
         <span>{note}</span>
         <span>SETTLES IN ~2s</span>
       </div>
@@ -263,12 +263,12 @@ function DepositPanel({ hidden, onDone }: { hidden: boolean; onDone: () => Promi
 
   return (
     <div hidden={hidden} className="flex flex-1 flex-col">
-      <div className="font-heading text-[17px] font-bold tracking-[0.05em] text-[#eafff3]">Deposit</div>
-      <p className="mt-[7px] text-[12.5px] leading-[1.5] text-[#a9c3b6]">
+      <div className="font-heading text-[17px] font-bold tracking-[0.05em] text-text">Deposit</div>
+      <p className="mt-[7px] text-[12.5px] leading-[1.5] text-muted">
         {info?.treasuryAddress ? (
           <>
             Sends to treasury{' '}
-            <span className="font-mono text-[#cfe4d8]">{shortAddress(info.treasuryAddress, 6)}</span>.
+            <span className="font-mono text-text">{shortAddress(info.treasuryAddress, 6)}</span>.
           </>
         ) : (
           <span className="text-red">Treasury is not configured on the server.</span>
@@ -323,8 +323,8 @@ function WithdrawPanel({ hidden, onDone }: { hidden: boolean; onDone: () => Prom
 
   return (
     <div hidden={hidden} className="flex flex-1 flex-col">
-      <div className="font-heading text-[17px] font-bold tracking-[0.05em] text-[#eafff3]">Withdraw</div>
-      <p className="mt-[7px] text-[12.5px] leading-[1.5] text-[#a9c3b6]">
+      <div className="font-heading text-[17px] font-bold tracking-[0.05em] text-text">Withdraw</div>
+      <p className="mt-[7px] text-[12.5px] leading-[1.5] text-muted">
         Goes to the wallet you signed in with. The Solana network fee comes out of the amount you receive.
       </p>
       <AmountEditor
@@ -394,9 +394,9 @@ function VaultActivity() {
             <TableRow key={v.id} template={template}>
               <span className="flex items-center gap-2.5">
                 <Icon name={ACTIVITY_ICON[v.type]} size={18} className="text-green" />
-                <span className="font-heading text-[13.5px] font-semibold text-[#e8f2ec]">{ledgerLabel(v.type)}</span>
+                <span className="font-heading text-[13.5px] font-semibold text-text">{ledgerLabel(v.type)}</span>
               </span>
-              <span className="font-mono text-[11.5px] text-[#a9c3b6]">{formatDate(v.timestamp)}</span>
+              <span className="font-mono text-[11.5px] text-muted">{formatDate(v.timestamp)}</span>
               <span>
                 <StatusChip bg={STATUS_CHIP[v.status].bg} fg={STATUS_CHIP[v.status].fg}>
                   {v.status}
@@ -434,7 +434,7 @@ export function Escrow() {
   if (!isAuthenticated) {
     return (
       <>
-        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">ESCROW VAULT</h1>
+        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-text">ESCROW VAULT</h1>
         <p className="mb-5 text-sm text-muted">{SUBTITLE}</p>
         <ConnectWalletPlaceholder what="your balance, deposits and withdrawals" icon="lockbox" />
       </>
@@ -444,7 +444,7 @@ export function Escrow() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-[#f2fff8]">ESCROW VAULT</h1>
+        <h1 className="mt-1 mb-1.5 font-heading text-[clamp(26px,3.4vw,40px)] font-bold text-text">ESCROW VAULT</h1>
         <p className="text-sm text-muted">{SUBTITLE}</p>
       </div>
 
@@ -502,13 +502,13 @@ export function Escrow() {
                     {gameLabel(b.gameType).charAt(0)}
                   </span>
                   <div className="min-w-0 flex-1 basis-[160px]">
-                    <div className="font-heading text-[14px] font-semibold text-[#e8f2ec]">{gameLabel(b.gameType)}</div>
-                    <div className="mt-0.5 font-mono text-[10.5px] text-[#a9c3b6]">{b.meta}</div>
+                    <div className="font-heading text-[14px] font-semibold text-text">{gameLabel(b.gameType)}</div>
+                    <div className="mt-0.5 font-mono text-[10.5px] text-muted">{b.meta}</div>
                   </div>
                   <StatusChip bg="rgba(240,180,41,.12)" fg="#f0b429">
                     {b.state === 'your-turn' ? 'YOUR TURN' : 'WAITING'}
                   </StatusChip>
-                  <span className="font-mono text-[12.5px] text-[#f7d774]">{formatSol(b.stake)} SOL</span>
+                  <span className="font-mono text-[12.5px] text-gold-bright">{formatSol(b.stake)} SOL</span>
                   <button
                     onClick={() => navigate('/dashboard/bets')}
                     className="cursor-pointer rounded-lg border px-3.5 py-2 font-heading text-[12px] font-bold tracking-[0.06em] text-green"

@@ -57,7 +57,7 @@ export function Overview() {
           style={{
             borderColor: 'rgba(47,224,138,.2)',
             background:
-              'radial-gradient(700px 300px at 88% 0%, rgba(47,224,138,.2), rgba(6,9,7,0) 65%), linear-gradient(120deg, #0c1a12, #070d09)',
+              'radial-gradient(700px 300px at 88% 0%, rgba(47,224,138,.2), rgba(6,9,7,0) 65%), linear-gradient(120deg, var(--panel-bg2), var(--panel-bg))',
           }}
         >
           <div
@@ -81,7 +81,7 @@ export function Overview() {
                 </span>
               </span>
 
-              <h1 className="mt-3.5 font-heading text-[clamp(30px,4.4vw,52px)] leading-[.98] font-bold tracking-[-0.01em] text-[#f2fff8]">
+              <h1 className="mt-3.5 font-heading text-[clamp(30px,4.4vw,52px)] leading-[.98] font-bold tracking-[-0.01em] text-text">
                 {isAuthenticated && user ? (
                   <>
                     WELCOME BACK,
@@ -104,22 +104,22 @@ export function Overview() {
               {isAuthenticated ? (
                 <div className="mt-5 mb-1 flex flex-wrap items-end gap-[18px]">
                   <div>
-                    <div className="font-mono text-[10px] tracking-[0.18em] text-[#8fbfa6]">READY TO BET</div>
-                    <div className="font-heading text-[34px] leading-[1.1] font-bold text-[#eafff3]">
+                    <div className="font-mono text-[10px] tracking-[0.18em] text-muted">READY TO BET</div>
+                    <div className="font-heading text-[34px] leading-[1.1] font-bold text-text">
                       {formatSol(balance?.availableBalance ?? '0')}{' '}
                       <span className="text-[15px] text-[#6ee7b7]">SOL</span>
                     </div>
                   </div>
                   <div className="h-10 w-px" style={{ background: 'rgba(47,224,138,.18)' }} />
                   <div>
-                    <div className="font-mono text-[10px] tracking-[0.18em] text-[#8fbfa6]">MATCHES</div>
-                    <div className="font-heading text-[34px] leading-[1.1] font-bold text-[#eafff3]">
+                    <div className="font-mono text-[10px] tracking-[0.18em] text-muted">MATCHES</div>
+                    <div className="font-heading text-[34px] leading-[1.1] font-bold text-text">
                       {user?.gamesPlayed ?? 0}
                     </div>
                   </div>
                   <div className="h-10 w-px" style={{ background: 'rgba(47,224,138,.18)' }} />
                   <div>
-                    <div className="font-mono text-[10px] tracking-[0.18em] text-[#8fbfa6]">STREAK</div>
+                    <div className="font-mono text-[10px] tracking-[0.18em] text-muted">STREAK</div>
                     <div className="font-heading text-[34px] leading-[1.1] font-bold text-green">
                       {streakLabel}
                     </div>
@@ -141,8 +141,8 @@ export function Overview() {
                     style={badgeImage ? { backgroundImage: `url(${badgeImage})` } : undefined}
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="mb-[7px] flex justify-between gap-2.5 font-mono text-[10.5px] tracking-[0.12em] text-[#8fbfa6]">
-                      <span className="text-[#f7d774]">
+                    <div className="mb-[7px] flex justify-between gap-2.5 font-mono text-[10.5px] tracking-[0.12em] text-muted">
+                      <span className="text-gold-bright">
                         {tier.next ? `NEXT: ${tier.next.label.toUpperCase()}` : 'MAX RANK'}
                       </span>
                       <span className="text-[#6ee7b7]">
@@ -153,7 +153,7 @@ export function Overview() {
                     </div>
                     <div
                       className="h-[9px] overflow-hidden rounded-md border"
-                      style={{ background: '#0b1a12', borderColor: 'rgba(47,224,138,.16)' }}
+                      style={{ background: 'var(--panel-bg2)', borderColor: 'rgba(47,224,138,.16)' }}
                     >
                       <div
                         className="h-full"
@@ -197,7 +197,7 @@ export function Overview() {
                 )}
                 <button
                   onClick={() => navigate('/dashboard/games')}
-                  className="flex cursor-pointer items-center gap-[9px] rounded-[10px] border px-6 py-3 font-heading text-sm font-bold whitespace-nowrap text-[#eafff3] transition hover:brightness-110"
+                  className="flex cursor-pointer items-center gap-[9px] rounded-[10px] border px-6 py-3 font-heading text-sm font-bold whitespace-nowrap text-text transition hover:brightness-110"
                   style={{ borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.06)' }}
                 >
                   <Icon name="gamepad" size={19} className="text-green" />
@@ -240,10 +240,10 @@ export function Overview() {
                     {m.initial}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-heading text-[13.5px] font-semibold text-[#e8f2ec]">
+                    <div className="truncate font-heading text-[13.5px] font-semibold text-text">
                       {m.title}
                     </div>
-                    <div className="mt-0.5 font-mono text-[10.5px] text-[#9ab5a6]">{m.meta}</div>
+                    <div className="mt-0.5 font-mono text-[10.5px] text-muted">{m.meta}</div>
                   </div>
                   <span className="font-mono text-[12px] text-[#6ee7b7]">{m.stake}</span>
                 </div>
@@ -324,24 +324,24 @@ export function Overview() {
           }}
         >
           <h2 className="mb-1 font-heading text-[17px] font-bold tracking-[0.06em] text-text">DAILY MISSIONS</h2>
-          <div className="mb-4 font-mono text-[10.5px] text-[#8fbfa6]">RESETS DAILY</div>
+          <div className="mb-4 font-mono text-[10.5px] text-muted">RESETS DAILY</div>
           <div className="flex flex-col gap-2.5">
             {MOCK_MISSIONS.map((q) => {
               const pct = Math.min(100, (q.progress / q.total) * 100);
               return (
                 <div key={q.id} className="rounded-[11px] border p-3" style={{ borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg3)' }}>
                   <div className="flex items-center justify-between gap-2.5">
-                    <span className="font-heading text-[13.5px] font-semibold text-[#e8f2ec]">{q.title}</span>
+                    <span className="font-heading text-[13.5px] font-semibold text-text">{q.title}</span>
                     <span className="font-mono text-[11px] text-gold">+{q.reward}</span>
                   </div>
                   <div className="mt-2.5 flex items-center gap-2.5">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: '#0a1a11' }}>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'var(--panel-bg2)' }}>
                       <div
                         className="h-full"
                         style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #16a862, #35eb95)' }}
                       />
                     </div>
-                    <span className="font-mono text-[10.5px] text-[#9ab5a6]">
+                    <span className="font-mono text-[10.5px] text-muted">
                       {q.progress}/{q.total}
                     </span>
                   </div>

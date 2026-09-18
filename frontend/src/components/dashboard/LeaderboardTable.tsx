@@ -82,13 +82,13 @@ export function LeaderboardTable({
             <div className="min-w-0 flex-1">
               <Link
                 to={`/dashboard/u/${p.handle}`}
-                className={`truncate font-mono text-[#e8f2ec] hover:underline ${full ? 'text-[13.5px]' : 'text-[13px]'}`}
+                className={`truncate font-mono text-text hover:underline ${full ? 'text-[13.5px]' : 'text-[13px]'}`}
                 title={`View ${p.name}'s profile`}
               >
                 {p.name}
                 {p.isYou && <span className="ml-1.5 text-[11px] font-bold text-green">you</span>}
               </Link>
-              <div className="mt-0.5 font-mono text-[10.5px] text-[#9ab5a6]">
+              <div className="mt-0.5 font-mono text-[10.5px] text-muted">
                 {TIER_LABEL[p.tier]} · {formatSol(p.totalWagered)} wagered
               </div>
             </div>
