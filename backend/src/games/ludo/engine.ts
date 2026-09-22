@@ -1,8 +1,23 @@
 /**
- * Ludo engine — pure game rules with no I/O.
+ * Ludo Engine — pure game rules with no I/O.
+ * ------------------------------------------------------------------
+ * Server-authoritative, framework-agnostic game logic for a 2-4
+ * player Ludo match. All functions are deterministic given their
+ * inputs and easy to unit-test. This file never touches the
+ * database, sockets, or timers.
  *
- * All functions are deterministic given their inputs and easy to unit-test.
- * This file never touches the database, sockets, or timers.
+ * BOARD MODEL (relative position per token):
+ *   0        → yard (not on the board)
+ *   1–51     → on the shared 52-cell outer track (1-indexed steps)
+ *   52–56    → private home column (immune to capture)
+ *   57       → finished (center)
+ *
+ * A token leaves the yard only on a roll of 6 (moves to position 1).
+ * A token must land on EXACTLY 57 to finish; overshooting is illegal.
+ *
+ * GLOBAL CELL CONVERSION
+ *   globalCell = (START_OFFSET[color] + relativePosition - 1) % 52
+ *   Only valid for positions 1–51 (on shared track).
  *
  * References:
  *   - Gambling_Docs/Games/G02-Ludo.md (game spec)
@@ -13,17 +28,25 @@ import type {
   LudoColor,
   LudoState,
   Token,
-  TokenZone,
   DiceValue,
   MoveCause,
   LudoMoveRecord,
   PlayerRecord,
 } from './types.js';
-import { COLOR_ORDER, TWO_PLAYER_COLORS, HOME_COLUMN_LENGTH, TRACK_LENGTH } from './types.js';
+import {
+  COLOR_ORDER,
+  TWO_PLAYER_COLORS,
+  HOME_COLUMN_LENGTH,
+  TRACK_LENGTH,
+  FINISH,
+  HOME_ENTRY,
+  SAFE_CELLS,
+  COLOR_START_OFFSET,
+} from './types.js';
 
 // --- Constants --------------------------------------------------------------
 
-/** Max consecutive 6s allowed before the turn is forfeited (rule: 3 sixes = lose turn). */
+/** Max consecutive 6s allowed before the turn is forfeited. */
 export const MAX_CONSECUTIVE_SIXES = 3;
 
 /** Timeout for a player to roll the dice (ms). */
@@ -35,11 +58,11 @@ export const MOVE_TIMEOUT_MS = 10_000;
 /** Lives a player starts a match with; missing a 15s roll window costs one. */
 export const MAX_LIVES = 3;
 
-/** Points economy (Gambling_Docs/Games/G02-Ludo.md): +1/step, +10 capturing / -10 captured, +50 reaching home. */
+/** Points economy: +1/step, +10 capturing / -10 captured, +50 reaching home. */
 export const POINTS_PER_CAPTURE = 10;
 export const POINTS_PER_HOME = 50;
 
-// --- Payout table (overrides Rule 2) ----------------------------------------
+// --- Payout table -----------------------------------------------------------
 
 /**
  * Paid places and percentage splits by seated player count.
@@ -51,36 +74,12 @@ export const PAYOUT_TABLE: Record<number, { paidPlaces: number; splits: number[]
   4: { paidPlaces: 3, splits: [50, 30, 20] },
 };
 
-// --- Safe squares -----------------------------------------------------------
-
-/** Global track positions that are safe (tokens cannot be captured here). */
-export const SAFE_POSITIONS = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
-
-/**
- * Start position offset for each color on the global track.
- * Red=0, Green=13, Yellow=26, Blue=39.
- */
-export const COLOR_OFFSET: Record<LudoColor, number> = {
-  red: 0,
-  green: 13,
-  yellow: 26,
-  blue: 39,
-};
-
 // --- Color assignment -------------------------------------------------------
 
-/** 2-player: fixed Red vs Yellow (opposite pairing). */
 const TWO_PLAYER: LudoColor[] = ['red', 'yellow'];
-
-/** 3-player: Red, Green, Yellow (standard subset). */
 const THREE_PLAYER: LudoColor[] = ['red', 'green', 'yellow'];
-
-/** 4-player: all four colors. */
 const FOUR_PLAYER: LudoColor[] = ['red', 'green', 'yellow', 'blue'];
 
-/**
- * Get the color set for a given player count.
- */
 export function getColorSet(seatCount: number): LudoColor[] {
   switch (seatCount) {
     case 2: return TWO_PLAYER;
@@ -90,10 +89,6 @@ export function getColorSet(seatCount: number): LudoColor[] {
   }
 }
 
-/**
- * Assign colors to players in seat order.
- * Player 0 gets the first color, player 1 gets the second, etc.
- */
 export function assignColors(playerIds: string[], seatCount: number): Record<string, LudoColor> {
   const colors = getColorSet(seatCount);
   const assignment: Record<string, LudoColor> = {};
@@ -108,102 +103,61 @@ export function assignColors(playerIds: string[], seatCount: number): Record<str
 /** Create 4 tokens in the yard for a new player. */
 export function createTokens(): Token[] {
   return [
-    { zone: 'yard', position: 0, homePosition: 0 },
-    { zone: 'yard', position: 0, homePosition: 0 },
-    { zone: 'yard', position: 0, homePosition: 0 },
-    { zone: 'yard', position: 0, homePosition: 0 },
+    { position: 0 },
+    { position: 0 },
+    { position: 0 },
+    { position: 0 },
   ];
 }
 
-/** Count how many tokens a player has in each zone. */
-export function countTokensByZone(tokens: Token[]): { yard: number; track: number; home: number } {
-  let yard = 0, track = 0, home = 0;
-  for (const t of tokens) {
-    if (t.zone === 'yard') yard++;
-    else if (t.zone === 'track') track++;
-    else home++;
-  }
-  return { yard, track, home };
+/** Returns true if this token is still in the yard. */
+export function isInYard(token: Token): boolean {
+  return token.position === 0;
 }
 
-/** Check if all 4 tokens are home (match-winning condition). */
+/** Returns true if this token has finished (reached center). */
+export function isFinished(token: Token): boolean {
+  return token.position === FINISH;
+}
+
+/** Returns true if this token is on the shared outer track (positions 1–51). */
+export function isOnTrack(token: Token): boolean {
+  return token.position >= 1 && token.position <= HOME_ENTRY;
+}
+
+/** Returns true if this token is in the private home column (positions 52–57). */
+export function isInHomeColumn(token: Token): boolean {
+  return token.position > HOME_ENTRY;
+}
+
+/** Check if all 4 tokens are finished. */
 export function allTokensHome(tokens: Token[]): boolean {
-  return tokens.every((t) => t.zone === 'home' && t.homePosition >= HOME_COLUMN_LENGTH);
-}
-
-// --- Board position helpers -------------------------------------------------
-
-/**
- * Get the global track position for a token on the track.
- * Wraps around the 52-square track using the color's offset.
- */
-export function getGlobalPosition(color: LudoColor, trackPosition: number): number {
-  return (COLOR_OFFSET[color]! + trackPosition) % TRACK_LENGTH;
+  return tokens.every((t) => isFinished(t));
 }
 
 /**
- * Get the global position a token would land on after moving `diceValue` steps
- * from its current track position. Returns -1 if it would enter the home column.
+ * Convert a relative position (1–51) to an absolute global cell (0–51).
+ * Returns null if the token is in yard or past HOME_ENTRY (home column / finished).
  */
-export function getTargetGlobalPosition(
-  color: LudoColor,
-  currentPosition: number,
-  diceValue: DiceValue,
-): number {
-  const targetTrackPos = currentPosition + diceValue;
-  if (targetTrackPos >= TRACK_LENGTH) {
-    return -1; // entering home column
-  }
-  return getGlobalPosition(color, targetTrackPos);
+export function toGlobalCell(color: LudoColor, relativePosition: number): number | null {
+  if (relativePosition < 1 || relativePosition > HOME_ENTRY) return null;
+  return (COLOR_START_OFFSET[color]! + relativePosition - 1) % TRACK_LENGTH;
 }
 
 /**
- * Check if a global position is a safe square.
+ * Check if a global cell is a safe square (no captures here).
  */
-export function isSafeSquare(globalPosition: number): boolean {
-  return SAFE_POSITIONS.has(globalPosition);
-}
-
-/**
- * Check if a token is on its own start square (always safe).
- */
-export function isOnOwnStart(color: LudoColor, trackPosition: number): boolean {
-  return trackPosition === 0;
-}
-
-/**
- * Classic Ludo "block": two tokens of the same color sharing a track square
- * form a block that no other color — including a third of that same color —
- * may land on. This checks the destination as it stands *before* the move:
- * empty or a single token of any color is always fine to land on (landing on
- * a single opponent captures it, per executeMove's existing capture logic);
- * two-or-more of one color already there means it's full.
- */
-export function canOccupyTrackSquare(
-  globalPosition: number,
-  allTokens: Record<string, Token[]>,
-  playerIds: string[],
-  colors: Record<string, LudoColor>,
-): boolean {
-  const countsByColor: Partial<Record<LudoColor, number>> = {};
-  for (const id of playerIds) {
-    const playerColor = colors[id];
-    const playerTokens = allTokens[id];
-    if (!playerColor || !playerTokens) continue;
-    for (const t of playerTokens) {
-      if (t.zone === 'track' && getGlobalPosition(playerColor, t.position) === globalPosition) {
-        countsByColor[playerColor] = (countsByColor[playerColor] ?? 0) + 1;
-      }
-    }
-  }
-  return Object.values(countsByColor).every((count) => count! < 2);
+export function isSafeCell(globalCell: number): boolean {
+  return (SAFE_CELLS as readonly number[]).includes(globalCell);
 }
 
 // --- Move validation --------------------------------------------------------
 
 export interface ValidMove {
   tokenIndex: number;
-  /** 'yard' = bringing a token out, 'track' = moving on track, 'home' = moving in home column. */
+  /** Position the token will land on after this move. */
+  to: number;
+  /** 'yard' = leaving yard (6 required), 'track' = moving on outer track, 'home' = moving in home column. */
   type: 'yard' | 'track' | 'home';
 }
 
@@ -211,13 +165,11 @@ export interface ValidMove {
  * Get all valid moves for a player given the current dice roll.
  *
  * Rules:
- * - Yard tokens: only movable on a 6 (brings token to start square).
- * - Track tokens: movable if the destination isn't full — two tokens of one
- *   color already there is a block (see canOccupyTrackSquare); landing on a
- *   single opponent captures it, landing on a single token of your own forms
- *   a new block.
- * - Home column tokens: movable if destination doesn't exceed HOME_COLUMN_LENGTH.
- * - If no valid moves exist, the turn is skipped.
+ * - Yard tokens: only movable on a 6 → moves to position 1.
+ * - Track tokens: target must not exceed HOME_ENTRY+HOME_COLUMN_LENGTH(=FINISH).
+ *   Overshoot (target > 57) is illegal for that token.
+ * - A token must land on EXACTLY 57 to finish.
+ * - If no valid moves exist, the turn is passed automatically.
  */
 export function getValidMoves(
   tokens: Token[],
@@ -228,70 +180,71 @@ export function getValidMoves(
   colors: Record<string, LudoColor>,
 ): ValidMove[] {
   const moves: ValidMove[] = [];
-  const yardCount = tokens.filter((t) => t.zone === 'yard').length;
 
-  // If all tokens are in yard and dice is not 6, no moves
-  if (yardCount === tokens.length && diceValue !== 6) {
-    return [];
-  }
-
-  // Check each token
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i]!;
 
-    if (token.zone === 'yard') {
+    if (isFinished(token)) continue;
+
+    if (isInYard(token)) {
       // Can only leave yard on a 6
       if (diceValue === 6) {
-        const startGlobalPos = getGlobalPosition(color, 0);
-        if (canOccupyTrackSquare(startGlobalPos, allTokens, playerIds, colors)) {
-          moves.push({ tokenIndex: i, type: 'yard' });
-        }
+        moves.push({ tokenIndex: i, to: 1, type: 'yard' });
       }
-    } else if (token.zone === 'track') {
-      const targetTrackPos = token.position + diceValue;
+      continue;
+    }
 
-      if (targetTrackPos >= TRACK_LENGTH) {
-        // Entering home column
-        const homeEntry = targetTrackPos - TRACK_LENGTH;
-        if (homeEntry <= HOME_COLUMN_LENGTH) {
-          // Check no friendly token already at this home position — except
-          // the terminal/finished slot, which every one of a player's own
-          // tokens must be able to reach (a finished token sits in the
-          // shared hub, not blocking its siblings from also finishing).
-          const finishing = homeEntry >= HOME_COLUMN_LENGTH;
-          const friendlyAtHome = !finishing && tokens.some(
-            (t, j) => j !== i && t.zone === 'home' && t.homePosition === homeEntry,
-          );
-          if (!friendlyAtHome) {
-            moves.push({ tokenIndex: i, type: 'home' });
-          }
-        }
-      } else {
-        // Moving on track — blocked only if the destination is already a
-        // full block (two of one color, own or opponent's).
-        const globalPos = getGlobalPosition(color, targetTrackPos);
+    const target = token.position + diceValue;
 
-        if (canOccupyTrackSquare(globalPos, allTokens, playerIds, colors)) {
-          moves.push({ tokenIndex: i, type: 'track' });
-        }
-      }
-    } else if (token.zone === 'home') {
-      const targetHomePos = token.homePosition + diceValue;
-      if (targetHomePos <= HOME_COLUMN_LENGTH) {
-        // Check no friendly token at destination — except the terminal/
-        // finished slot (see the matching comment above).
-        const finishing = targetHomePos >= HOME_COLUMN_LENGTH;
-        const friendlyAtHome = !finishing && tokens.some(
-          (t, j) => j !== i && t.zone === 'home' && t.homePosition === targetHomePos,
-        );
-        if (!friendlyAtHome) {
-          moves.push({ tokenIndex: i, type: 'home' });
-        }
+    // Overshoot past finish is illegal
+    if (target > FINISH) continue;
+
+    const type: 'track' | 'home' = token.position <= HOME_ENTRY ? 'track' : 'home';
+    moves.push({ tokenIndex: i, to: target, type });
+  }
+
+  return moves;
+}
+
+// --- Capture logic ----------------------------------------------------------
+
+/**
+ * After a token moves to a new relative position, check if it lands on
+ * an opponent token on the shared outer track and capture it.
+ * Tokens in the home column (position > HOME_ENTRY) are immune.
+ * Returns array of captured {playerId, tokenIndex} pairs.
+ */
+export function resolveCapture(
+  movedColor: LudoColor,
+  newPosition: number,
+  allTokens: Record<string, Token[]>,
+  playerIds: string[],
+  colors: Record<string, LudoColor>,
+): { playerId: string; tokenIndex: number }[] {
+  const captured: { playerId: string; tokenIndex: number }[] = [];
+
+  // Only captures happen on the shared track (1–51)
+  const globalCell = toGlobalCell(movedColor, newPosition);
+  if (globalCell === null || isSafeCell(globalCell)) return captured;
+
+  for (const oppId of playerIds) {
+    const oppColor = colors[oppId];
+    if (!oppColor || oppColor === movedColor) continue;
+    const oppTokens = allTokens[oppId];
+    if (!oppTokens) continue;
+
+    for (let j = 0; j < oppTokens.length; j++) {
+      const oppToken = oppTokens[j]!;
+      const oppGlobal = toGlobalCell(oppColor, oppToken.position);
+      if (oppGlobal !== null && oppGlobal === globalCell) {
+        // Captured — send back to yard
+        oppToken.position = 0;
+        captured.push({ playerId: oppId, tokenIndex: j });
       }
     }
   }
 
-  return moves;
+  return captured;
 }
 
 // --- Move execution ---------------------------------------------------------
@@ -299,18 +252,18 @@ export function getValidMoves(
 export interface MoveResult {
   /** Updated tokens for the moving player. */
   tokens: Token[];
-  /** Steps moved (0 if no move). */
+  /** Steps moved (0 if came out of yard). */
   stepsMoved: number;
-  /** Whether a capture occurred. */
+  /** Tokens captured this move. */
   captured: { playerId: string; tokenIndex: number }[];
-  /** Whether the token entered home. */
+  /** Whether the token entered the home column this move. */
   enteredHome: boolean;
-  /** Whether the token reached final home (all 6 squares). */
+  /** Whether the token reached the final finish (position 57). */
   reachedHome: boolean;
 }
 
 /**
- * Execute a move for a specific token.
+ * Execute a single token move, apply captures, and return the updated state.
  */
 export function executeMove(
   tokens: Token[],
@@ -322,77 +275,52 @@ export function executeMove(
   colors: Record<string, LudoColor>,
 ): MoveResult {
   const token = tokens[tokenIndex]!;
+  // Deep-copy tokens for immutability
   const newTokens = tokens.map((t) => ({ ...t }));
+  // Deep-copy allTokens so captures mutate the copy
+  const newAllTokens: Record<string, Token[]> = {};
+  for (const id of playerIds) {
+    newAllTokens[id] = (allTokens[id] ?? []).map((t) => ({ ...t }));
+  }
+  // The moved player's copy IS the same reference we'll return
+  newAllTokens[playerIds.find((id) => colors[id] === color) ?? ''] = newTokens;
+
   const target = newTokens[tokenIndex]!;
-  const captured: { playerId: string; tokenIndex: number }[] = [];
   let stepsMoved = 0;
   let enteredHome = false;
   let reachedHome = false;
 
-  if (target.zone === 'yard' && diceValue === 6) {
-    // Bring token out of yard to start square
-    target.zone = 'track';
-    target.position = 0;
-    stepsMoved = 0; // stepping onto start square
-  } else if (target.zone === 'track') {
-    const targetTrackPos = target.position + diceValue;
-
-    if (targetTrackPos >= TRACK_LENGTH) {
-      // Entering home column
-      const homeEntry = targetTrackPos - TRACK_LENGTH;
-      target.zone = 'home';
-      target.homePosition = homeEntry;
-      enteredHome = true;
-      reachedHome = homeEntry >= HOME_COLUMN_LENGTH;
-      stepsMoved = diceValue;
-    } else {
-      // Moving on track
-      target.position = targetTrackPos;
-      stepsMoved = diceValue;
-
-      // Check for capture
-      const globalPos = getGlobalPosition(color, target.position);
-
-      if (!isSafeSquare(globalPos)) {
-        // Check all opponent tokens
-        for (const oppId of playerIds) {
-          if (oppId === undefined) continue;
-          const oppColor = colors[oppId];
-          if (oppColor === undefined || oppColor === color) continue;
-          const oppTokens = allTokens[oppId];
-          if (!oppTokens) continue;
-
-          for (let j = 0; j < oppTokens.length; j++) {
-            const oppToken = oppTokens[j]!;
-            if (
-              oppToken.zone === 'track' &&
-              getGlobalPosition(oppColor, oppToken.position) === globalPos
-            ) {
-              // Capture! Send opponent token back to yard
-              oppToken.zone = 'yard';
-              oppToken.position = 0;
-              oppToken.homePosition = 0;
-              captured.push({ playerId: oppId, tokenIndex: j });
-            }
-          }
-        }
-      }
-    }
-  } else if (target.zone === 'home') {
-    const targetHomePos = target.homePosition + diceValue;
-    target.homePosition = targetHomePos;
+  if (isInYard(target) && diceValue === 6) {
+    // Leave yard → start square (position 1)
+    target.position = 1;
+    stepsMoved = 0; // stepping out of yard doesn't count as a board step
+  } else {
+    const prevPosition = target.position;
+    target.position = prevPosition + diceValue;
     stepsMoved = diceValue;
-    reachedHome = targetHomePos >= HOME_COLUMN_LENGTH;
+
+    // Track → home column transition
+    if (prevPosition <= HOME_ENTRY && target.position > HOME_ENTRY) {
+      enteredHome = true;
+    }
+
+    reachedHome = target.position >= FINISH;
+    if (reachedHome) target.position = FINISH;
   }
+
+  // Resolve captures (only on the shared outer track)
+  const captured = resolveCapture(color, target.position, newAllTokens, playerIds, colors);
+
+  // Apply captures back to newTokens for opponents
+  // (resolveCapture already mutated newAllTokens; now reflect them in allTokens
+  // via the returned captured list — caller owns allTokens mutation)
 
   return { tokens: newTokens, stepsMoved, captured, enteredHome, reachedHome };
 }
 
 // --- Match state ------------------------------------------------------------
 
-/**
- * Create initial match state.
- */
+/** Create initial match state with all tokens in the yard. */
 export function createInitialState(
   seatCount: number,
   playerIds: string[],
@@ -428,10 +356,7 @@ export function createInitialState(
 }
 
 /**
- * Get the next player in turn order, skipping forfeited/eliminated players —
- * without this, a 3-4 seat match keeps handing the turn to a player who can
- * no longer act, freezing the match on their phantom turn (2-player matches
- * never hit this: eliminating either player there ends the match outright).
+ * Get the next player in turn order, skipping forfeited players.
  */
 export function getNextPlayer(
   currentPlayerId: string,
@@ -448,7 +373,7 @@ export function getNextPlayer(
 }
 
 /**
- * Check if the match is over (any player has all 4 tokens home).
+ * Check if the match is over (any player has all 4 tokens at position 57).
  * Returns the winner's userId, or null if not over.
  */
 export function checkMatchEnd(state: LudoState): string | null {
@@ -461,10 +386,7 @@ export function checkMatchEnd(state: LudoState): string | null {
 }
 
 /**
- * Rank all players by points (the scoring economy: steps + captures + home
- * bonuses — see POINTS_PER_CAPTURE/POINTS_PER_HOME). Tied players share the
- * same rank. Forfeit players are excluded. `totalSteps` is still carried
- * along purely as a secondary display stat.
+ * Rank all active players by points.
  */
 export function rankPlayers(
   state: LudoState,
@@ -493,8 +415,6 @@ export function rankPlayers(
 
 /**
  * Calculate payout weights from rankings and seat count.
- * Returns an array of { userId, weight } for paid places only.
- * Ties are handled by splitting that place's share evenly.
  */
 export function calculatePayoutWeights(
   rankings: { playerId: string; rank: number }[],
@@ -521,8 +441,11 @@ export function calculatePayoutWeights(
   return result;
 }
 
+// --- Turn processing --------------------------------------------------------
+
 /**
- * Process a dice roll and determine the turn outcome.
+ * Process a dice roll: generate a value, check for 3-sixes forfeit,
+ * compute valid moves.
  */
 export function processDiceRoll(state: LudoState): {
   state: LudoState;
@@ -536,16 +459,7 @@ export function processDiceRoll(state: LudoState): {
   const playerTokens = state.tokens[state.currentPlayerId]!;
   const color = state.colors[state.currentPlayerId]!;
 
-  const validMoves = getValidMoves(
-    playerTokens,
-    diceValue,
-    color,
-    state.tokens,
-    state.playerIds,
-    state.colors,
-  );
-
-  // Three consecutive 6s = lose turn, no move
+  // Three consecutive 6s = forfeit the turn
   let mustPass = false;
   if (diceValue === 6) {
     newState.consecutiveSixes = state.consecutiveSixes + 1;
@@ -557,11 +471,23 @@ export function processDiceRoll(state: LudoState): {
     newState.consecutiveSixes = 0;
   }
 
+  const validMoves = mustPass
+    ? []
+    : getValidMoves(
+        playerTokens,
+        diceValue,
+        color,
+        state.tokens,
+        state.playerIds,
+        state.colors,
+      );
+
   return { state: newState, diceValue, validMoves, mustPass };
 }
 
 /**
- * Process a token move after dice roll.
+ * Process a token move after the dice has been rolled.
+ * Handles captures, point economy, match-end detection, and extra-turn logic.
  */
 export function processTokenMove(
   state: LudoState,
@@ -577,59 +503,71 @@ export function processTokenMove(
   const playerId = state.currentPlayerId;
   const color = state.colors[playerId]!;
   const diceValue = state.currentDice!;
-  const playerTokens = [...(state.tokens[playerId]!.map((t) => ({ ...t })))];
+
+  // Deep-copy token arrays for all players before mutation
+  const tokensCopy: Record<string, Token[]> = {};
+  for (const id of state.playerIds) {
+    tokensCopy[id] = (state.tokens[id] ?? []).map((t) => ({ ...t }));
+  }
+
+  const playerTokensCopy = tokensCopy[playerId]!;
 
   const moveResult = executeMove(
-    playerTokens,
+    playerTokensCopy,
     tokenIndex,
     diceValue,
     color,
-    state.tokens,
+    tokensCopy,
     state.playerIds,
     state.colors,
   );
 
-  // Update tokens and total steps
-  const newTokens = { ...state.tokens, [playerId]: moveResult.tokens };
-  const newTotalSteps = {
-    ...state.totalSteps,
-    [playerId]: (state.totalSteps[playerId] ?? 0) + moveResult.stepsMoved,
-  };
+  // Apply capture mutations back into tokensCopy
+  for (const cap of moveResult.captured) {
+    const capTokens = tokensCopy[cap.playerId];
+    if (capTokens) capTokens[cap.tokenIndex]!.position = 0;
+  }
+  // Apply the moved token's new position
+  tokensCopy[playerId] = moveResult.tokens;
 
-  // Points economy: +1 per step moved, +10/-10 on a capture, +50 reaching
-  // home. This — not totalSteps — is what ranking and payouts are based on.
+  // Points economy
   const newPoints = { ...state.points };
   newPoints[playerId] = (newPoints[playerId] ?? 0) + moveResult.stepsMoved;
-  for (const capture of moveResult.captured) {
+  for (const cap of moveResult.captured) {
     newPoints[playerId] = (newPoints[playerId] ?? 0) + POINTS_PER_CAPTURE;
-    newPoints[capture.playerId] = (newPoints[capture.playerId] ?? 0) - POINTS_PER_CAPTURE;
+    newPoints[cap.playerId] = (newPoints[cap.playerId] ?? 0) - POINTS_PER_CAPTURE;
   }
   if (moveResult.reachedHome) {
     newPoints[playerId] = (newPoints[playerId] ?? 0) + POINTS_PER_HOME;
   }
 
+  // Total steps
+  const newTotalSteps = {
+    ...state.totalSteps,
+    [playerId]: (state.totalSteps[playerId] ?? 0) + moveResult.stepsMoved,
+  };
+
   const newState: LudoState = {
     ...state,
-    tokens: newTokens,
+    tokens: tokensCopy,
     totalSteps: newTotalSteps,
     points: newPoints,
     currentDice: null,
   };
 
-  // Check for match winner
   const matchWinner = checkMatchEnd(newState);
 
-  // Determine extra turn or next player
-  let getsExtraTurn = false;
-  let nextPlayerId: string;
+  // Extra turn: roll 6, capture, or finish a token (house rule)
+  const getsExtraTurn =
+    !matchWinner &&
+    (diceValue === 6 || moveResult.captured.length > 0 || moveResult.reachedHome) &&
+    state.consecutiveSixes < MAX_CONSECUTIVE_SIXES;
 
+  let nextPlayerId: string;
   if (matchWinner) {
     newState.phase = 'match_over';
     nextPlayerId = state.currentPlayerId;
-  } else if (diceValue === 6 && state.consecutiveSixes < MAX_CONSECUTIVE_SIXES) {
-    // Extra turn on rolling a 6 (unless it was the 3rd consecutive six,
-    // which is already handled as a turn forfeit in processDiceRoll)
-    getsExtraTurn = true;
+  } else if (getsExtraTurn) {
     nextPlayerId = state.currentPlayerId;
   } else {
     nextPlayerId = getNextPlayer(state.currentPlayerId, state.playerIds, forfeitedPlayers);
@@ -657,10 +595,6 @@ export function processTurnPass(
       ...state,
       currentDice: null,
       consecutiveSixes: 0,
-      // Always return to the 'rolling' phase so the next player can roll.
-      // Without this, a turn pass (e.g. on move/roll timeout) left phase ===
-      // 'moving', and the next player's ROLL_DICE hit the "Not the rolling
-      // phase" guard, surfacing a fatal "Not the moving phase" error.
       phase: 'rolling',
       currentPlayerId: nextPlayerId,
       turnNumber: state.turnNumber + 1,
@@ -670,12 +604,8 @@ export function processTurnPass(
 }
 
 /**
- * A 6 was rolled but yields zero valid moves (e.g. the player's own start
- * square is already blocked by two of their own tokens) — unlike an ordinary
- * dead roll, this keeps the turn with the same player instead of passing it,
- * so the player isn't punished for a roll they had no legal use for. This is
- * distinct from the "three consecutive 6s" forfeit (processDiceRoll already
- * turns that into a real turn pass before this would ever be reached).
+ * A 6 was rolled but yields zero valid moves — keep the same player's turn
+ * so they aren't penalized for a roll they had no legal use for.
  */
 export function processSixNoMoves(state: LudoState): LudoState {
   return {
