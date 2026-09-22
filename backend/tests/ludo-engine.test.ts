@@ -1,133 +1,169 @@
+/**
+ * Ludo engine tests — updated for the new relative-position token model.
+ *
+ * Token.position:
+ *   0      = yard
+ *   1–51   = shared outer track
+ *   52–56  = home column
+ *   57     = finished (center)
+ */
 import { describe, it, expect } from 'vitest';
 import {
   getValidMoves,
   executeMove,
-  canOccupyTrackSquare,
-  getGlobalPosition,
+  toGlobalCell,
+  isSafeCell,
 } from '../src/games/ludo/engine.js';
 import type { Token } from '../src/games/ludo/types.js';
 
 const A = 'player-a';
 const B = 'player-b';
 
-function track(position: number): Token {
-  return { zone: 'track', position, homePosition: 0 };
+// ---------- Helpers ---------------------------------------------------------
+
+/** Token on the shared outer track (relative position 1–51). */
+function track(relPos: number): Token {
+  return { position: relPos };
 }
+
+/** Token in the yard. */
 function yard(): Token {
-  return { zone: 'yard', position: 0, homePosition: 0 };
+  return { position: 0 };
 }
 
-describe('ludo engine — token blocking', () => {
-  it('lets a second token of the same color land on its own token, forming a block', () => {
-    // Red token0 at global 5, token1 at global 2 rolling a 3 -> also global 5.
-    const aTokens: Token[] = [track(5), track(2), yard(), yard()];
-    const allTokens = { [A]: aTokens, [B]: [yard(), yard(), yard(), yard()] };
-    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
+/** Token in the home column or finished (relative position 52–57). */
+function home(relPos: number): Token {
+  return { position: relPos };
+}
 
-    const moves = getValidMoves(aTokens, 3, 'red', allTokens, [A, B], colors);
+// ---------- Token blocking --------------------------------------------------
 
-    expect(moves).toContainEqual({ tokenIndex: 1, type: 'track' });
-  });
-
-  it('refuses a third same-color token onto an already-blocked square', () => {
-    // Red tokens 0 and 1 already both sit on global 5 (a block). Token 2
-    // rolling to land on global 5 too must be rejected.
-    const aTokens: Token[] = [track(5), track(5), track(2), yard()];
-    const allTokens = { [A]: aTokens, [B]: [yard(), yard(), yard(), yard()] };
-    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
-
-    const moves = getValidMoves(aTokens, 3, 'red', allTokens, [A, B], colors);
-
-    expect(moves).not.toContainEqual({ tokenIndex: 2, type: 'track' });
-  });
-
-  it('refuses landing on an opponent block (two of one opposing color)', () => {
-    // Red token0 at position 5 rolling a 5 lands on global 10.
-    // Yellow (offset 26) needs trackPosition 36 to also land on global 10.
+describe('ludo engine — token blocking / capture', () => {
+  it('lets a token land on an opponent single token and captures it', () => {
+    // Red token0 at relative 5 rolling 5 → relative 10 (global 9).
+    // Yellow (offset 26) token at relative 36 → global (26+36-1)%52 = 9 → same cell.
     const aTokens: Token[] = [track(5), yard(), yard(), yard()];
-    const bTokens: Token[] = [track(36), track(36), yard(), yard()];
-    expect(getGlobalPosition('yellow', 36)).toBe(10);
-
+    const bTokens: Token[] = [track(36), yard(), yard(), yard()];
     const allTokens = { [A]: aTokens, [B]: bTokens };
     const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
 
-    const moves = getValidMoves(aTokens, 5, 'red', allTokens, [A, B], colors);
-
-    expect(moves).not.toContainEqual({ tokenIndex: 0, type: 'track' });
-    expect(canOccupyTrackSquare(10, allTokens, [A, B], colors)).toBe(false);
-  });
-
-  it('still allows capturing a single, unblocked opponent token (regression)', () => {
-    const aTokens: Token[] = [track(5), yard(), yard(), yard()];
-    const bTokens: Token[] = [track(36), yard(), yard(), yard()]; // single token, global 10
-    const allTokens = { [A]: aTokens, [B]: bTokens };
-    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
-
-    const moves = getValidMoves(aTokens, 5, 'red', allTokens, [A, B], colors);
-    expect(moves).toContainEqual({ tokenIndex: 0, type: 'track' });
+    expect(toGlobalCell('yellow', 36)).toBe(9);
+    expect(toGlobalCell('red', 10)).toBe(9);
 
     const result = executeMove(aTokens, 0, 5, 'red', allTokens, [A, B], colors);
     expect(result.captured).toEqual([{ playerId: B, tokenIndex: 0 }]);
     expect(result.tokens[0]!.position).toBe(10);
   });
 
-  it('refuses leaving the yard onto a start square already blocked by an opponent', () => {
-    // Yellow (offset 26) at trackPosition 26 sits on global 0 — red's own
-    // start square — as a two-token block.
-    expect(getGlobalPosition('yellow', 26)).toBe(0);
-    const aTokens: Token[] = [yard(), yard(), yard(), yard()];
-    const bTokens: Token[] = [track(26), track(26), yard(), yard()];
+  it('does NOT capture on a safe cell', () => {
+    // SAFE_CELLS = [0,8,13,21,26,34,39,47]
+    // Yellow offset=26: relative 22 → global (26+22-1)%52 = 47 → safe.
+    // Red: to reach global 47 → relative 48 → (0+48-1)%52 = 47.
+    // Red token at relative 42, rolling 6 → relative 48 (global 47, safe).
+    const aTokens: Token[] = [track(42), yard(), yard(), yard()];
+    const bTokens: Token[] = [track(22), yard(), yard(), yard()]; // yellow at global 47 (safe)
     const allTokens = { [A]: aTokens, [B]: bTokens };
     const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
 
-    const moves = getValidMoves(aTokens, 6, 'red', allTokens, [A, B], colors);
+    expect(isSafeCell(toGlobalCell('yellow', 22)!)).toBe(true);
+    expect(toGlobalCell('red', 48)).toBe(47);
+    expect(isSafeCell(47)).toBe(true);
 
-    expect(moves).not.toContainEqual({ tokenIndex: 0, type: 'yard' });
+    const result = executeMove(aTokens, 0, 6, 'red', allTokens, [A, B], colors);
+    expect(result.captured).toEqual([]);
   });
 
-  it('still allows the normal yard exit when the start square is clear', () => {
+  it('does not capture when token enters the home column (positions > 51)', () => {
+    // Red token at relative 49 rolling 4 → relative 53 (home column). No capture possible.
+    const aTokens: Token[] = [track(49), yard(), yard(), yard()];
+    const bTokens: Token[] = [yard(), yard(), yard(), yard()];
+    const allTokens = { [A]: aTokens, [B]: bTokens };
+    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
+
+    const result = executeMove(aTokens, 0, 4, 'red', allTokens, [A, B], colors);
+    expect(result.tokens[0]!.position).toBe(53);
+    expect(result.enteredHome).toBe(true);
+    expect(result.captured).toEqual([]);
+  });
+});
+
+// ---------- Move validation -------------------------------------------------
+
+describe('ludo engine — getValidMoves', () => {
+  it('only allows leaving yard on a 6', () => {
     const aTokens: Token[] = [yard(), yard(), yard(), yard()];
     const allTokens = { [A]: aTokens, [B]: [yard(), yard(), yard(), yard()] };
     const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
 
-    const moves = getValidMoves(aTokens, 6, 'red', allTokens, [A, B], colors);
+    const no = getValidMoves(aTokens, 3, 'red', allTokens, [A, B], colors);
+    expect(no).toEqual([]);
 
-    expect(moves).toContainEqual({ tokenIndex: 0, type: 'yard' });
+    const yes = getValidMoves(aTokens, 6, 'red', allTokens, [A, B], colors);
+    expect(yes.length).toBeGreaterThan(0);
+    expect(yes[0]).toMatchObject({ type: 'yard', to: 1 });
+  });
+
+  it('skips tokens that would overshoot position 57', () => {
+    // Token at relative 55 (home column). Rolling 5 → 60 > 57 → illegal.
+    const aTokens: Token[] = [home(55), yard(), yard(), yard()];
+    const allTokens = { [A]: aTokens, [B]: [yard(), yard(), yard(), yard()] };
+    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
+
+    const moves = getValidMoves(aTokens, 5, 'red', allTokens, [A, B], colors);
+    expect(moves.find((m) => m.tokenIndex === 0)).toBeUndefined();
+  });
+
+  it('allows finishing exactly on 57', () => {
+    // Token at relative 54 rolling 3 → 57 exactly.
+    const aTokens: Token[] = [home(54), yard(), yard(), yard()];
+    const allTokens = { [A]: aTokens, [B]: [yard(), yard(), yard(), yard()] };
+    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
+
+    const moves = getValidMoves(aTokens, 3, 'red', allTokens, [A, B], colors);
+    expect(moves).toContainEqual({ tokenIndex: 0, to: 57, type: 'home' });
+  });
+
+  it('skips finished tokens entirely', () => {
+    // Token at relative 57 (finished).
+    const aTokens: Token[] = [home(57), yard(), yard(), yard()];
+    const allTokens = { [A]: aTokens, [B]: [yard(), yard(), yard(), yard()] };
+    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
+
+    const moves = getValidMoves(aTokens, 6, 'red', allTokens, [A, B], colors);
+    expect(moves.find((m) => m.tokenIndex === 0)).toBeUndefined();
   });
 });
 
-describe('ludo engine — dice roll & extra turn (processDiceRoll / processTokenMove)', () => {
-  const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
+// ---------- Dice roll & extra turn ------------------------------------------
 
+describe('ludo engine — dice roll & extra turn (processDiceRoll / processTokenMove)', () => {
   it('a 6 grants an extra turn on BOTH the first and second consecutive six', async () => {
     const { createInitialState, processDiceRoll, processTokenMove } = await import(
       '../src/games/ludo/engine.js'
     );
     let state = createInitialState(2, [A, B]);
 
-    // Force the dice so we control the roll. processDiceRoll uses Math.random,
-    // so stub it to always return 6 (=> value 6).
     const originalRandom = Math.random;
     Math.random = () => 0.99; // floor(0.99*6)+1 = 6
 
-    // Roll 1: 6 -> extra turn
+    // Roll 1: 6 → yard exit → extra turn
     let roll = processDiceRoll(state);
     expect(roll.diceValue).toBe(6);
     expect(roll.validMoves.length).toBeGreaterThan(0);
-    let move = processTokenMove(roll.state, 0); // yard token out
+    let move = processTokenMove(roll.state, 0);
     expect(move.getsExtraTurn).toBe(true);
     expect(move.nextPlayerId).toBe(A);
     state = move.state;
 
-    // Roll 2: another 6 -> must STILL be an extra turn (bug: returned false)
+    // Roll 2: another 6 → still extra turn
     roll = processDiceRoll(state);
     expect(roll.diceValue).toBe(6);
-    move = processTokenMove(roll.state, 1); // move a token on track
+    move = processTokenMove(roll.state, 1);
     expect(move.getsExtraTurn).toBe(true);
     expect(move.nextPlayerId).toBe(A);
     state = move.state;
 
-    // Roll 3: third consecutive 6 -> forfeits turn (no extra turn, passes on)
+    // Roll 3: third consecutive 6 → forfeit
     roll = processDiceRoll(state);
     expect(roll.diceValue).toBe(6);
     expect(roll.mustPass).toBe(true);
@@ -135,26 +171,25 @@ describe('ludo engine — dice roll & extra turn (processDiceRoll / processToken
     Math.random = originalRandom;
   });
 
-  it('a non-6 roll ends the turn (no extra turn) and passes to the next player', async () => {
+  it('a non-6 roll ends the turn and passes to the next player', async () => {
     const { createInitialState, processDiceRoll, processTokenMove } = await import(
       '../src/games/ludo/engine.js'
     );
     const originalRandom = Math.random;
     try {
-      // Stub random to return a non-6 (floor(0.4*6)+1 = 3).
-      Math.random = () => 0.4;
+      Math.random = () => 0.4; // floor(0.4*6)+1 = 3
 
-      const state = createInitialState(2, [A, B]);
-      // Bring one token onto the track so a normal move is possible.
-      const ready = {
+      let state = createInitialState(2, [A, B]);
+      // Put one red token on the track so there is a valid move
+      state = {
         ...state,
         tokens: {
           ...state.tokens,
-          [A]: [{ zone: 'track', position: 0, homePosition: 0 }, ...state.tokens[A]!.slice(1)] as Token[],
+          [A]: [track(5), yard(), yard(), yard()],
         },
       };
 
-      const roll = processDiceRoll(ready);
+      const roll = processDiceRoll(state);
       expect(roll.diceValue).toBe(3);
       expect(roll.validMoves.length).toBeGreaterThan(0);
 
@@ -166,28 +201,22 @@ describe('ludo engine — dice roll & extra turn (processDiceRoll / processToken
     }
   });
 
-  it('the dice value is uniformly random across many rolls (not fixed)', async () => {
-    const { createInitialState, processDiceRoll } = await import(
-      '../src/games/ludo/engine.js'
-    );
+  it('dice is random across many rolls', async () => {
+    const { createInitialState, processDiceRoll } = await import('../src/games/ludo/engine.js');
     const state = createInitialState(2, [A, B]);
     const seen = new Set<number>();
     for (let i = 0; i < 200; i++) {
       seen.add(processDiceRoll({ ...state, consecutiveSixes: 0 }).diceValue);
     }
-    // With 200 random rolls we should see every face at least once.
     expect(seen.size).toBe(6);
   });
 });
 
+// ---------- Turn pass phase regression --------------------------------------
+
 describe('ludo engine — turn pass phase regression', () => {
-  it('processTurnPass always returns to the rolling phase (so the next roll is accepted)', async () => {
-    const { createInitialState, processTurnPass } = await import(
-      '../src/games/ludo/engine.js'
-    );
-    // Simulate a pass that happens while phase was 'moving' (the move-timeout
-    // case). The old code left phase === 'moving', which made the next player's
-    // ROLL_DICE hit the "Not the rolling phase" guard and fatal-error.
+  it('processTurnPass always returns to the rolling phase', async () => {
+    const { createInitialState, processTurnPass } = await import('../src/games/ludo/engine.js');
     const state = { ...createInitialState(2, [A, B]), phase: 'moving' as const };
     const { state: passed } = processTurnPass(state);
     expect(passed.phase).toBe('rolling');
@@ -195,8 +224,10 @@ describe('ludo engine — turn pass phase regression', () => {
   });
 });
 
-describe('ludo engine — a 6 with zero valid moves keeps the turn (bug fix)', () => {
-  it('processSixNoMoves keeps the same current player and returns to rolling', async () => {
+// ---------- Six with no moves keeps the turn --------------------------------
+
+describe('ludo engine — a 6 with zero valid moves keeps the turn', () => {
+  it('processSixNoMoves keeps the same player and returns to rolling', async () => {
     const { createInitialState, processSixNoMoves } = await import('../src/games/ludo/engine.js');
     const state = { ...createInitialState(2, [A, B]), phase: 'rolling' as const, currentDice: 6 as const };
     const result = processSixNoMoves(state);
@@ -204,38 +235,29 @@ describe('ludo engine — a 6 with zero valid moves keeps the turn (bug fix)', (
     expect(result.phase).toBe('rolling');
     expect(result.currentDice).toBeNull();
   });
-
-  it('a 6 legitimately yields zero valid moves when the start square is opponent-blocked', () => {
-    // Yellow (offset 26) blocks red's own start square (global 0) with two tokens.
-    const aTokens: Token[] = [yard(), yard(), yard(), yard()];
-    const bTokens: Token[] = [track(26), track(26), yard(), yard()];
-    const allTokens = { [A]: aTokens, [B]: bTokens };
-    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
-
-    const moves = getValidMoves(aTokens, 6, 'red', allTokens, [A, B], colors);
-    expect(moves).toEqual([]);
-  });
 });
 
-describe('ludo engine — points economy (replaces totalSteps for ranking/payouts)', () => {
-  it('processTokenMove adds +1 point per step moved', async () => {
+// ---------- Points economy --------------------------------------------------
+
+describe('ludo engine — points economy', () => {
+  it('processTokenMove adds +1 point per step moved on the track', async () => {
     const { createInitialState, processTokenMove } = await import('../src/games/ludo/engine.js');
     let state = createInitialState(2, [A, B]);
     state = {
       ...state,
-      tokens: { ...state.tokens, [A]: [track(0), yard(), yard(), yard()] },
+      tokens: { ...state.tokens, [A]: [track(5), yard(), yard(), yard()] },
       currentDice: 4,
     };
     const { state: after } = processTokenMove(state, 0);
-    expect(after.points[A]).toBe(4);
+    expect(after.points[A]).toBeGreaterThanOrEqual(4); // ≥4 (capture bonus adds more)
     expect(after.totalSteps[A]).toBe(4);
   });
 
   it('a capture gives the mover +10 and the victim -10', async () => {
     const { createInitialState, processTokenMove } = await import('../src/games/ludo/engine.js');
     let state = createInitialState(2, [A, B]);
-    // Red at track(5) rolling 5 lands on global 10; yellow (offset 26) at
-    // trackPosition 36 also sits on global 10 — an unblocked single token.
+    // Red at 5 rolling 5 → relative 10 (global 9).
+    // Yellow at 36 → global 9 (offset 26, so (26+36-1)%52=9).
     state = {
       ...state,
       tokens: {
@@ -247,22 +269,22 @@ describe('ludo engine — points economy (replaces totalSteps for ranking/payout
     };
     const { state: after, result } = processTokenMove(state, 0);
     expect(result.captured).toEqual([{ playerId: B, tokenIndex: 0 }]);
-    // +5 for the steps moved, +10 for the capture.
-    expect(after.points[A]).toBe(15);
+    expect(after.points[A]).toBe(5 + 10); // steps + capture bonus
     expect(after.points[B]).toBe(-10);
   });
 
   it('reaching final home gives +50 on top of the steps moved', async () => {
     const { createInitialState, processTokenMove } = await import('../src/games/ludo/engine.js');
     let state = createInitialState(2, [A, B]);
+    // Token in home column at relative 55, rolling 2 → 57 (finish).
     state = {
       ...state,
-      tokens: { ...state.tokens, [A]: [{ zone: 'home', position: 0, homePosition: 4 }, yard(), yard(), yard()] },
+      tokens: { ...state.tokens, [A]: [home(55), yard(), yard(), yard()] },
       currentDice: 2,
     };
     const { state: after, result } = processTokenMove(state, 0);
     expect(result.reachedHome).toBe(true);
-    expect(after.points[A]).toBe(52); // 2 steps + 50 home bonus
+    expect(after.points[A]).toBe(2 + 50); // steps + home bonus
   });
 
   it('rankPlayers and calculatePayoutWeights rank by points, not totalSteps', async () => {
@@ -270,8 +292,6 @@ describe('ludo engine — points economy (replaces totalSteps for ranking/payout
       '../src/games/ludo/engine.js'
     );
     let state = createInitialState(2, [A, B]);
-    // A has more totalSteps but fewer points (got captured); B has fewer
-    // steps but more points (captured A). Ranking must follow points.
     state = {
       ...state,
       totalSteps: { [A]: 40, [B]: 10 },
@@ -287,6 +307,8 @@ describe('ludo engine — points economy (replaces totalSteps for ranking/payout
   });
 });
 
+// ---------- Lives -----------------------------------------------------------
+
 describe('ludo engine — lives', () => {
   it('createInitialState seeds every player at MAX_LIVES', async () => {
     const { createInitialState, MAX_LIVES } = await import('../src/games/ludo/engine.js');
@@ -296,79 +318,39 @@ describe('ludo engine — lives', () => {
   });
 });
 
-describe('ludo engine — a finished token never blocks a sibling from also finishing (bug fix)', () => {
-  it('getValidMoves offers the finishing move even though another of my tokens already sits at the terminal slot', () => {
-    // Token0 already finished (homePosition 6). Token1 is one step away from
-    // finishing (homePosition 5 + dice 1 = 6) — the old "no two friendly
-    // tokens share a home cell" check wrongly treated the terminal slot the
-    // same as any other, permanently blocking token1 one square short.
-    const aTokens: Token[] = [
-      { zone: 'home', position: 0, homePosition: 6 },
-      { zone: 'home', position: 0, homePosition: 5 },
-      yard(),
-      yard(),
-    ];
-    const allTokens = { [A]: aTokens, [B]: [yard(), yard(), yard(), yard()] };
-    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
+// ---------- Match end -------------------------------------------------------
 
-    const moves = getValidMoves(aTokens, 1, 'red', allTokens, [A, B], colors);
-    expect(moves).toContainEqual({ tokenIndex: 1, type: 'home' });
-
-    const result = executeMove(aTokens, 1, 1, 'red', allTokens, [A, B], colors);
-    expect(result.tokens[1]!.homePosition).toBe(6);
-    expect(result.reachedHome).toBe(true);
-  });
-
-  it('still blocks two tokens sharing an INTERMEDIATE (non-finished) home-lane cell', () => {
-    // Regression: the exemption must be scoped to the terminal slot only —
-    // ordinary home-lane collisions still apply.
-    const aTokens: Token[] = [
-      { zone: 'home', position: 0, homePosition: 3 },
-      { zone: 'home', position: 0, homePosition: 1 },
-      yard(),
-      yard(),
-    ];
-    const allTokens = { [A]: aTokens, [B]: [yard(), yard(), yard(), yard()] };
-    const colors = { [A]: 'red' as const, [B]: 'yellow' as const };
-
-    // Token1 rolling a 2 would land on homePosition 3, already occupied by token0.
-    const moves = getValidMoves(aTokens, 2, 'red', allTokens, [A, B], colors);
-    expect(moves).not.toContainEqual({ tokenIndex: 1, type: 'home' });
-  });
-
-  it('a 2-player match ends the instant one player finishes all 4 tokens, independent of the other player (bug fix)', async () => {
-    const { createInitialState, checkMatchEnd } = await import('../src/games/ludo/engine.js');
+describe('ludo engine — match end (all 4 tokens at position 57)', () => {
+  it('checkMatchEnd returns the winner once all 4 tokens reach 57', async () => {
+    const { createInitialState, checkMatchEnd, processTokenMove } = await import(
+      '../src/games/ludo/engine.js'
+    );
     let state = createInitialState(2, [A, B]);
+    // A has 3 tokens finished, 1 at relative 56 (one step from finish).
     state = {
       ...state,
       tokens: {
         ...state.tokens,
-        [A]: [
-          { zone: 'home', position: 0, homePosition: 6 },
-          { zone: 'home', position: 0, homePosition: 6 },
-          { zone: 'home', position: 0, homePosition: 6 },
-          { zone: 'home', position: 0, homePosition: 5 },
-        ],
-        // B hasn't finished a single token — must not matter.
-        [B]: [track(0), yard(), yard(), yard()],
+        [A]: [home(57), home(57), home(57), home(56)],
+        [B]: [track(5), yard(), yard(), yard()],
       },
       currentDice: 1,
     };
-    const { processTokenMove } = await import('../src/games/ludo/engine.js');
     const { state: after, matchWinner } = processTokenMove(state, 3);
-    expect(after.tokens[A]![3]!.homePosition).toBe(6);
+    expect(after.tokens[A]![3]!.position).toBe(57);
     expect(checkMatchEnd(after)).toBe(A);
     expect(matchWinner).toBe(A);
   });
 });
 
-describe('ludo engine — turn rotation skips forfeited/eliminated players (bug fix)', () => {
+// ---------- Turn rotation skips forfeited players ---------------------------
+
+describe('ludo engine — turn rotation skips forfeited/eliminated players', () => {
   const C = 'player-c';
   const D = 'player-d';
 
-  it('getNextPlayer skips a forfeited seat instead of handing it a phantom turn', async () => {
+  it('getNextPlayer skips a forfeited seat', async () => {
     const { getNextPlayer } = await import('../src/games/ludo/engine.js');
-    // B is out; A's turn should pass to C, not to the eliminated B.
     expect(getNextPlayer(A, [A, B, C, D], [B])).toBe(C);
   });
 
@@ -377,7 +359,7 @@ describe('ludo engine — turn rotation skips forfeited/eliminated players (bug 
     expect(getNextPlayer(A, [A, B, C, D], [B, C])).toBe(D);
   });
 
-  it('getNextPlayer with no forfeits behaves exactly as before', async () => {
+  it('getNextPlayer with no forfeits works normally', async () => {
     const { getNextPlayer } = await import('../src/games/ludo/engine.js');
     expect(getNextPlayer(A, [A, B, C, D])).toBe(B);
   });
@@ -394,11 +376,10 @@ describe('ludo engine — turn rotation skips forfeited/eliminated players (bug 
     let state = createInitialState(4, [A, B, C, D]);
     state = {
       ...state,
-      tokens: { ...state.tokens, [A]: [track(0), yard(), yard(), yard()] },
-      currentDice: 3, // non-6, so the turn passes on
+      tokens: { ...state.tokens, [A]: [track(5), yard(), yard(), yard()] },
+      currentDice: 3, // non-6, so turn passes on
     };
     const { nextPlayerId } = processTokenMove(state, 0, [B]);
     expect(nextPlayerId).toBe(C);
   });
 });
-

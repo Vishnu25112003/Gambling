@@ -5,6 +5,12 @@
  * Move records live in a separate table for reconnect catch-up
  * and after-the-fact result display.
  *
+ * BOARD MODEL (relative position):
+ *   0        → still in the yard (not on the board)
+ *   1–51     → on the shared 52-cell outer track (1-indexed relative steps)
+ *   52–56    → in that color's private home column (safe from capture)
+ *   57       → reached the center = token finished
+ *
  * References:
  *   - Gambling_Docs/Games/G02-Ludo.md (game spec)
  *   - Gambling_Docs/10-Game-Common-Rules.md (Rules 1–4, with Rule 2 exception)
@@ -24,42 +30,48 @@ export const FOUR_PLAYER_COLORS: LudoColor[] = ['red', 'green', 'yellow', 'blue'
 
 // --- Token state ------------------------------------------------------------
 
-/** Where a token can be. */
-export type TokenZone = 'yard' | 'track' | 'home';
-
+/**
+ * Relative position of a token:
+ *   0     = yard (not yet on the board)
+ *   1–51  = on the shared outer track
+ *   52–56 = in this color's private home column
+ *   57    = finished (center)
+ */
 export interface Token {
-  zone: TokenZone;
-  /** Track position 0–50 (0 = start square, 50 = home entry). Only meaningful when zone === 'track'. */
+  /** Relative position: 0=yard, 1-51=track, 52-56=home column, 57=finished. */
   position: number;
-  /** Home column position 1–6. Only meaningful when zone === 'home'. */
-  homePosition: number;
 }
+
+// Convenience zone helpers (used by socket.ts for cause labels)
+export type TokenZone = 'yard' | 'track' | 'home';
 
 // --- Board geometry ---------------------------------------------------------
 
-/**
- * Standard Ludo track positions (0–50):
- *   - Position 0 is the start square for each color (safe)
- *   - Positions 1–50: the main path
- *   - Position 50 is the gate to the home column (not a track position per se;
- *     a token needs exact roll to enter home)
- *
- * Safe squares (protect from capture):
- *   - Start squares: positions 0 for each color (indices 0, 13, 26, 39 on the
- *     global track for Red, Green, Yellow, Blue respectively)
- *   - Star squares: positions 8, 21, 34, 47 on the global track
- *
- * Home column: 6 squares (positions 1–6), accessed after passing position 50.
- * A token needs an exact roll to enter the home column and travel through it.
- */
+/** Number of cells on the shared outer track. */
+export const TRACK_CELLS = 52;
 
-/** Number of track squares between start positions of consecutive colors. */
+/** Relative position at which a token enters the home column. */
+export const HOME_ENTRY = 51;
+
+/** Relative position a token must land on EXACTLY to finish. */
+export const FINISH = 57;
+
+/** Tokens per player. */
+export const TOKENS_PER_PLAYER = 4;
+
+/** Home column length (52..56 = 5 squares, then 57 = finish). */
+export const HOME_COLUMN_LENGTH = 6;
+
+/** Legacy alias kept for compatibility with socket.ts imports. */
+export const TRACK_LENGTH = TRACK_CELLS;
+
+/** Number of track squares between consecutive color start points. */
 export const TRACK_SEGMENT = 13;
 
-/** Safe squares on the global track (0-indexed). */
-export const SAFE_SQUARES = [0, 8, 13, 21, 26, 34, 39, 47] as const;
-
-/** Start position offset for each color on the global 52-square track. */
+/**
+ * Absolute start offset for each color on the 52-cell shared track.
+ * Used to convert a relative position to a global (absolute) cell.
+ */
 export const COLOR_START_OFFSET: Record<LudoColor, number> = {
   red: 0,
   green: 13,
@@ -67,11 +79,14 @@ export const COLOR_START_OFFSET: Record<LudoColor, number> = {
   blue: 39,
 };
 
-/** Home column length (squares to reach final home). */
-export const HOME_COLUMN_LENGTH = 6;
+/**
+ * Safe global cells — no captures happen here.
+ * Each color's entry cell plus one star cell partway around from each start.
+ */
+export const SAFE_CELLS = [0, 8, 13, 21, 26, 34, 39, 47] as const;
 
-/** Total track length before entering home column. */
-export const TRACK_LENGTH = 52;
+/** Legacy alias kept for socket.ts compatibility. */
+export const SAFE_SQUARES = SAFE_CELLS;
 
 // --- Dice -------------------------------------------------------------------
 
@@ -140,7 +155,7 @@ export interface LudoState {
   playerIds: string[];
   /** userId → assigned color. */
   colors: Record<string, LudoColor>;
-  /** userId → 4 tokens. */
+  /** userId → 4 tokens (each with a relative position 0-57). */
   tokens: Record<string, Token[]>;
   /** userId → total steps moved across all 4 tokens. */
   totalSteps: Record<string, number>;
