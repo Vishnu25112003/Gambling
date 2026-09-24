@@ -184,7 +184,7 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken, 
         tokenIndex,
         isMine: player.id === myId,
         isMovable: player.id === myId && movableIndexes.has(tokenIndex),
-        isYard: token.zone === 'yard',
+        isYard: token.position === 0,
       };
       const entry = occupantsByCell.get(cellKey) ?? { cell, occupants: [] };
       entry.occupants.push(occupant);
@@ -193,13 +193,14 @@ export function LudoBoardGrid({ players, tokens, myId, validMoves, onMoveToken, 
   }
 
   // Board-completion percent per color, for the score plates.
+  // position: 0=yard, 1-51=track steps, 52-57=home column (57=finished)
   const scoreByColor: Partial<Record<LudoColor, number>> = {};
   for (const player of players) {
     const playerTokens = tokens[player.id] ?? [];
     const prog = playerTokens.reduce((sum, t) => {
-      if (t.zone === 'yard') return sum;
-      if (t.zone === 'track') return sum + (t.position + 1);
-      return sum + 51 + t.homePosition;
+      if (t.position === 0) return sum;           // yard
+      if (t.position <= 51) return sum + t.position; // track: treat position as steps taken
+      return sum + 51 + (t.position - 51);           // home column / finished
     }, 0);
     scoreByColor[player.color] = Math.round((prog / (4 * 57)) * 100);
   }

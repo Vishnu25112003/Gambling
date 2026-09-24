@@ -16,7 +16,7 @@ import { escrow } from '../../escrow/index.js';
 import { prisma } from '../../config/db.js';
 import { createLogger } from '../../lib/logger.js';
 import { Decimal } from '../../lib/money.js';
-import { createInitialState, processDiceRoll, processTokenMove, processTurnPass, getValidMoves, rankPlayers, calculatePayoutWeights, ROLL_TIMEOUT_MS, MOVE_TIMEOUT_MS, } from './engine.js';
+import { createInitialState, processDiceRoll, processTokenMove, processTurnPass, processSixNoMoves, getValidMoves, rankPlayers, calculatePayoutWeights, ROLL_TIMEOUT_MS, MOVE_TIMEOUT_MS, MAX_LIVES, } from './engine.js';
 import { LUDO_EVENTS } from './types.js';
 const log = createLogger('game:ludo');
 /** matchId → active match. */
@@ -79,13 +79,22 @@ function startRollTimer(match, playerId) {
     match.turnStartedAt = Date.now();
     match.timers.roll = setTimeout(() => guardSync('roll timeout', () => {
         log.info('roll timeout', { matchId: match.matchId, playerId });
+        // Missing the roll window costs a life.
+        const remainingLives = (match.state.lives[playerId] ?? MAX_LIVES) - 1;
+        match.state = { ...match.state, lives: { ...match.state.lives, [playerId]: remainingLives } };
+        broadcastToMatch(match, LUDO_EVENTS.LIVES_UPDATE, { lives: match.state.lives });
+        if (remainingLives <= 0) {
+            guard('eliminate on roll timeout', eliminatePlayer(match, playerId), { matchId: match.matchId, playerId });
+            return;
+        }
         // Player timed out — pass turn to next player
-        const { state: newState, nextPlayerId } = processTurnPass(match.state);
+        const { state: newState, nextPlayerId } = processTurnPass(match.state, match.forfeitedPlayers);
         match.state = newState;
         broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
             currentPlayerId: nextPlayerId,
             turnNumber: newState.turnNumber,
             dice: null,
+            reason: 'roll_timeout',
         });
         startRollTimer(match, nextPlayerId);
     }, { matchId: match.matchId, playerId }), ROLL_TIMEOUT_MS);
@@ -94,8 +103,10 @@ function startMoveTimer(match, playerId) {
     match.turnStartedAt = Date.now();
     match.timers.move = setTimeout(() => guardSync('move timeout', () => {
         log.info('move timeout', { matchId: match.matchId, playerId });
-        // Player timed out — pass turn to next player
-        const { state: newState, nextPlayerId } = processTurnPass(match.state);
+        // Player timed out — pass turn to next player. Only a missed ROLL costs a
+        // life (see startRollTimer) — choosing which token to move is a separate
+        // action and isn't penalized the same way.
+        const { state: newState, nextPlayerId } = processTurnPass(match.state, match.forfeitedPlayers);
         match.state = newState;
         broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
             currentPlayerId: nextPlayerId,
@@ -105,10 +116,43 @@ function startMoveTimer(match, playerId) {
         startRollTimer(match, nextPlayerId);
     }, { matchId: match.matchId, playerId }), MOVE_TIMEOUT_MS);
 }
+/**
+ * Shared tail end of "a player is out of the match" (disconnect-forfeit and
+ * lives-elimination both end here): mark them forfeited, pass the turn along
+ * if it was theirs, and settle immediately if only one active player is left.
+ */
+async function applyForfeitOutcome(match, playerId) {
+    match.forfeitedPlayers.push(playerId);
+    if (match.state.currentPlayerId === playerId) {
+        clearTimeouts(match);
+        const { state: newState, nextPlayerId } = processTurnPass(match.state, match.forfeitedPlayers);
+        match.state = newState;
+        broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
+            currentPlayerId: nextPlayerId,
+            turnNumber: newState.turnNumber,
+            dice: null,
+        });
+        startRollTimer(match, nextPlayerId);
+    }
+    const activePlayers = match.playerIds.filter((id) => !match.forfeitedPlayers.includes(id));
+    if (activePlayers.length <= 1) {
+        const winnerId = activePlayers[0] ?? null;
+        await settleMatch(match, winnerId);
+    }
+}
+/** Eliminated for running out of lives (still connected — unlike a disconnect
+ * forfeit, there's no reconnect grace period to wait out). */
+async function eliminatePlayer(match, playerId) {
+    const forfeitResult = await escrow.forfeitPlayer(match.matchId, playerId, 0);
+    if (forfeitResult.outcome === 'forfeited') {
+        await applyForfeitOutcome(match, playerId);
+    }
+}
 // --- Match end / settlement -------------------------------------------------
 async function settleMatch(match, winnerId) {
     clearTimeouts(match);
-    // Rank players by total steps (forfeit players excluded)
+    // Rank players by points — the scoring economy, not raw totalSteps
+    // (forfeit players excluded).
     const rankings = rankPlayers(match.state, match.forfeitedPlayers);
     // If there's a winner, ensure they're ranked 1st
     if (winnerId) {
@@ -138,6 +182,7 @@ async function settleMatch(match, winnerId) {
                 playerId: r.playerId,
                 rank: r.rank,
                 totalSteps: r.totalSteps,
+                points: r.points,
             })),
             forfeitedPlayers: match.forfeitedPlayers,
         },
@@ -149,6 +194,7 @@ async function settleMatch(match, winnerId) {
             playerId: r.playerId,
             rank: r.rank,
             totalSteps: r.totalSteps,
+            points: r.points,
         })),
         seatCount: match.seatCount,
         pot: result.pot.toString(),
@@ -236,6 +282,7 @@ export function registerLudoSocket(namespace, socket) {
                     minBet: minBetValue,
                     discovery: 'random',
                     createdAt: Date.now(),
+                    stakes: new Map([[userId, stakeAmount]]),
                 });
                 socket.emit(LUDO_EVENTS.MATCH_CREATED, { matchId });
                 log.info('random match created', {
@@ -274,6 +321,7 @@ export function registerLudoSocket(namespace, socket) {
                     minBet: minBetValue,
                     discovery: 'friends',
                     createdAt: Date.now(),
+                    stakes: new Map([[userId, stakeAmount]]),
                 });
                 socket.emit(LUDO_EVENTS.MATCH_CREATED, { matchId, roomCode: code });
                 log.info('friends match created', {
@@ -347,15 +395,46 @@ export function registerLudoSocket(namespace, socket) {
             const gs = (dbMatch.gameState ?? {});
             const seatCount = gs.seatCount ?? 2;
             const stakeAmount = gs.stake ?? lobbyInfo.get(matchId)?.stake ?? 0.1;
+            const betMode = gs.betMode ?? lobbyInfo.get(matchId)?.betMode ?? 'fixed';
+            const minBet = gs.minBet ?? lobbyInfo.get(matchId)?.minBet ?? null;
             // Check match isn't full
             if (dbMatch.participants.length >= seatCount) {
                 socket.emit(LUDO_EVENTS.ERROR, { message: 'Match is full' });
                 return;
             }
+            // Free Bet: the joiner picks their own stake before anything is
+            // locked or the participant row created — bouncing back here is
+            // side-effect-free and safe for the client to repeat with a chosen
+            // amount.
+            let joinerStake = stakeAmount;
+            if (betMode === 'free') {
+                const submitted = data.stake;
+                if (submitted == null) {
+                    socket.emit(LUDO_EVENTS.STAKE_REQUIRED, {
+                        matchId,
+                        hostName: lobbyInfo.get(matchId)?.hostName ?? 'Player',
+                        seatCount,
+                        minBet: minBet != null ? String(minBet) : null,
+                    });
+                    return;
+                }
+                const chosen = Number(submitted);
+                if (!Number.isFinite(chosen) || chosen <= 0) {
+                    socket.emit(LUDO_EVENTS.ERROR, { message: 'Stake must be a positive amount' });
+                    return;
+                }
+                if (minBet != null && chosen < minBet) {
+                    socket.emit(LUDO_EVENTS.ERROR, { message: `Stake must be at least ${minBet} SOL` });
+                    return;
+                }
+                joinerStake = chosen;
+            }
             // Add joiner as participant
             await prisma.matchParticipant.create({
                 data: { matchId, userId, lockedAmount: 0, stakeTotal: 0, status: 'active' },
             });
+            const lobbyForJoin = lobbyInfo.get(matchId);
+            lobbyForJoin?.stakes.set(userId, joinerStake);
             // Collect all player IDs (host first, joiners in join order)
             const allParticipantIds = dbMatch.participants.map((p) => p.userId);
             allParticipantIds.push(userId);
@@ -389,10 +468,12 @@ export function registerLudoSocket(namespace, socket) {
                 return;
             }
             // --- Lobby is full — start the match! ---
-            // Lock all stakes via escrow
-            const stakeDecimal = new Decimal(stakeAmount);
+            // Lock each participant's own stake (Fixed mode: all the same; Free
+            // mode: whatever each of them individually chose when joining).
+            const stakesAtFill = lobbyInfo.get(matchId)?.stakes;
             for (const pid of allParticipantIds) {
-                await escrow.lockBalance(pid, stakeDecimal, matchId);
+                const amount = stakesAtFill?.get(pid) ?? stakeAmount;
+                await escrow.lockBalance(pid, new Decimal(amount), matchId);
             }
             // Assign colors and initialize game state
             const playerIds = allParticipantIds;
@@ -488,6 +569,11 @@ export function registerLudoSocket(namespace, socket) {
                 clearTimeout(match.timers.roll);
                 match.timers.roll = null;
             }
+            // Let every seated client start its tumble animation immediately.
+            broadcastToMatch(match, LUDO_EVENTS.DICE_ROLLING, {
+                playerId: userId,
+                color: match.state.colors[userId],
+            });
             // Process dice roll
             const { state: newState, diceValue, validMoves, mustPass } = processDiceRoll(match.state);
             match.state = newState;
@@ -501,7 +587,7 @@ export function registerLudoSocket(namespace, socket) {
             if (mustPass) {
                 // Three consecutive 6s — lose turn
                 log.info('three consecutive sixes', { matchId, playerId: userId });
-                const { state: afterPass, nextPlayerId } = processTurnPass(match.state);
+                const { state: afterPass, nextPlayerId } = processTurnPass(match.state, match.forfeitedPlayers);
                 match.state = afterPass;
                 broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
                     currentPlayerId: nextPlayerId,
@@ -513,9 +599,26 @@ export function registerLudoSocket(namespace, socket) {
                 return;
             }
             if (validMoves.length === 0) {
+                if (diceValue === 6) {
+                    // A 6 with nothing usable (e.g. the player's own start square is
+                    // already blocked by two of their own tokens) keeps the turn with
+                    // the same player instead of forfeiting it — unlike an ordinary
+                    // dead roll, they shouldn't lose their turn over a 6 they couldn't
+                    // use. No "Your Turn" banner here: it's still their turn.
+                    log.info('six rolled, no valid moves', { matchId, playerId: userId });
+                    match.state = processSixNoMoves(match.state);
+                    broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
+                        currentPlayerId: userId,
+                        turnNumber: match.state.turnNumber,
+                        dice: null,
+                        reason: 'six_no_moves',
+                    });
+                    startRollTimer(match, userId);
+                    return;
+                }
                 // No valid moves — pass turn
                 log.info('no valid moves', { matchId, playerId: userId, diceValue });
-                const { state: afterPass, nextPlayerId } = processTurnPass(match.state);
+                const { state: afterPass, nextPlayerId } = processTurnPass(match.state, match.forfeitedPlayers);
                 match.state = afterPass;
                 broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
                     currentPlayerId: nextPlayerId,
@@ -529,7 +632,7 @@ export function registerLudoSocket(namespace, socket) {
             if (validMoves.length === 1) {
                 // Auto-move if only one valid option
                 const move = validMoves[0];
-                const { state: moveState, result, matchWinner, nextPlayerId, getsExtraTurn } = processTokenMove(match.state, move.tokenIndex);
+                const { state: moveState, result, matchWinner, nextPlayerId, getsExtraTurn } = processTokenMove(match.state, move.tokenIndex, match.forfeitedPlayers);
                 match.state = moveState;
                 // Record the move
                 match.moveRecords.push({
@@ -596,7 +699,19 @@ export function registerLudoSocket(namespace, socket) {
         }
         catch (err) {
             log.error('roll_dice error', { userId, err });
-            socket.emit(LUDO_EVENTS.ERROR, { message: 'Failed to roll dice' });
+            // Something may have already broadcast to everyone (e.g. DICE_ROLLED)
+            // before this threw — broadcast the error and a fresh state snapshot
+            // to the whole match, not just the acting socket, so nobody is left
+            // with stale state and no explanation.
+            const failedMatchId = socketToMatch.get(socket.id);
+            const failedMatch = failedMatchId ? matches.get(failedMatchId) : undefined;
+            if (failedMatch) {
+                broadcastToMatch(failedMatch, LUDO_EVENTS.ERROR, { message: 'Failed to roll dice' });
+                broadcastToMatch(failedMatch, LUDO_EVENTS.MATCH_STATE, { state: failedMatch.state });
+            }
+            else {
+                socket.emit(LUDO_EVENTS.ERROR, { message: 'Failed to roll dice' });
+            }
         }
     });
     // --- MOVE_TOKEN: player chooses which token to move ---
@@ -645,7 +760,7 @@ export function registerLudoSocket(namespace, socket) {
                 match.timers.move = null;
             }
             // Execute the move
-            const { state: moveState, result, matchWinner, nextPlayerId, getsExtraTurn } = processTokenMove(match.state, tokenIndex);
+            const { state: moveState, result, matchWinner, nextPlayerId, getsExtraTurn } = processTokenMove(match.state, tokenIndex, match.forfeitedPlayers);
             match.state = moveState;
             // Record the move
             match.moveRecords.push({
@@ -694,7 +809,17 @@ export function registerLudoSocket(namespace, socket) {
         }
         catch (err) {
             log.error('move_token error', { userId, err });
-            socket.emit(LUDO_EVENTS.ERROR, { message: 'Failed to move token' });
+            // See the matching comment in ROLL_DICE's catch — broadcast so every
+            // player recovers, not just whoever's move triggered this.
+            const failedMatchId = socketToMatch.get(socket.id);
+            const failedMatch = failedMatchId ? matches.get(failedMatchId) : undefined;
+            if (failedMatch) {
+                broadcastToMatch(failedMatch, LUDO_EVENTS.ERROR, { message: 'Failed to move token' });
+                broadcastToMatch(failedMatch, LUDO_EVENTS.MATCH_STATE, { state: failedMatch.state });
+            }
+            else {
+                socket.emit(LUDO_EVENTS.ERROR, { message: 'Failed to move token' });
+            }
         }
     });
     // --- LEAVE_LOBBY: player leaves before match starts ---
@@ -762,26 +887,7 @@ export function registerLudoSocket(namespace, socket) {
             // Start the forfeit grace period via escrow
             const forfeitResult = await escrow.forfeitPlayer(matchId, userId);
             if (forfeitResult.outcome === 'forfeited') {
-                // Player was forfeited — add to forfeited list
-                match.forfeitedPlayers.push(userId);
-                // If it was their turn, pass to next player
-                if (match.state.currentPlayerId === userId) {
-                    clearTimeouts(match);
-                    const { state: newState, nextPlayerId } = processTurnPass(match.state);
-                    match.state = newState;
-                    broadcastToMatch(match, LUDO_EVENTS.TURN_START, {
-                        currentPlayerId: nextPlayerId,
-                        turnNumber: newState.turnNumber,
-                        dice: null,
-                    });
-                    startRollTimer(match, nextPlayerId);
-                }
-                // Check if only one player remains — that player wins
-                const activePlayers = match.playerIds.filter((id) => !match.forfeitedPlayers.includes(id));
-                if (activePlayers.length <= 1) {
-                    const winnerId = activePlayers[0] ?? null;
-                    await settleMatch(match, winnerId);
-                }
+                await applyForfeitOutcome(match, userId);
             }
             else if (forfeitResult.outcome === 'reconnected') {
                 // They reconnected — cancel forfeit (handled in JOIN_MATCH)

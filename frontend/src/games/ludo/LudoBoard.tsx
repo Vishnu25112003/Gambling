@@ -13,7 +13,7 @@ import { ludoSetupConfig } from './ludoSetupConfig';
 import { LudoResult } from './LudoResult';
 import { LudoBoardGrid } from './LudoBoardGrid';
 import { PlayerPod } from './PlayerPod';
-import { HOME_COLUMN_LENGTH, colorAtSlot, rotationForViewer } from './boardGeometry';
+import { colorAtSlot, rotationForViewer } from './boardGeometry';
 
 /** Die-face rotation table (matches the Ludo Royale design's Dice3D). */
 const DIEBASE: Record<number, [number, number]> = {
@@ -103,10 +103,12 @@ interface PlayerInfo {
   color: LudoColor;
 }
 
+/**
+ * Token from the backend engine.
+ * position: 0=yard, 1-51=shared track, 52-56=home column, 57=finished.
+ */
 interface TokenState {
-  zone: 'yard' | 'track' | 'home';
   position: number;
-  homePosition: number;
 }
 
 interface LudoState {
@@ -834,7 +836,7 @@ function LudoBoardInner() {
     if (!p) return null;
     const isMe = p.id === myId;
     const finished =
-      gameState?.tokens[p.id]?.filter((t) => t.zone === 'home' && t.homePosition >= HOME_COLUMN_LENGTH).length ?? 0;
+      gameState?.tokens[p.id]?.filter((t) => t.position >= 57).length ?? 0;
     const active = gameState?.currentPlayerId === p.id;
     const rot = diceRot[color] ?? IDLE_TILT[color];
     return (
