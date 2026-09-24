@@ -417,17 +417,58 @@ export function registerMineCatcherSocket(namespace, socket) {
             }
             const gs = (dbMatch.gameState ?? {});
             const boardSize = (gs.boardSize ?? 25);
-            const stakeAmount = Number(dbMatch.participants[0]?.lockedAmount ?? 0) > 0
+            // The host's own declared stake — always locked as-is, regardless of bet mode.
+            const hostStakeAmount = Number(dbMatch.participants[0]?.lockedAmount ?? 0) > 0
                 ? Number(dbMatch.participants[0]?.stakeTotal ?? 0.1)
                 : publicMatches.get(matchId)?.stake ?? 0.1;
             const betMode = gs.betMode ?? 'fixed';
-            // Lock stakes
-            const stakeDecimal = new (await import('../../lib/money.js')).Decimal(stakeAmount);
+            const minBet = gs.minBet != null ? Number(gs.minBet) : null;
+            // Free Bet mode: the joiner picks their own amount (Rule 3), independent
+            // of the host's. Rather than assuming the host's stake for them — which
+            // silently failed the join whenever the joiner couldn't cover it —
+            // bounce back and ask — the client shows a stake picker and resubmits
+            // JOIN_MATCH with `stake` set. Nothing has been locked yet at this
+            // point, so this bounce is side-effect-free and safe to repeat.
+            let joinerStakeAmount = hostStakeAmount;
+            if (betMode === 'free') {
+                if (data.stake == null) {
+                    socket.emit(MC_EVENTS.STAKE_REQUIRED, {
+                        matchId,
+                        hostName: publicMatches.get(matchId)?.hostName ?? 'Player',
+                        boardSize,
+                        minBet: minBet != null ? String(minBet) : null,
+                    });
+                    return;
+                }
+                const chosen = Number(data.stake);
+                if (!Number.isFinite(chosen) || chosen <= 0) {
+                    socket.emit(MC_EVENTS.ERROR, { message: 'Stake must be a positive amount' });
+                    return;
+                }
+                if (minBet != null && chosen < minBet) {
+                    socket.emit(MC_EVENTS.ERROR, { message: `Stake must be at least ${minBet} SOL` });
+                    return;
+                }
+                joinerStakeAmount = chosen;
+            }
+            // Lock both stakes — same amount in Fixed mode, each player's own in Free mode.
+            const { Decimal } = await import('../../lib/money.js');
             const hostParticipant = dbMatch.participants[0];
             if (hostParticipant) {
-                await escrow.lockBalance(hostParticipant.userId, stakeDecimal, matchId);
+                await escrow.lockBalance(hostParticipant.userId, new Decimal(hostStakeAmount), matchId);
             }
-            await escrow.lockBalance(userId, stakeDecimal, matchId);
+            try {
+                await escrow.lockBalance(userId, new Decimal(joinerStakeAmount), matchId);
+            }
+            catch (lockErr) {
+                // Give the joiner a real reason (e.g. insufficient balance) instead of
+                // the generic catch-all below — they may still want to pick a
+                // different amount rather than being bounced to the lobby.
+                socket.emit(MC_EVENTS.ERROR, {
+                    message: lockErr instanceof Error ? lockErr.message : 'Failed to lock stake',
+                });
+                return;
+            }
             const playerIds = [dbMatch.participants[0]?.userId ?? userId, userId];
             if (dbMatch.participants[0] && dbMatch.participants[0].userId !== playerIds[0]) {
                 playerIds.reverse();
@@ -449,8 +490,8 @@ export function registerMineCatcherSocket(namespace, socket) {
             if (hostSocketId)
                 socketIds[playerIds[0]] = hostSocketId;
             socketIds[userId] = socket.id;
-            await beginMatch(matchId, playerIds, { boardSize, betMode, minBet: gs.minBet ?? null, stake: stakeAmount }, socketIds);
-            log.info('match joined', { matchId, playerIds, stake: stakeAmount });
+            await beginMatch(matchId, playerIds, { boardSize, betMode, minBet: gs.minBet ?? null, stake: hostStakeAmount }, socketIds);
+            log.info('match joined', { matchId, playerIds, hostStake: hostStakeAmount, joinerStake: joinerStakeAmount });
         }
         catch (err) {
             log.error('join_match error', { userId, err });
@@ -616,8 +657,16 @@ export function registerMineCatcherSocket(namespace, socket) {
                 guard('settle', settleMatch(match, raceWinner), { matchId });
                 return;
             }
-            // Start turn timer for next attacker
+            // Tell both clients whose turn it is now — without this, only the
+            // server-side state advances and both boards stay stuck on the
+            // previous turn (the mover's clicks get rejected as "not your turn",
+            // the other player's board stays disabled forever).
             if (match.state.currentAttacker) {
+                broadcastToMatch(match, MC_EVENTS.TURN_START, {
+                    currentAttacker: match.state.currentAttacker,
+                    turnStartedAt: match.state.turnStartedAt,
+                });
+                // Start turn timer for next attacker
                 startTurnTimer(match, match.state.currentAttacker);
             }
         }

@@ -26,10 +26,15 @@ export interface Cell {
   col: number;
 }
 
+/**
+ * Relative-position token from the backend engine:
+ *   0      = yard
+ *   1–51   = shared outer track
+ *   52–56  = private home column
+ *   57     = finished (center)
+ */
 export interface BoardToken {
-  zone: 'yard' | 'track' | 'home';
   position: number;
-  homePosition: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,26 +213,42 @@ export function getGlobalPosition(color: LudoColor, trackPosition: number): numb
   return (COLOR_START_OFFSET[color] + trackPosition) % RING_PATH.length;
 }
 
+/** Last relative position on the shared track before entering the home column. */
+export const HOME_ENTRY = 51;
+
+/** Relative position of the finished token (center). */
+export const FINISH = 57;
+
 /**
- * Maps a token to the board cell it currently occupies. Yard tokens use
- * `tokenIndex` (0-3) to pick a stable dot slot; track tokens are positioned
- * via RING_PATH; still-progressing home tokens via HOME_COLUMNS. A token
- * that has actually finished (`homePosition >= HOME_COLUMN_LENGTH`) always
- * lands on the single shared `CENTER_POINT` — every color's finished tokens
- * converge on the one true center square, not on 4 separate near-center cells.
+ * Maps a token to the board cell it currently occupies.
+ *
+ * Position ranges:
+ *   0        → yard  (use tokenIndex for stable slot)
+ *   1–51     → shared outer track
+ *   52–56    → home column (private lane)
+ *   57       → finished → CENTER_POINT
  */
 export function getCellForToken(color: LudoColor, token: BoardToken, tokenIndex: number): Cell {
-  if (token.zone === 'yard') {
+  const pos = token.position;
+
+  // Yard
+  if (pos === 0) {
     return YARD_SLOTS[color][tokenIndex % 4];
   }
-  if (token.zone === 'home') {
-    if (token.homePosition >= HOME_COLUMN_LENGTH) {
-      return CENTER_POINT;
-    }
-    const idx = Math.max(token.homePosition - 1, 0);
-    return HOME_COLUMNS[color][idx]!;
+
+  // Finished
+  if (pos >= FINISH) {
+    return CENTER_POINT;
   }
-  const globalIndex = getGlobalPosition(color, token.position);
+
+  // Home column (52–56)
+  if (pos > HOME_ENTRY) {
+    const homeIdx = pos - HOME_ENTRY - 1; // 52→0, 53→1 … 56→4
+    return HOME_COLUMNS[color][Math.max(homeIdx, 0)]!;
+  }
+
+  // Shared outer track (1–51): convert to 0-indexed global ring position
+  const globalIndex = (COLOR_START_OFFSET[color] + pos - 1) % RING_PATH.length;
   return RING_PATH[globalIndex];
 }
 
