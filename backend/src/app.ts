@@ -1,12 +1,52 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
-import { corsOrigins, isProd } from './config/env.js';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { corsOrigins, env, isProd } from './config/env.js';
 import { buildApiRouter } from './routes/index.js';
 import { AppError } from './lib/errors.js';
 import { UPLOAD_ROOT, UPLOAD_URL_PREFIX } from './profile/avatarStore.js';
 import { createLogger } from './lib/logger.js';
 
 const log = createLogger('http');
+const FRONTEND_INDEX = 'index.html';
+
+/**
+ * Find the Vite build without assuming the process' current working directory.
+ *
+ * The normal layout has frontend/dist next to backend/, but the relative depth
+ * changes between `tsx src/app.ts` and the compiled `dist/src/app.js` entry
+ * point. An explicit FRONTEND_DIST is supported for deployments that copy the
+ * build somewhere else; otherwise try both source and compiled locations plus
+ * the two common npm workspace working directories.
+ */
+function resolveFrontendDist(): string | null {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const configured = env.FRONTEND_DIST?.trim();
+  const candidates = configured
+    ? [resolve(configured)]
+    : [
+        resolve(process.cwd(), 'frontend/dist'),
+        resolve(process.cwd(), '../frontend/dist'),
+        resolve(here, '../../frontend/dist'),
+        resolve(here, '../../../frontend/dist'),
+      ];
+
+  return candidates.find((dir) => existsSync(resolve(dir, FRONTEND_INDEX))) ?? null;
+}
+
+/** Backend-owned paths must continue to return their own 404s, not index.html. */
+function isBackendPath(pathname: string): boolean {
+  return (
+    pathname === '/api' ||
+    pathname.startsWith('/api/') ||
+    pathname === UPLOAD_URL_PREFIX ||
+    pathname.startsWith(`${UPLOAD_URL_PREFIX}/`) ||
+    pathname === '/socket.io' ||
+    pathname.startsWith('/socket.io/')
+  );
+}
 
 export function createApp(): Express {
   const app = express();
@@ -47,6 +87,41 @@ export function createApp(): Express {
       dotfiles: 'deny',
     }),
   );
+
+  /**
+   * Production/same-origin frontend.
+   *
+   * Vite still owns the hot-reload server in development (`:5173`), but a
+   * built `frontend/dist` is served here as well so one backend URL can serve
+   * both the SPA and `/api`. The fallback is deliberately limited to GET/HEAD
+   * and excludes API/upload/socket paths: a missing backend route must remain
+   * JSON 404, never a successful HTML response that looks like an app route.
+   */
+  const frontendDist = resolveFrontendDist();
+  if (frontendDist) {
+    log.info(`frontend mounted from ${frontendDist}`);
+
+    app.use(
+      express.static(frontendDist, {
+        index: false,
+        maxAge: isProd ? '1h' : 0,
+        dotfiles: 'deny',
+      }),
+    );
+
+    app.use((req, res, next) => {
+      if ((req.method !== 'GET' && req.method !== 'HEAD') || isBackendPath(req.path)) {
+        next();
+        return;
+      }
+
+      res.sendFile(resolve(frontendDist, FRONTEND_INDEX), (err) => {
+        if (err) next(err);
+      });
+    });
+  } else {
+    log.warn('frontend build not found — API only; run npm run build:frontend');
+  }
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found.' } });

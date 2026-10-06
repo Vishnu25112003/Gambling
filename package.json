@@ -17,6 +17,8 @@
     "dev:backend": "npm run dev --workspace backend",
     "dev:frontend": "npm run dev --workspace frontend",
     "build": "npm run build --workspaces --if-present",
+    "build:frontend": "npm run build --workspace frontend",
+    "start": "npm run start --workspace backend",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "treasury:new": "npm run treasury:new --workspace backend",
