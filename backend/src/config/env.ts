@@ -11,6 +11,10 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
 
+  // Optional path to a built Vite frontend. When omitted, the API auto-detects
+  // frontend/dist relative to the repository and the compiled backend.
+  FRONTEND_DIST: z.string().optional(),
+
   // Doc 07: Postgres in Docker, host port 5433.
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
 

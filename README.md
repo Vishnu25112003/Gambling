@@ -32,6 +32,25 @@ npm run dev
 
 Frontend on http://localhost:5173, API on http://localhost:4000.
 
+For a single production-style URL, build the frontend and let Express serve it:
+
+```bash
+npm run build
+npm start
+# open http://localhost:4000
+```
+
+The backend serves `frontend/dist` when it exists, including the SPA fallback
+for deep links such as `/dashboard/leaderboard`; `/api/*` and `/uploads/*`
+continue to return their own responses. If the deployed build lives somewhere
+other than the repository's `frontend/dist`, set `FRONTEND_DIST` in
+`backend/.env`. For that setup, set `SIWS_DOMAIN=localhost:4000` locally (or
+your deployed host) so wallet messages use the same origin.
+
+For backend-served development, run `npm run build:frontend` once and then
+`npm run dev:backend`; Vite at `http://localhost:5173` remains available when
+hot reload is preferred.
+
 ### The database
 
 Postgres 16 runs in Docker on **host port 5433** (doc 07 — deliberately not
@@ -96,6 +115,7 @@ Gambling/
 │   ├── src/
 │   │   ├── generated/     Prisma client (generated, not hand-edited)
 │   │   ├── config/        env validation, prisma client, solana connection
+│   │   ├── app.ts         API plus optional static frontend/SPA serving
 │   │   ├── auth/          doc 01 — SIWS challenge, verify, JWT, middleware
 │   │   ├── wallet/        doc 02 — treasury, deposit listener, withdrawals
 │   │   ├── escrow/        doc 03 — THE ADAPTER (see below)
@@ -198,6 +218,8 @@ This is the main reason Postgres suits this system better than MongoDB did.
 | `npm run dev` | Backend + frontend together |
 | `npm run dev:backend` | API only, with watch |
 | `npm run dev:frontend` | Vite only |
+| `npm run build:frontend` | Build the static frontend bundle |
+| `npm start` | Start the compiled backend (serves the frontend too) |
 | `npm test` | Escrow + money tests (real Postgres, throwaway database) |
 | `npm run typecheck` | `tsc --noEmit` on both workspaces |
 | `npm run build` | Compile backend, bundle frontend |
