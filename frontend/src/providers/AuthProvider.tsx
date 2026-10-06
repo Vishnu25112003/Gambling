@@ -224,6 +224,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [connected, publicKey, user, isRestoring, runSignIn]);
 
+  /**
+   * The session belongs to one address, but the wallet can move to another one
+   * underneath it — the user switches accounts in Phantom, or a reload restores
+   * the stored session while the extension autoConnects to a different account.
+   * Drop the stale session; the effect above then asks the new account to sign.
+   */
+  useEffect(() => {
+    if (!user || !publicKey) return;
+    if (publicKey.toBase58() === user.walletAddress) return;
+    tokenStore.clear();
+    setUser(null);
+    setBalance(null);
+  }, [publicKey, user]);
+
   const signIn = useCallback(async () => {
     suppressAuto.current = false;
     if (!connected) {
