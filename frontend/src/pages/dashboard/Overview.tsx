@@ -286,7 +286,7 @@ export function Overview() {
             <span className="inline-block size-6 animate-spin rounded-full border-2 border-line border-t-green" />
           </div>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3.5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))] sm:gap-3.5">
             {games.map((g) => (
               <GameCard key={g.id} game={g} variant="arena" onClick={isPlaceholder ? undefined : handlePlay} />
             ))}
