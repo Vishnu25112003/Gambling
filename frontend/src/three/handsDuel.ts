@@ -288,7 +288,13 @@ export interface HandsDuelHandle {
   dispose: SceneDisposer;
 }
 
-export function mountHandsDuel(canvas: HTMLCanvasElement): HandsDuelHandle {
+/**
+ * `onFail` fires if the scene stops being able to draw (a lost GPU context or a
+ * throwing render) so the caller can swap in a non-WebGL fallback instead of
+ * leaving an empty stage. A failure to create the renderer at all (no WebGL)
+ * simply throws out of this function.
+ */
+export function mountHandsDuel(canvas: HTMLCanvasElement, onFail?: (reason: string) => void): HandsDuelHandle {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setClearColor(0x000000, 0);
   renderer.shadowMap.enabled = true;
@@ -375,6 +381,21 @@ export function mountHandsDuel(canvas: HTMLCanvasElement): HandsDuelHandle {
   let raf = 0;
   let last = performance.now();
 
+  function fail(reason: string) {
+    if (stopped) return;
+    stopped = true;
+    cancelAnimationFrame(raf);
+    onFail?.(reason);
+  }
+  // The browser can drop the GPU context at any time (tab backgrounding, too
+  // many live contexts). preventDefault keeps it restorable, but the scene
+  // would still stay blank, so hand over to the fallback.
+  const onContextLost = (e: Event) => {
+    e.preventDefault();
+    fail('webgl context lost');
+  };
+  canvas.addEventListener('webglcontextlost', onContextLost);
+
   function tick(now: number) {
     if (stopped) return;
     raf = requestAnimationFrame(tick);
@@ -407,7 +428,12 @@ export function mountHandsDuel(canvas: HTMLCanvasElement): HandsDuelHandle {
       L.hand.rotation.z += (0.05 - L.hand.rotation.z) * k;
       R.hand.rotation.z += (-0.05 - R.hand.rotation.z) * k;
     }
-    renderer.render(scene, camera);
+    try {
+      renderer.render(scene, camera);
+    } catch (err) {
+      // A shader that won't compile on this GPU throws on every frame.
+      fail(`render failed: ${String(err)}`);
+    }
   }
   raf = requestAnimationFrame(tick);
 
@@ -421,6 +447,7 @@ export function mountHandsDuel(canvas: HTMLCanvasElement): HandsDuelHandle {
     dispose() {
       stopped = true;
       cancelAnimationFrame(raf);
+      canvas.removeEventListener('webglcontextlost', onContextLost);
       observer.disconnect();
       disposeScene(scene);
       renderer.dispose();
