@@ -71,7 +71,9 @@ export function BadgeVault({ tier }: { tier: TierProgressData }) {
 
               <div className="text-[13.5px] font-bold tracking-[0.02em]">{rung.label}</div>
               <p className="mt-1 text-[11px] text-muted">
-                Stake {formatSol(rung.minWagered)} SOL lifetime to unlock
+                {Number(rung.minWagered) === 0
+                  ? 'Granted when you register'
+                  : `Stake ${formatSol(rung.minWagered)} SOL lifetime to unlock`}
               </p>
 
               <div className="mt-2.5 h-[5px] w-full overflow-hidden rounded-full bg-line2">
