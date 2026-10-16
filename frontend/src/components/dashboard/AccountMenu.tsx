@@ -66,7 +66,7 @@ export function AccountMenu() {
           <AccountHeader user={user} balance={balance} rank={rank} />
 
           <div className="p-2">
-            <MenuLink to="/dashboard/profile" icon="user" label="Profile" onClick={close} />
+            <MenuLink to="/dashboard/profile" icon="users" label="Profile" onClick={close} />
             <MenuLink to="/dashboard/escrow" icon="lockbox" label="Deposit & withdraw" onClick={close} />
             <MenuLink to="/dashboard/transactions" icon="receipt" label="Transactions" onClick={close} />
             <MenuLink to="/dashboard/affiliates" icon="users" label="Invite & Earn" onClick={close} />
