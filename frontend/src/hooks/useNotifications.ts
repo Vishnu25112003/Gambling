@@ -110,6 +110,15 @@ function describe(row: LedgerRow): Omit<Notification, 'unread'> | null {
         body: `You didn't reconnect in time and lost ${abs} SOL.`,
       };
 
+    case 'rakeback':
+      return {
+        ...base,
+        icon: 'gift',
+        tone: 'good',
+        title: 'Rakeback claimed',
+        body: `+${abs} SOL added to your balance.`,
+      };
+
     case 'referral':
       return {
         ...base,

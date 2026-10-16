@@ -46,7 +46,8 @@ export type LedgerType =
   | 'refund'
   | 'forfeit'
   | 'fee'
-  | 'referral';
+  | 'referral'
+  | 'rakeback';
 
 export interface LedgerRow {
   id: string;
@@ -140,6 +141,17 @@ export interface ReferralStats {
   canEnterCode: boolean;
   referredBy: { name: string; joinedAt: string } | null;
   friends: ReferredFriend[];
+}
+
+/** GET /api/rewards/me — the rakeback half of the Rewards page. */
+export interface RewardsSummary {
+  /** Exact SOL decimal string accrued and not yet claimed. */
+  unclaimed: string;
+  /** Current rate in basis points of the fee; 0 below the first tier. */
+  rateBps: number;
+  tiers: { minWagered: string; bps: number }[];
+  /** The latest confirmed claims (ledger 'rakeback' rows), newest first. */
+  claims: LedgerRow[];
 }
 
 export interface ReferralLookup {

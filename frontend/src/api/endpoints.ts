@@ -11,6 +11,7 @@ import type {
   Profile,
   ReferralLookup,
   ReferralStats,
+  RewardsSummary,
   UsernameCheck,
   WalletInfo,
   WithdrawResponse,
@@ -134,6 +135,16 @@ export const referralApi = {
   /** Public — confirms a `?ref=` link resolved, before the visitor has an identity. */
   lookup: (code: string) =>
     api<ReferralLookup>(`/referrals/code/${encodeURIComponent(code)}`, { auth: false }),
+};
+
+// --- rewards ---------------------------------------------------------------
+
+export const rewardsApi = {
+  /** Unclaimed rakeback, current rate, tier table and recent claims. */
+  me: () => api<RewardsSummary>('/rewards/me'),
+
+  /** Move all accrued rakeback into the playable balance (exactly once). */
+  claim: () => api<{ claimed: string; availableBalance: string }>('/rewards/claim', { method: 'POST' }),
 };
 
 // --- public ----------------------------------------------------------------

@@ -50,6 +50,11 @@ model User {
   /// `gamesPlayed`, so the pair can never describe an impossible record.
   gamesWon Int @default(0)
 
+  /// Rewards — rakeback accrued by settled matches and not yet claimed. Moved
+  /// into `availableBalance` (and zeroed) by a single atomic statement in
+  /// `rewards/claimRakeback.ts`; a CHECK keeps it non-negative.
+  rakebackUnclaimed Decimal @default(0) @db.Decimal(20, 9)
+
   /// Doc 11 — the single name field: shown everywhere a player's name appears
   /// (profile, leaderboard, in-game labels) and doubles as the public profile
   /// handle, the `:handle` in /dashboard/u/:handle.
@@ -125,6 +130,9 @@ enum LedgerType {
   /// by the house, so it is the one positive entry that is not funded by a
   /// player's own stake.
   referral
+  /// Rewards — a player claiming their accrued rakeback (a tier-based share of
+  /// the platform fee their stake generated). House-funded, like `referral`.
+  rakeback
 }
 
 enum LedgerStatus {

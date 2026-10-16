@@ -155,7 +155,7 @@ function AmountEditor({
           <button
             key={c.label}
             onClick={() => onAmountChange(c.value)}
-            className="flex-1 basis-[70px] cursor-pointer rounded-lg border px-3 py-2.5 font-mono text-xs text-text transition hover:text-text"
+            className="flex-1 basis-[70px] cursor-pointer rounded-lg border px-2 py-2.5 font-mono text-xs whitespace-nowrap text-text transition hover:text-text sm:px-3"
             style={{ borderColor: 'rgba(47,224,138,.16)', background: 'var(--panel-bg3)' }}
           >
             {c.label}
@@ -163,15 +163,20 @@ function AmountEditor({
         ))}
       </div>
 
-      <button
-        onClick={onSubmit}
-        disabled={busy || disabled}
-        className="mt-auto flex w-full items-center justify-center gap-2.5 rounded-[10px] border-0 py-3.5 font-heading text-[14.5px] font-bold tracking-[0.07em] text-[#04160c] disabled:cursor-not-allowed disabled:opacity-60"
-        style={{ background: 'linear-gradient(180deg, #35eb95, #16a862)', boxShadow: '0 8px 24px rgba(47,224,138,.24)' }}
-      >
-        <Icon name={ctaIcon} size={20} />
-        {busy ? 'WORKING…' : ctaLabel}
-      </button>
+      {/* `mt-auto` pushes the button to the card's bottom when the card is taller
+          than its content, but collapses to 0 when it isn't (e.g. on a phone) —
+          so the padding is what guarantees a gap under the amount chips. */}
+      <div className="mt-auto pt-4">
+        <button
+          onClick={onSubmit}
+          disabled={busy || disabled}
+          className="flex w-full items-center justify-center gap-2.5 rounded-[10px] border-0 py-3.5 font-heading text-[14.5px] font-bold tracking-[0.07em] text-[#04160c] disabled:cursor-not-allowed disabled:opacity-60"
+          style={{ background: 'linear-gradient(180deg, #35eb95, #16a862)', boxShadow: '0 8px 24px rgba(47,224,138,.24)' }}
+        >
+          <Icon name={ctaIcon} size={20} />
+          {busy ? 'WORKING…' : ctaLabel}
+        </button>
+      </div>
 
       <div className="mt-3 flex justify-between gap-2.5 font-mono text-[10.5px] text-muted">
         <span>{note}</span>
@@ -375,6 +380,7 @@ const ACTIVITY_ICON: Record<LedgerRow['type'], IconName> = {
   forfeit: 'bomb',
   fee: 'percent',
   referral: 'gift',
+  rakeback: 'gift',
 };
 
 const STATUS_CHIP: Record<LedgerRow['status'], { bg: string; fg: string }> = {

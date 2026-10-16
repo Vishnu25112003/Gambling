@@ -1,16 +1,14 @@
+import { useState } from 'react';
 import { Flame, History } from 'lucide-react';
 import { ConnectWalletPlaceholder } from '../../components/dashboard/ConnectWalletPlaceholder';
 import { Panel, PanelHeader, StatTile, TableHead, TableRow, TableScroll } from '../../components/dashboard/panels';
 import { Icon } from '../../components/shared/icons';
+import { rewardsApi } from '../../api/endpoints';
+import { ApiError } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useRewards } from '../../hooks/useRewards';
 import { formatDate, formatSol } from '../../lib/format';
-import {
-  MOCK_CLAIMS,
-  MOCK_CRATES,
-  MOCK_STREAK,
-  MOCK_UNCLAIMED,
-  RAKEBACK_TIERS,
-} from '../../lib/rewardsMock';
+import { MOCK_CRATES, MOCK_STREAK, RAKEBACK_TIERS } from '../../lib/rewardsMock';
 
 const SUBTITLE = 'Rakeback, streak bonuses and season drops — claim them before the timer runs out.';
 const CLAIMS_TEMPLATE = '1.3fr 1.2fr 1fr .8fr';
@@ -47,8 +45,14 @@ function StreakStrip() {
   );
 }
 
-function RakebackProgress({ wagered }: { wagered: number }) {
-  const top = RAKEBACK_TIERS[RAKEBACK_TIERS.length - 1]!.minWagered;
+function RakebackProgress({
+  wagered,
+  tiers,
+}: {
+  wagered: number;
+  tiers: { pct: string; minWagered: number }[];
+}) {
+  const top = tiers[tiers.length - 1]!.minWagered;
   const pct = Math.min(100, (wagered / top) * 100);
 
   return (
@@ -58,7 +62,7 @@ function RakebackProgress({ wagered }: { wagered: number }) {
         <div className="h-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #0f7d4d, #35eb95)', boxShadow: '0 0 16px rgba(47,224,138,.5)' }} />
       </div>
       <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2.5">
-        {RAKEBACK_TIERS.map((t) => {
+        {tiers.map((t) => {
           const reached = wagered >= t.minWagered;
           return (
             <div
@@ -87,7 +91,9 @@ function RakebackProgress({ wagered }: { wagered: number }) {
 
 function CrateCard({ crate }: { crate: (typeof MOCK_CRATES)[number] }) {
   const pct = crate.total > 0 ? Math.min(100, (crate.progress / crate.total) * 100) : 0;
-  const claimable = crate.claimable;
+  // Crates have no backend yet (only rakeback is real), so none is ever offered as
+  // claimable — a live-looking button that does nothing is what this replaces.
+  const claimable = false;
 
   return (
     <article
@@ -132,7 +138,7 @@ function CrateCard({ crate }: { crate: (typeof MOCK_CRATES)[number] }) {
         }
       >
         <Icon name={crate.icon} size={18} />
-        {claimable ? 'OPEN NOW' : `${crate.progress}/${crate.total}`}
+        COMING SOON
       </button>
     </article>
   );
@@ -145,6 +151,37 @@ function CrateCard({ crate }: { crate: (typeof MOCK_CRATES)[number] }) {
  */
 export function Rewards() {
   const { isAuthenticated, user } = useAuth();
+  const { data: rewards, reload } = useRewards(isAuthenticated);
+  const [claiming, setClaiming] = useState(false);
+  const [claimNote, setClaimNote] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const unclaimed = rewards?.unclaimed ?? '0';
+  const hasUnclaimed = Number(unclaimed) > 0;
+  const rateBps = rewards?.rateBps ?? 0;
+  // The server owns the tier table; the static one only fills the page until it loads.
+  const tiers = rewards
+    ? rewards.tiers.map((t) => ({ pct: `${t.bps / 100}%`, minWagered: Number(t.minWagered) }))
+    : RAKEBACK_TIERS;
+
+  const handleClaim = async () => {
+    if (claiming || !hasUnclaimed) return;
+    setClaiming(true);
+    setClaimNote(null);
+    try {
+      const res = await rewardsApi.claim();
+      setClaimNote({ ok: true, text: `+${formatSol(res.claimed)} SOL added to your balance.` });
+    } catch (err) {
+      setClaimNote({
+        ok: false,
+        text: err instanceof ApiError ? err.message : 'Could not claim right now — please try again.',
+      });
+    } finally {
+      // Refetch either way: a rejected claim usually means the server's amount
+      // differs from what the page showed (e.g. already claimed in another tab).
+      reload();
+      setClaiming(false);
+    }
+  };
 
   if (!isAuthenticated) {
     return (
@@ -157,6 +194,7 @@ export function Rewards() {
   }
 
   const wagered = Number(user?.totalWagered ?? '0');
+  const claims = rewards?.claims ?? [];
 
   return (
     <div className="flex flex-col gap-4">
@@ -177,27 +215,43 @@ export function Rewards() {
           <div className="relative flex h-full flex-col">
             <span className="inline-flex w-fit items-center gap-2 rounded-[6px] border px-[11px] py-[5px]" style={{ borderColor: 'rgba(240,180,41,.32)', background: 'rgba(240,180,41,.14)' }}>
               <span className="size-1.5 rounded-full bg-[#f0b429]" style={{ animation: 'irPulse 1.8s infinite' }} />
-              <span className="font-mono text-[10px] tracking-[0.18em] text-gold-bright">READY TO CLAIM</span>
+              <span className="font-mono text-[10px] tracking-[0.18em] text-gold-bright">
+                {hasUnclaimed ? 'READY TO CLAIM' : 'NOTHING TO CLAIM YET'}
+              </span>
             </span>
             <div className="mt-[18px] font-mono text-[10px] tracking-[0.18em] text-gold">UNCLAIMED BALANCE</div>
             <div className="mt-1.5 flex items-end gap-2.5">
               <span className="font-heading text-[clamp(38px,5vw,58px)] leading-none font-bold text-gold-bright" style={{ textShadow: '0 0 34px rgba(240,180,41,.35)' }}>
-                {formatSol(MOCK_UNCLAIMED)}
+                {formatSol(unclaimed)}
               </span>
               <span className="pb-[7px] font-mono text-[14px] text-gold">SOL</span>
             </div>
             <p className="mt-2.5 max-w-[380px] text-[13px] leading-[1.5] text-[#a89a72]">
               Rakeback accrues on every settled match. Claims land in your playable balance instantly.
             </p>
+            {claimNote && (
+              <p
+                role="status"
+                className="mt-2.5 text-[12.5px] font-semibold"
+                style={{ color: claimNote.ok ? 'var(--green)' : 'var(--red)' }}
+              >
+                {claimNote.text}
+              </p>
+            )}
             <div className="mt-auto flex flex-wrap gap-2 pt-[22px]">
               <button
-                className="flex flex-1 basis-[170px] cursor-pointer items-center justify-center gap-2.5 rounded-[10px] border-0 px-5 py-[13px] font-heading text-sm font-bold tracking-[0.06em]"
+                type="button"
+                onClick={() => void handleClaim()}
+                disabled={!hasUnclaimed || claiming}
+                className="flex flex-1 basis-[170px] cursor-pointer items-center justify-center gap-2.5 rounded-[10px] border-0 px-5 py-[13px] font-heading text-sm font-bold tracking-[0.06em] disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ background: 'linear-gradient(180deg, #f7d774, #d69a0e)', color: '#241800', boxShadow: '0 8px 24px rgba(240,180,41,.26)' }}
               >
                 <Icon name="gift" size={19} />
-                CLAIM ALL
+                {claiming ? 'CLAIMING…' : 'CLAIM ALL'}
               </button>
               <button
+                type="button"
+                onClick={() => document.getElementById('claim-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                 className="flex flex-none cursor-pointer items-center gap-2 rounded-[10px] border px-[18px] py-[13px] font-heading text-[13.5px] font-bold tracking-[0.06em] text-gold-bright"
                 style={{ borderColor: 'rgba(240,180,41,.26)', background: 'rgba(240,180,41,.06)' }}
               >
@@ -224,13 +278,13 @@ export function Rewards() {
           </div>
           <div className="grid flex-1 grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-3">
             <StatTile icon="chart" label="STREAK BONUS" value="0.008 SOL" color="var(--green)" />
-            <StatTile icon="percent" label="RAKEBACK RATE" value="4%" color="var(--gold-bright)" />
+            <StatTile icon="percent" label="RAKEBACK RATE" value={`${rateBps / 100}%`} color="var(--gold-bright)" />
             <StatTile icon="gift" label="CRATES OPEN" value="1" color="var(--text)" />
           </div>
         </section>
       </div>
 
-      <RakebackProgress wagered={wagered} />
+      <RakebackProgress wagered={wagered} tiers={tiers} />
 
       <section>
         <div className="mb-3 flex items-baseline justify-between gap-3">
@@ -244,27 +298,29 @@ export function Rewards() {
         </div>
       </section>
 
+      <div id="claim-history" className="scroll-mt-20">
       <Panel>
         <PanelHeader title="CLAIM HISTORY" meta="LAST 5" />
-        {MOCK_CLAIMS.length === 0 ? (
+        {claims.length === 0 ? (
           <p className="py-8 text-center text-[13px] text-muted">No claims yet.</p>
         ) : (
           <TableScroll minWidth={520}>
             <TableHead template={CLAIMS_TEMPLATE} columns={[{ label: 'REWARD' }, { label: 'CLAIMED' }, { label: 'SOURCE' }, { label: 'AMOUNT', align: 'right' }]} />
-            {MOCK_CLAIMS.map((c) => (
+            {claims.map((c) => (
               <TableRow key={c.id} template={CLAIMS_TEMPLATE}>
                 <span className="flex min-w-0 items-center gap-2.5">
                   <Icon name="gift" size={18} className="text-gold" />
-                  <span className="truncate font-heading text-[13.5px] font-semibold text-text">{c.name}</span>
+                  <span className="truncate font-heading text-[13.5px] font-semibold text-text">Rakeback</span>
                 </span>
-                <span className="font-mono text-[11.5px] text-muted">{formatDate(c.when)}</span>
-                <span className="font-mono text-[11.5px] text-muted">{c.source}</span>
+                <span className="font-mono text-[11.5px] text-muted">{formatDate(c.timestamp)}</span>
+                <span className="font-mono text-[11.5px] text-muted">Rakeback claim</span>
                 <span className="text-right font-mono text-[12.5px] text-green">+{formatSol(c.amount)}</span>
               </TableRow>
             ))}
           </TableScroll>
         )}
       </Panel>
+      </div>
     </div>
   );
 }

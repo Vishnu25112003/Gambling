@@ -79,6 +79,7 @@ const LEDGER_LABELS: Record<string, string> = {
   forfeit: 'Forfeit',
   fee: 'Platform fee',
   referral: 'Referral bonus',
+  rakeback: 'Rakeback',
 };
 
 export const ledgerLabel = (type: string): string => LEDGER_LABELS[type] ?? type;
