@@ -328,7 +328,7 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
  *
  * The top bar's account menu is desktop-only — there is no room for it beside a
  * hamburger and a balance chip — so on mobile this is where the wallet address
- * lives. Tapping it opens Settings rather than doing anything destructive.
+ * lives. Tapping it opens Profile rather than doing anything destructive.
  */
 function DrawerAccount({ onNavigate }: { onNavigate: () => void }) {
   const { isAuthenticated, user, balance } = useAuth();
@@ -337,12 +337,12 @@ function DrawerAccount({ onNavigate }: { onNavigate: () => void }) {
 
   return (
     <NavLink
-      to="/dashboard/settings"
+      to="/dashboard/profile"
       onClick={onNavigate}
       // Hidden below 620px of viewport height. The nav rows are the only thing
       // that can absorb this block's ~62px, and below that they would be pushed
       // under their 34px floor — at which point the last item is clipped by the
-      // drawer's `overflow-hidden`. Losing a convenience beats losing Support.
+      // drawer's `overflow-hidden`. Losing a convenience beats losing a nav item.
       className="mt-3 flex shrink-0 items-center gap-2.5 rounded-xl border border-line bg-card px-2.5 py-2 [@media(max-height:619px)]:hidden"
     >
       <Avatar

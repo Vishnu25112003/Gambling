@@ -21,6 +21,4 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'leaderboard', label: 'Leaderboard', icon: 'trophy', to: '/dashboard/leaderboard' },
   { key: 'rewards', label: 'Rewards', icon: 'gift', to: '/dashboard/rewards' },
   { key: 'affiliates', label: 'Invite & Earn', icon: 'users', to: '/dashboard/affiliates' },
-  { key: 'settings', label: 'Settings', icon: 'cog', to: '/dashboard/settings' },
-  { key: 'support', label: 'Support', icon: 'help', to: '/dashboard/support' },
 ];
