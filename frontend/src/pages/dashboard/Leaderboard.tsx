@@ -29,7 +29,7 @@ export function Leaderboard() {
         <>
           <LeaderboardPodium entries={entries} />
           <section
-            className="overflow-x-auto rounded-2xl border p-4"
+            className="overflow-x-auto rounded-2xl border p-2.5 sm:p-4"
             style={{ borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg)' }}
           >
             <LeaderboardTable entries={entries} variant="full" />
