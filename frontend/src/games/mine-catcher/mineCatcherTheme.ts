@@ -60,8 +60,21 @@ export function terrainStyle(): CSSProperties {
   };
 }
 
+const GRID_GAP = 5;
+
+/**
+ * Fluid grid: columns share the available width (`minmax(0,1fr)` so a cell can
+ * shrink below its content) but never grow past the design's `px` cell size, so
+ * desktop is unchanged and a phone no longer overflows its frame.
+ */
 export function gridStyle(side: number, px: number): CSSProperties {
-  return { display: 'grid', gridTemplateColumns: `repeat(${side},${px}px)`, gap: 5 };
+  return {
+    display: 'grid',
+    gridTemplateColumns: `repeat(${side},minmax(0,1fr))`,
+    gap: GRID_GAP,
+    width: '100%',
+    maxWidth: side * px + (side - 1) * GRID_GAP,
+  };
 }
 
 /**
@@ -71,10 +84,11 @@ export function gridStyle(side: number, px: number): CSSProperties {
  * styles always win over a stylesheet rule regardless of pseudo-class, so
  * mixing the two for the same property would make hover a no-op.
  */
-export function cellGeometryStyle(px: number): CSSProperties {
+export function cellGeometryStyle(_px?: number): CSSProperties {
   return {
-    width: px,
-    height: px,
+    width: '100%',
+    aspectRatio: '1 / 1',
+    minWidth: 0,
     boxSizing: 'border-box',
     position: 'relative',
     display: 'grid',

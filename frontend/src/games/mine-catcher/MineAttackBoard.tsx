@@ -132,8 +132,8 @@ export function MineAttackBoard({
         />
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_262px]">
-        <div>
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_262px]">
+        <div className="min-w-0">
           {/* Status bar */}
           <div
             className="mb-3 flex items-center justify-between gap-3 rounded-[6px] border bg-[linear-gradient(#0c120d,#080d09)] px-4 py-2.5"
