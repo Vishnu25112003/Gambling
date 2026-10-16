@@ -211,6 +211,20 @@ function LudoBoardInner() {
   const [diceRot, setDiceRot] = useState<Record<LudoColor, { x: number; y: number }>>(() => ({ ...IDLE_TILT }));
   const spinCounts = useRef<Record<LudoColor, number>>({ red: 0, green: 0, yellow: 0, blue: 0 });
 
+  // --- Per-player turn clock (visible to everyone) ---
+  // `timeLeft`/startTimer below only ever tracked MY countdown. This tracks
+  // whichever player currently holds the turn, so every pod can show its own
+  // indicator. Purely visual — the server's timers stay authoritative.
+  const [turnClock, setTurnClock] = useState<{ playerId: string; end: number; total: number } | null>(null);
+  const [clockNow, setClockNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!turnClock) return;
+    setClockNow(Date.now());
+    const id = setInterval(() => setClockNow(Date.now()), 200);
+    return () => clearInterval(id);
+  }, [turnClock]);
+
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearTimer = useCallback(() => {
@@ -349,6 +363,7 @@ function LudoBoardInner() {
       setRollingDice(false);
       setPendingSubmit(false);
       clearTimer();
+      setTurnClock({ playerId: data.currentPlayerId, end: Date.now() + ROLL_TIMEOUT_MS, total: ROLL_TIMEOUT_MS });
 
       if (data.currentPlayerId === user.id) {
         setIsMyTurn(true);
@@ -394,33 +409,28 @@ function LudoBoardInner() {
         clearTimeout(pendingSettleRef.current);
         pendingSettleRef.current = null;
       }
+      // The authoritative state is applied NOW, in arrival order. It must not be
+      // deferred into applySettle: by the time the spin finishes, TOKEN_MOVED /
+      // MATCH_STATE for this same roll have already landed, and re-applying this
+      // older snapshot would roll the pawns back (and clearTimer() would kill the
+      // move/roll timer the next event just started). Only cosmetics wait.
+      if (data.state) setGameState(data.state);
+      clearTimer();
+      // The roller now has the move window. If the roll auto-moves or passes,
+      // the TURN_START that follows immediately re-arms the clock.
+      setTurnClock({ playerId: data.playerId, end: Date.now() + MOVE_TIMEOUT_MS, total: MOVE_TIMEOUT_MS });
       const applySettle = () => {
         setLastDice(data.diceValue);
         setLastDiceColor(data.color);
         setRollingDice(false);
         setRollingColor(null);
         setPendingSubmit(false);
-        if (data.state) setGameState(data.state);
-        clearTimer();
       };
       const elapsed = Date.now() - rollStartRef.current;
       if (elapsed < MIN_SPIN_MS) {
         pendingSettleRef.current = setTimeout(applySettle, MIN_SPIN_MS - elapsed);
       } else {
         applySettle();
-      }
-    });
-
-    s.on(LUDO.MATCH_STATE, (data: {
-      phase?: string;
-      diceValue?: number;
-      validMoves?: ValidMove[];
-      state?: LudoState;
-    }) => {
-      if (data.state) setGameState(data.state);
-      if (data.phase === 'moving' && data.validMoves) {
-        setValidMoves(data.validMoves);
-        startTimer(MOVE_TIMEOUT_MS);
       }
     });
 
@@ -464,6 +474,7 @@ function LudoBoardInner() {
 
     s.on(LUDO.MATCH_RESULT, (data: MatchResult) => {
       clearTimer();
+      setTurnClock(null);
       setMatchResult(data);
       setPage('match_result');
     });
@@ -642,6 +653,7 @@ function LudoBoardInner() {
 
   const goHome = () => {
     clearTimer();
+    setTurnClock(null);
     setPage('lobby');
     setMatchResult(null);
     setGameState(null);
@@ -833,6 +845,8 @@ function LudoBoardInner() {
       gameState?.tokens[p.id]?.filter((t) => t.position >= 57).length ?? 0;
     const active = gameState?.currentPlayerId === p.id;
     const rot = diceRot[color] ?? IDLE_TILT[color];
+    const clock = turnClock && turnClock.playerId === p.id ? turnClock : null;
+    const remainingMs = clock ? Math.max(0, clock.end - clockNow) : 0;
     return (
       <PlayerPod
         color={color}
@@ -845,6 +859,7 @@ function LudoBoardInner() {
         side={side}
         diceTransform={`rotateX(${rot.x}deg) rotateY(${rot.y}deg)`}
         isRolling={rollingColor === color}
+        timer={clock ? { secondsLeft: Math.ceil(remainingMs / 1000), fraction: remainingMs / clock.total } : null}
         onRoll={handleRollDice}
       />
     );
