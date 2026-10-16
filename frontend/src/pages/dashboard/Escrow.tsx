@@ -191,7 +191,7 @@ function AmountEditor({
  */
 function DepositPanel({ hidden, onDone }: { hidden: boolean; onDone: () => Promise<void> }) {
   const { connection } = useConnection();
-  const { publicKey, sendTransaction } = useWallet();
+  const { publicKey, sendTransaction, signTransaction } = useWallet();
   const { socket } = useAuth();
   const [info, setInfo] = useState<WalletInfo | null>(null);
   const [amount, setAmount] = useState('0.1');
@@ -250,7 +250,15 @@ function DepositPanel({ hidden, onDone }: { hidden: boolean; onDone: () => Promi
       }).compileToV0Message();
       const tx = new VersionedTransaction(message);
 
-      const signature = await sendTransaction(tx, connection);
+      // Sign in the wallet, submit ourselves: some mobile wallets hand back a
+      // "signature" from signAndSend that is not base58 (confirmTransaction then
+      // throws "signature must be base58 encoded"). The RPC's own return value
+      // is always a well-formed signature.
+      const signature = signTransaction
+        ? await connection.sendRawTransaction((await signTransaction(tx)).serialize(), {
+            preflightCommitment: 'confirmed',
+          })
+        : await sendTransaction(tx, connection);
       setStatus('Sent — waiting for confirmation…');
 
       await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
