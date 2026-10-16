@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { avatarGradient } from '../../lib/avatar';
 import { shortAddress } from '../../lib/format';
 
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(//$/, '');
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 /**
  * The API returns uploads as a root-relative path (`/uploads/avatars/…`). That
