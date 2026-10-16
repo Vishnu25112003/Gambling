@@ -94,6 +94,7 @@ export const CF_EVENTS = {
   // Client → Server
   JOIN_MATCH: 'cf:join',
   CREATE_MATCH: 'cf:create',
+  CANCEL_MATCH: 'cf:cancel',
   LIST_MATCHES: 'cf:list',
   SPIN: 'cf:spin',
   CALL: 'cf:call',

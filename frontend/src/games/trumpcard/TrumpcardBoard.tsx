@@ -26,6 +26,7 @@ const TRUMPCARD = {
   JOIN_MATCH: 'trumpcard:join',
   LIST_MATCHES: 'trumpcard:list',
   LEAVE_LOBBY: 'trumpcard:leave',
+  CANCEL_MATCH: 'trumpcard:cancel',
   CHOOSE_STAT: 'trumpcard:choose_stat',
   MATCH_CREATED: 'trumpcard:created',
   MATCHES_LIST: 'trumpcard:matches',
@@ -173,6 +174,9 @@ function TrumpcardBoardInner() {
   const { user } = useAuth();
 
   const socketRef = useRef<Socket | null>(null);
+  // Bumped by goHome to rebuild the socket *through the main effect*, so every
+  // event handler is attached again (a hand-made replacement socket had none).
+  const [socketEpoch, setSocketEpoch] = useState(0);
   const [connected, setConnected] = useState(false);
 
   const [balance, setBalance] = useState<string | null>(null);
@@ -374,7 +378,7 @@ function TrumpcardBoardInner() {
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, applySnapshot]);
+  }, [user, applySnapshot, socketEpoch]);
 
   // --- Fetch balance ---
   useEffect(() => {
@@ -453,8 +457,7 @@ function TrumpcardBoardInner() {
   };
 
   const goHome = () => {
-    socketRef.current?.disconnect();
-    socketRef.current = null;
+    socketRef.current?.emit(TRUMPCARD.CANCEL_MATCH);
     setPage('lobby');
     setMatchResult(null);
     setPlayers([]);
@@ -474,14 +477,7 @@ function TrumpcardBoardInner() {
     setMatchDeadlineAt(null);
     setJoinStakeInfo(null);
     setStakeError(null);
-
-    const token = tokenStore.get();
-    if (!token || !user) return;
-    const BASE = import.meta.env.VITE_API_URL || '';
-    const s = io(BASE || '/', { auth: { token }, transports: ['websocket'] });
-    socketRef.current = s;
-    s.on('connect', () => { setConnected(true); s.emit(TRUMPCARD.LIST_MATCHES); });
-    s.on(TRUMPCARD.MATCHES_LIST, (data: { matches: ListedMatch[] }) => setMatches(data.matches));
+    setSocketEpoch((e) => e + 1);
   };
 
   // --- Lobby ---

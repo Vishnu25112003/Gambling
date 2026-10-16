@@ -112,6 +112,9 @@ const socketToMatch = new Map<string, string>();
 const LISTING_GRACE_MS = 2 * 60 * 1000;
 const listingGraceTimers = new Map<string, NodeJS.Timeout>();
 
+/** Users with a CREATE_MATCH in flight — a double-tapped Publish must not host twice. */
+const creatingHosts = new Set<string>();
+
 // --- Helpers ----------------------------------------------------------------
 
 let ioRef: Namespace | null = null;
@@ -344,6 +347,27 @@ export function registerTrumpcardSocket(namespace: Namespace, socket: Socket): v
     }
   }
 
+  /** Drops every not-yet-started lobby this user hosts (cancel, or before hosting again). */
+  const dropHostListings = () => {
+    let changed = false;
+    for (const [mid, info] of lobbyInfo) {
+      if (info.hostUserId !== userId) continue;
+      lobbyInfo.delete(mid);
+      const timer = listingGraceTimers.get(mid);
+      if (timer) {
+        clearTimeout(timer);
+        listingGraceTimers.delete(mid);
+      }
+      for (const [code, rid] of roomCodes) {
+        if (rid === mid) roomCodes.delete(code);
+      }
+      changed = true;
+    }
+    if (changed) namespace.emit(TRUMPCARD_EVENTS.MATCHES_LIST, { matches: listPublicMatches() });
+  };
+
+  socket.on(TRUMPCARD_EVENTS.CANCEL_MATCH, () => dropHostListings());
+
   // --- LIST_MATCHES: return public Random Play matches ---
   socket.on(TRUMPCARD_EVENTS.LIST_MATCHES, () => {
     socket.emit(TRUMPCARD_EVENTS.MATCHES_LIST, { matches: listPublicMatches() });
@@ -359,6 +383,8 @@ export function registerTrumpcardSocket(namespace: Namespace, socket: Socket): v
     stake?: number;
     minBet?: number;
   }) => {
+    if (creatingHosts.has(userId)) return;
+    creatingHosts.add(userId);
     try {
       const seatCount = data.seatCount ?? 2;
       if (seatCount < 2 || seatCount > 4) {
@@ -388,6 +414,8 @@ export function registerTrumpcardSocket(namespace: Namespace, socket: Socket): v
         socket.emit(TRUMPCARD_EVENTS.ERROR, { message: 'Stake must be positive' });
         return;
       }
+
+      dropHostListings();
 
       const matchId = await escrow.createMatch({
         gameType: 'trumpcard',
@@ -433,6 +461,8 @@ export function registerTrumpcardSocket(namespace: Namespace, socket: Socket): v
     } catch (err) {
       log.error('create_match error', { userId, err });
       socket.emit(TRUMPCARD_EVENTS.ERROR, { message: 'Failed to create match' });
+    } finally {
+      creatingHosts.delete(userId);
     }
   });
 

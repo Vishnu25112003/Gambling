@@ -154,6 +154,9 @@ function LudoBoardInner() {
 
   // --- Socket ---
   const socketRef = useRef<Socket | null>(null);
+  // Bumped by goHome to rebuild the socket *through the main effect*, so every
+  // event handler is attached again (a hand-made replacement socket had none).
+  const [socketEpoch, setSocketEpoch] = useState(0);
   const [connected, setConnected] = useState(false);
 
   // --- Balance ---
@@ -509,7 +512,7 @@ function LudoBoardInner() {
       socketRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, clearTimer, startTimer]);
+  }, [user, clearTimer, startTimer, socketEpoch]);
 
   // Settle the rolled color's die on its final face once the server's value
   // (and which color rolled it) is known.
@@ -639,8 +642,6 @@ function LudoBoardInner() {
 
   const goHome = () => {
     clearTimer();
-    socketRef.current?.disconnect();
-    socketRef.current = null;
     setPage('lobby');
     setMatchResult(null);
     setGameState(null);
@@ -654,14 +655,7 @@ function LudoBoardInner() {
     setError(null);
     setJoinStakeInfo(null);
     setStakeError(null);
-    // Reconnect
-    const token = tokenStore.get();
-    if (!token || !user) return;
-    const BASE = import.meta.env.VITE_API_URL || '';
-    const s = io(BASE || '/', { auth: { token }, transports: ['websocket'] });
-    socketRef.current = s;
-    s.on('connect', () => { setConnected(true); s.emit(LUDO.LIST_MATCHES, { gameType: 'ludo' }); });
-    s.on(LUDO.MATCHES_LIST, (data: { matches: ListedMatch[] }) => setMatches(data.matches));
+    setSocketEpoch((e) => e + 1);
   };
 
   // --- Lobby ---

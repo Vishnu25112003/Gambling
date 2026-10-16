@@ -18,6 +18,7 @@ import type { Coin3DHandle } from './Coin3D';
 const CF = {
   JOIN_MATCH: 'cf:join',
   CREATE_MATCH: 'cf:create',
+  CANCEL_MATCH: 'cf:cancel',
   LIST_MATCHES: 'cf:list',
   SPIN: 'cf:spin',
   CALL: 'cf:call',
@@ -149,6 +150,9 @@ function CoinFlipBoardInner() {
 
   // --- Socket ---
   const socketRef = useRef<Socket | null>(null);
+  // Bumped by goHome to rebuild the socket *through the main effect*, so every
+  // event handler is attached again (a hand-made replacement socket had none).
+  const [socketEpoch, setSocketEpoch] = useState(0);
   const [connected, setConnected] = useState(false);
 
   // --- Page navigation ---
@@ -436,7 +440,7 @@ function CoinFlipBoardInner() {
       s.disconnect();
       socketRef.current = null;
     };
-  }, [user, clearTimer, startTimer]);
+  }, [user, clearTimer, startTimer, socketEpoch]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -508,8 +512,7 @@ function CoinFlipBoardInner() {
 
   const goHome = () => {
     clearTimer();
-    socketRef.current?.disconnect();
-    socketRef.current = null;
+    socketRef.current?.emit(CF.CANCEL_MATCH);
     setPage('lobby');
     setMatchId(null);
     setMatchResult(null);
@@ -524,14 +527,7 @@ function CoinFlipBoardInner() {
     setRematchStatus('idle');
     setJoinStakeInfo(null);
     setStakeError(null);
-    // Reconnect
-    const token = tokenStore.get();
-    if (!token || !user) return;
-    const BASE = import.meta.env.VITE_API_URL || '';
-    const s = io(BASE || '/', { auth: { token }, transports: ['websocket'] });
-    socketRef.current = s;
-    s.on('connect', () => { setConnected(true); s.emit(CF.LIST_MATCHES, { gameType: 'coin-flip' }); });
-    s.on(CF.MATCHES_LIST, (data: { matches: ListedMatch[] }) => setMatches(data.matches));
+    setSocketEpoch((e) => e + 1);
   };
 
   // =====================================================================
