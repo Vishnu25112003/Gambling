@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { Delete } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ConnectWalletPlaceholder } from '../../components/dashboard/ConnectWalletPlaceholder';
@@ -232,21 +232,23 @@ function DepositPanel({ hidden, onDone }: { hidden: boolean; onDone: () => Promi
 
     setBusy(true);
     try {
-      const tx = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: new PublicKey(info.treasuryAddress),
-          lamports: Math.round(sol * LAMPORTS_PER_SOL),
-        }),
-      );
-
-      // Mobile / wallet-standard adapters serialize the transaction before the
-      // wallet sees it and throw "recentBlockhash required" if it is unset;
-      // desktop extensions fill it in themselves, which hid this.
+      // Mobile wallets re-serialize a legacy Transaction and fail with
+      // "recentBlockhash required" / "Signature verification failed. Missing
+      // signature" because it is still unsigned. A v0 VersionedTransaction is
+      // serialized as-is, so it goes through every wallet unchanged.
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
-      tx.recentBlockhash = blockhash;
-      tx.lastValidBlockHeight = lastValidBlockHeight;
-      tx.feePayer = publicKey;
+      const message = new TransactionMessage({
+        payerKey: publicKey,
+        recentBlockhash: blockhash,
+        instructions: [
+          SystemProgram.transfer({
+            fromPubkey: publicKey,
+            toPubkey: new PublicKey(info.treasuryAddress),
+            lamports: Math.round(sol * LAMPORTS_PER_SOL),
+          }),
+        ],
+      }).compileToV0Message();
+      const tx = new VersionedTransaction(message);
 
       const signature = await sendTransaction(tx, connection);
       setStatus('Sent — waiting for confirmation…');
