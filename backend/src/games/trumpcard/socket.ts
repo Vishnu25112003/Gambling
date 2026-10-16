@@ -144,6 +144,7 @@ function buildStateSnapshot(match: ActiveMatch, forUserId: string) {
     seatCount: state.seatCount,
     cardsPerPlayer: state.cardsPerPlayer,
     activePlayerIds: state.activePlayerIds,
+    disconnectedPlayers: state.disconnectedPlayers,
     handCounts: Object.fromEntries(state.playerIds.map((id) => [id, state.hands[id]?.length ?? 0])),
     lives: state.lives,
     poolSize: state.pool.length,
@@ -214,6 +215,31 @@ function startLeaderTimer(match: ActiveMatch, leaderId: string): void {
   match.timers.leaderChoice = setTimeout(() => guardSync('leader choice timeout', () => {
     applyLifeLoss(match, leaderId, 'stat_choice_skip');
   }, { matchId: match.matchId, leaderId }), STAT_CHOICE_TIMEOUT_MS);
+}
+
+/**
+ * One reconnect-grace window for a disconnected player. Each window that
+ * expires without a reconnect costs a life, and — as long as they are still
+ * away and still in the match — the next window is armed immediately. Without
+ * the re-arm a dropped player lost exactly ONE life and then sat in the match
+ * forever (only ever penalised if they happened to become round leader), so
+ * their opponent could never win by the disconnect.
+ */
+function armDisconnectTimer(match: ActiveMatch, userId: string): void {
+  match.timers.disconnect[userId] = setTimeout(() => guardSync('disconnect timeout', () => {
+    delete match.timers.disconnect[userId];
+    if (!match.state.disconnectedPlayers.includes(userId)) return; // reconnected already
+    applyLifeLoss(match, userId, 'disconnect_timeout');
+
+    // applyLifeLoss may have ended the match (clearTimeouts + settle) or
+    // eliminated this player; only keep draining while neither happened.
+    // (settleMatch is async, so `matches` still holds the match for a moment —
+    // checkMatchEnd is the synchronous signal that settlement has started.)
+    if (!matches.has(match.matchId) || checkMatchEnd(match.state)) return;
+    if (!match.state.activePlayerIds.includes(userId)) return;
+    if (!match.state.disconnectedPlayers.includes(userId)) return;
+    armDisconnectTimer(match, userId);
+  }, { matchId: match.matchId, userId }), escrow.RECONNECT_GRACE_MS);
 }
 
 /**
@@ -838,13 +864,7 @@ export function registerTrumpcardSocket(namespace: Namespace, socket: Socket): v
       // only called from applyLifeLoss, at the exact moment lives hit 0.
       if (match.timers.disconnect[userId]) return;
 
-      const timer = setTimeout(() => guardSync('disconnect timeout', () => {
-        delete match.timers.disconnect[userId];
-        if (!match.state.disconnectedPlayers.includes(userId)) return; // reconnected already
-        applyLifeLoss(match, userId, 'disconnect_timeout');
-      }, { matchId, userId }), escrow.RECONNECT_GRACE_MS);
-
-      match.timers.disconnect[userId] = timer;
+      armDisconnectTimer(match, userId);
     } catch (err) {
       log.error('disconnect cleanup failed', { userId, socketId: socket.id, err });
     }
