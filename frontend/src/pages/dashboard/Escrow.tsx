@@ -240,10 +240,17 @@ function DepositPanel({ hidden, onDone }: { hidden: boolean; onDone: () => Promi
         }),
       );
 
+      // Mobile / wallet-standard adapters serialize the transaction before the
+      // wallet sees it and throw "recentBlockhash required" if it is unset;
+      // desktop extensions fill it in themselves, which hid this.
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+      tx.recentBlockhash = blockhash;
+      tx.lastValidBlockHeight = lastValidBlockHeight;
+      tx.feePayer = publicKey;
+
       const signature = await sendTransaction(tx, connection);
       setStatus('Sent — waiting for confirmation…');
 
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
       await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
 
       setStatus('Confirmed on-chain. Crediting your balance…');
