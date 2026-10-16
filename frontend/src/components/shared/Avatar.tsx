@@ -2,6 +2,18 @@ import { useEffect, useState } from 'react';
 import { avatarGradient } from '../../lib/avatar';
 import { shortAddress } from '../../lib/format';
 
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(//$/, '');
+
+/**
+ * The API returns uploads as a root-relative path (`/uploads/avatars/…`). That
+ * only resolves when the page and the API share a host (the Vite dev proxy);
+ * deployed with a separate API host it would hit the frontend and 404, leaving
+ * only the fallback.
+ */
+function resolveSrc(src: string): string {
+  return src.startsWith('/') && !src.startsWith('//') ? `${API_BASE}${src}` : src;
+}
+
 /**
  * The one avatar in the app.
  *
@@ -62,7 +74,7 @@ export function Avatar({
   if (src && !failed) {
     return (
       <img
-        src={src}
+        src={resolveSrc(src)}
         alt={`${label}'s profile picture`}
         width={size}
         height={size}
@@ -79,7 +91,7 @@ export function Avatar({
     <span
       role="img"
       aria-label={`${label}'s generated avatar`}
-      className={`shrink-0 ${className}`}
+      className={`inline-block shrink-0 ${className}`}
       style={{ width: size, height: size, borderRadius, background: avatarGradient(seed) }}
     />
   );
