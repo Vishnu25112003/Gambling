@@ -4,7 +4,6 @@ import { io, type Socket } from 'socket.io-client';
 import { Dices, Heart } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { tokenStore } from '../../api/client';
-import { walletApi } from '../../api/endpoints';
 import { Button, Card, PageTitle } from '../../components/shared/ui';
 import { GameShell } from '../../components/shared/GameShell';
 import { GameSetupWizard, GameJoinByCode, GameWaitingRoom, GameLobby } from '../../components/shared/gameSetup';
@@ -172,16 +171,19 @@ export function TrumpcardBoard() {
 }
 
 function TrumpcardBoardInner() {
-  const { user } = useAuth();
+  const { user, balance: authBalance, refreshBalance } = useAuth();
+  // Live, socket-refreshed balance from AuthProvider. `user.availableBalance` is
+  // only a sign-in snapshot and goes stale after any deposit or match.
+  const balance = authBalance?.availableBalance ?? null;
+  useEffect(() => {
+    if (user) void refreshBalance();
+  }, [user, refreshBalance]);
 
   const socketRef = useRef<Socket | null>(null);
   // Bumped by goHome to rebuild the socket *through the main effect*, so every
   // event handler is attached again (a hand-made replacement socket had none).
   const [socketEpoch, setSocketEpoch] = useState(0);
   const [connected, setConnected] = useState(false);
-
-  const [balance, setBalance] = useState<string | null>(null);
-  const fetchedBalance = useRef(false);
 
   const [page, setPage] = useState<Page>('lobby');
   const [matches, setMatches] = useState<ListedMatch[]>([]);
@@ -385,13 +387,6 @@ function TrumpcardBoardInner() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, applySnapshot, socketEpoch]);
-
-  // --- Fetch balance ---
-  useEffect(() => {
-    if (fetchedBalance.current || !user) return;
-    fetchedBalance.current = true;
-    void walletApi.balance().then((b) => setBalance(b.availableBalance)).catch(() => {});
-  }, [user]);
 
   useEffect(() => {
     return () => { socketRef.current?.disconnect(); };

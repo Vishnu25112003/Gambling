@@ -103,7 +103,13 @@ function inningsLabelFor(index: number): string {
 }
 
 export function HandCricketBoard() {
-  const { user } = useAuth();
+  const { user, balance: authBalance, refreshBalance } = useAuth();
+  // Live, socket-refreshed balance from AuthProvider. `user.availableBalance` is
+  // only a sign-in snapshot and goes stale after any deposit or match.
+  const balance = authBalance?.availableBalance ?? null;
+  useEffect(() => {
+    if (user) void refreshBalance();
+  }, [user, refreshBalance]);
   const socketRef = useRef<Socket | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -569,7 +575,7 @@ export function HandCricketBoard() {
       <GameShell title="Hand Cricket">
         <GameSetupWizard
           config={handCricketSetupConfig}
-          balance={user?.availableBalance?.toString() ?? null}
+          balance={balance}
           onPublish={handleCreate}
           onBack={() => setPage('lobby')}
         />
@@ -605,7 +611,6 @@ export function HandCricketBoard() {
   // Free Bet joiner: pick a stake before the match can start.
   if (page === 'stake_select' && joinStakeInfo) {
     const accentColor = gameVisual({ name: 'Hand Cricket' }).tone;
-    const balance = user?.availableBalance?.toString() ?? null;
     const stakeNum = Number(joinStake) || 0;
     const minBetNum = joinStakeInfo.minBet != null ? Number(joinStakeInfo.minBet) : 0;
     const canAfford = balance === null || stakeNum <= Number(balance);
