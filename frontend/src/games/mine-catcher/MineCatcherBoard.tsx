@@ -94,7 +94,13 @@ interface MatchResult {
 }
 
 export function MineCatcherBoard() {
-  const { user } = useAuth();
+  const { user, balance: authBalance, refreshBalance } = useAuth();
+  // Live, socket-refreshed balance from AuthProvider. `user.availableBalance` is
+  // only a sign-in snapshot and goes stale after any deposit or match.
+  const balance = authBalance?.availableBalance ?? null;
+  useEffect(() => {
+    if (user) void refreshBalance();
+  }, [user, refreshBalance]);
   const socketRef = useRef<Socket | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -548,7 +554,7 @@ export function MineCatcherBoard() {
       <GameShell title="Mine Catcher">
         <GameSetupWizard
           config={mineCatcherSetupConfig}
-          balance={user?.availableBalance?.toString() ?? null}
+          balance={balance}
           onPublish={handleCreate}
           onBack={() => setPage('lobby')}
         />
@@ -582,7 +588,6 @@ export function MineCatcherBoard() {
   if (page === 'stake_select' && joinStakeInfo) {
     const stakeNum = Number(joinStake) || 0;
     const minBetNum = joinStakeInfo.minBet != null ? Number(joinStakeInfo.minBet) : 0;
-    const balance = user?.availableBalance?.toString() ?? null;
     const canAfford = balance === null || stakeNum <= Number(balance);
     const meetsMinimum = stakeNum >= minBetNum;
     const stakeBoardLabel = joinStakeInfo.boardSize === 25 ? '5×5' : joinStakeInfo.boardSize === 49 ? '7×7' : joinStakeInfo.boardSize === 81 ? '9×9' : '10×10';
