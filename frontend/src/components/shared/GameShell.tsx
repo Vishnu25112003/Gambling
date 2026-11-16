@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { LogoMark } from './icons';
+import { BrandLogo, BrandMark } from './Brand';
 import { GridBackground } from '../ui/grid-background';
 
 /**
@@ -24,12 +24,8 @@ export function GameShell({ title, children }: { title: string; children: ReactN
       <div className="relative z-10">
         <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line2 bg-bg2 px-[clamp(14px,3vw,36px)] py-3">
           <Link to="/" className="flex items-center gap-2.5 no-underline">
-            <div className="flex size-8 items-center justify-center rounded-[9px] bg-[linear-gradient(135deg,var(--green-solid),var(--green-deep))]">
-              <LogoMark size={16} />
-            </div>
-            <span className="hidden text-[15px] font-bold whitespace-nowrap sm:inline">
-              Infinit <span className="text-green">Respawn</span>
-            </span>
+            <BrandMark size={34} className="sm:hidden" />
+            <BrandLogo height={40} className="hidden sm:block" />
           </Link>
 
           <span className="truncate text-sm font-bold text-text">{title}</span>

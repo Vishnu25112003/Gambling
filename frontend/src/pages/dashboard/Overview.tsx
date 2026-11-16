@@ -16,7 +16,7 @@ import { MOCK_LIVE_MATCHES, MOCK_MISSIONS } from '../../lib/overviewMock';
 import type { GameManifest } from '../../types';
 
 /**
- * The Infinit Respawn mockup's dashboard index: a two-column hero (welcome +
+ * The IAM GAME dashboard index: a two-column hero (welcome +
  * rank progress, live-matches panel), four stat tiles, "THE ARENA" games
  * grid, then top players beside daily missions.
  *
@@ -95,7 +95,7 @@ export function Overview() {
                     WELCOME TO
                     <br />
                     <span className="text-green" style={{ textShadow: '0 0 34px rgba(47,224,138,.5)' }}>
-                      INFINIT RESPAWN
+                      IAM GAME
                     </span>
                   </>
                 )}

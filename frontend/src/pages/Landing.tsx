@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SceneCanvas } from '../components/shared/SceneCanvas';
-import { Icon, LogoMark, MoonIcon, SunIcon, type IconName } from '../components/shared/icons';
+import { Icon, MoonIcon, SunIcon, type IconName } from '../components/shared/icons';
+import { BrandLogo, BrandMark } from '../components/shared/Brand';
 import { useTheme } from '../hooks/useTheme';
 import { referralApi } from '../api/endpoints';
 import { captureReferralFromUrl } from '../lib/referralCapture';
@@ -104,18 +105,14 @@ export function Landing() {
 
         <header className="sticky top-0 z-50 flex items-center justify-between gap-2.5 border-b border-line2 bg-bg2 px-[clamp(14px,4vw,40px)] py-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-[34px] items-center justify-center rounded-[9px] bg-[linear-gradient(135deg,var(--green-solid),var(--green-deep))]">
-              <LogoMark size={18} />
-            </div>
+            <BrandMark size={42} className="sm:hidden" />
             {/*
               The wordmark text is dropped below `sm` so the logo + theme toggle +
               "Launch Dashboard" CTA always fit a phone's width. At 320px the three
               still overflowed by ~77px with the text present; hiding it (the same
               treatment GameShell uses) clears the overflow on every phone width.
             */}
-            <span className="hidden text-[clamp(16px,4vw,19px)] font-bold whitespace-nowrap sm:inline">
-              Infinit <span className="text-green">Respawn</span>
-            </span>
+            <BrandLogo height={50} className="hidden sm:block" />
           </div>
 
           <div className="flex items-center gap-3">
@@ -243,7 +240,7 @@ export function Landing() {
 
           <footer className="relative px-6 pb-[70px] text-center">
             <p className="text-[13px] text-faint">
-              Infinit Respawn · Devnet build · Not for real-money play pending legal review.
+              IAM GAME · Devnet build · Not for real-money play pending legal review.
             </p>
           </footer>
         </section>
