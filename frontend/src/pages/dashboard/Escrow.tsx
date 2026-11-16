@@ -49,35 +49,35 @@ function VaultBalanceHero({
     <section
       className="relative min-w-0 overflow-hidden rounded-[18px] border p-[clamp(18px,2.4vw,26px)]"
       style={{
-        borderColor: 'rgba(47,224,138,.22)',
-        background: 'radial-gradient(600px 300px at 90% 0%, rgba(47,224,138,.16), rgba(6,9,7,0) 62%), linear-gradient(120deg, var(--panel-bg2), var(--panel-bg))',
+        borderColor: 'rgba(34, 224, 196,.22)',
+        background: 'radial-gradient(600px 300px at 90% 0%, rgba(34, 224, 196,.16), rgba(6,9,7,0) 62%), linear-gradient(120deg, var(--panel-bg2), var(--panel-bg))',
       }}
     >
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage: 'linear-gradient(rgba(47,224,138,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(47,224,138,.05) 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(rgba(34, 224, 196,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(34, 224, 196,.05) 1px, transparent 1px)',
           backgroundSize: '44px 44px',
         }}
       />
       <div className="relative">
         <div className="flex items-center gap-2.5">
           <Icon name="lockbox" size={20} className="text-green" />
-          <span className="font-mono text-[10px] tracking-[0.18em] text-[#6ee7b7]">VAULT BALANCE</span>
+          <span className="font-mono text-[10px] tracking-[0.18em] text-green-soft">VAULT BALANCE</span>
         </div>
         <div className="mt-3 flex items-end gap-2.5">
-          <span className="font-heading text-[clamp(38px,5vw,58px)] leading-none font-bold text-text" style={{ textShadow: '0 0 34px rgba(47,224,138,.3)' }}>
+          <span className="font-heading text-[clamp(38px,5vw,58px)] leading-none font-bold text-text" style={{ textShadow: '0 0 34px rgba(34, 224, 196,.3)' }}>
             {formatSol(total)}
           </span>
-          <span className="pb-[7px] font-mono text-[14px] text-[#6ee7b7]">SOL</span>
+          <span className="pb-[7px] font-mono text-[14px] text-green-soft">SOL</span>
         </div>
-        <div className="mt-5 flex h-2.5 overflow-hidden rounded-md border" style={{ background: 'var(--panel-bg2)', borderColor: 'rgba(47,224,138,.16)' }}>
-          <div className="h-full" style={{ width: `${availPct}%`, background: 'linear-gradient(90deg, #0f7d4d, #35eb95)' }} />
+        <div className="mt-5 flex h-2.5 overflow-hidden rounded-md border" style={{ background: 'var(--panel-bg2)', borderColor: 'rgba(34, 224, 196,.16)' }}>
+          <div className="h-full" style={{ width: `${availPct}%`, background: 'linear-gradient(90deg, #0b7c86, #3ef0d4)' }} />
           <div className="h-full" style={{ width: `${100 - availPct}%`, background: 'linear-gradient(90deg, #8a6410, #f0b429)' }} />
         </div>
         <div className="mt-3.5 flex flex-wrap gap-4.5">
           <span className="flex items-center gap-2">
-            <span className="size-2 rounded-sm bg-[#35eb95]" />
+            <span className="size-2 rounded-sm bg-[#3ef0d4]" />
             <span className="font-mono text-[11.5px] text-text">{formatSol(available)} AVAILABLE</span>
           </span>
           <span className="flex items-center gap-2">
@@ -85,7 +85,7 @@ function VaultBalanceHero({
             <span className="font-mono text-[11.5px] text-text">{formatSol(locked)} IN PLAY</span>
           </span>
         </div>
-        <div className="mt-5 flex items-center gap-2.5 rounded-[10px] border p-[10px_12px]" style={{ background: 'var(--panel-bg)', borderColor: 'rgba(47,224,138,.12)' }}>
+        <div className="mt-5 flex items-center gap-2.5 rounded-[10px] border p-[10px_12px]" style={{ background: 'var(--panel-bg)', borderColor: 'rgba(34, 224, 196,.12)' }}>
           <Icon name="key" size={17} className="text-muted" />
           <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-muted">
             TREASURY {treasury ? shortAddress(treasury, 6) : 'not configured'}
@@ -129,7 +129,7 @@ function AmountEditor({
 }) {
   return (
     <>
-      <div className="mt-[18px] flex items-center gap-2.5 rounded-[11px] border p-3.5" style={{ borderColor: 'rgba(47,224,138,.18)', background: 'var(--panel-bg)' }}>
+      <div className="mt-[18px] flex items-center gap-2.5 rounded-[11px] border p-3.5" style={{ borderColor: 'rgba(34, 224, 196,.18)', background: 'var(--panel-bg)' }}>
         <input
           type="number"
           min="0"
@@ -156,7 +156,7 @@ function AmountEditor({
             key={c.label}
             onClick={() => onAmountChange(c.value)}
             className="flex-1 basis-[70px] cursor-pointer rounded-lg border px-2 py-2.5 font-mono text-xs whitespace-nowrap text-text transition hover:text-text sm:px-3"
-            style={{ borderColor: 'rgba(47,224,138,.16)', background: 'var(--panel-bg3)' }}
+            style={{ borderColor: 'rgba(34, 224, 196,.16)', background: 'var(--panel-bg3)' }}
           >
             {c.label}
           </button>
@@ -170,8 +170,8 @@ function AmountEditor({
         <button
           onClick={onSubmit}
           disabled={busy || disabled}
-          className="flex w-full items-center justify-center gap-2.5 rounded-[10px] border-0 py-3.5 font-heading text-[14.5px] font-bold tracking-[0.07em] text-[#04160c] disabled:cursor-not-allowed disabled:opacity-60"
-          style={{ background: 'linear-gradient(180deg, #35eb95, #16a862)', boxShadow: '0 8px 24px rgba(47,224,138,.24)' }}
+          className="flex w-full items-center justify-center gap-2.5 rounded-[10px] border-0 py-3.5 font-heading text-[14.5px] font-bold tracking-[0.07em] text-[#031418] disabled:cursor-not-allowed disabled:opacity-60"
+          style={{ background: 'linear-gradient(180deg, #3ef0d4, #10b4b0)', boxShadow: '0 8px 24px rgba(34, 224, 196,.24)' }}
         >
           <Icon name={ctaIcon} size={20} />
           {busy ? 'WORKING…' : ctaLabel}
@@ -384,7 +384,7 @@ const ACTIVITY_ICON: Record<LedgerRow['type'], IconName> = {
 };
 
 const STATUS_CHIP: Record<LedgerRow['status'], { bg: string; fg: string }> = {
-  confirmed: { bg: 'rgba(47,224,138,.14)', fg: '#2fe08a' },
+  confirmed: { bg: 'rgba(34, 224, 196,.14)', fg: 'var(--green)' },
   pending: { bg: 'rgba(240,180,41,.14)', fg: '#f0b429' },
   failed: { bg: 'rgba(239,83,80,.14)', fg: '#ef5350' },
 };
@@ -488,7 +488,7 @@ export function Escrow() {
                 className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[9px] border-0 py-[11px] font-heading text-[13.5px] font-bold tracking-[0.07em]"
                 style={
                   tab === t
-                    ? { background: 'linear-gradient(180deg, #35eb95, #16a862)', color: '#04160c' }
+                    ? { background: 'linear-gradient(180deg, #3ef0d4, #10b4b0)', color: '#031418' }
                     : { background: 'transparent', color: 'var(--muted)' }
                 }
               >
@@ -519,7 +519,7 @@ export function Escrow() {
                   style={{ borderColor: 'var(--amber-border)', background: 'var(--panel-bg3)' }}
                 >
                   <span
-                    className="grid size-8 shrink-0 place-items-center rounded-lg font-heading text-[13px] font-bold text-[#04160c]"
+                    className="grid size-8 shrink-0 place-items-center rounded-lg font-heading text-[13px] font-bold text-[#031418]"
                     style={{ background: visual.tone }}
                   >
                     {gameLabel(b.gameType).charAt(0)}
@@ -535,7 +535,7 @@ export function Escrow() {
                   <button
                     onClick={() => navigate('/dashboard/bets')}
                     className="cursor-pointer rounded-lg border px-3.5 py-2 font-heading text-[12px] font-bold tracking-[0.06em] text-green"
-                    style={{ borderColor: 'rgba(47,224,138,.24)', background: 'rgba(47,224,138,.07)' }}
+                    style={{ borderColor: 'rgba(34, 224, 196,.24)', background: 'rgba(34, 224, 196,.07)' }}
                   >
                     VIEW
                   </button>

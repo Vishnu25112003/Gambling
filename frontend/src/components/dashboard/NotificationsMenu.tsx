@@ -48,7 +48,7 @@ export function NotificationsMenu({ enabled }: { enabled: boolean }) {
         aria-expanded={open}
         aria-haspopup="menu"
         className="relative grid size-11 cursor-pointer place-items-center rounded-[11px] border transition"
-        style={{ borderColor: open ? 'rgba(47,224,138,.34)' : 'var(--panel-border-soft)', background: 'var(--panel-bg2)', color: open ? 'var(--green)' : 'var(--muted)' }}
+        style={{ borderColor: open ? 'rgba(34, 224, 196,.34)' : 'var(--panel-border-soft)', background: 'var(--panel-bg2)', color: open ? 'var(--green)' : 'var(--muted)' }}
       >
         <BellIcon />
         {unreadCount > 0 && (
@@ -62,11 +62,11 @@ export function NotificationsMenu({ enabled }: { enabled: boolean }) {
         <div
           role="menu"
           className="absolute top-[calc(100%+8px)] right-0 z-50 w-[320px] max-w-[86vw] overflow-hidden rounded-[14px] border shadow-[0_24px_60px_rgba(0,0,0,.6)]"
-          style={{ borderColor: 'rgba(47,224,138,.22)', background: 'var(--panel-bg)' }}
+          style={{ borderColor: 'rgba(34, 224, 196,.22)', background: 'var(--panel-bg)' }}
         >
           <div
             className="flex items-center justify-between gap-2.5 p-[13px_14px]"
-            style={{ borderBottom: '1px solid rgba(47,224,138,.1)', background: 'linear-gradient(160deg, rgba(47,224,138,.1), rgba(6,9,7,0))' }}
+            style={{ borderBottom: '1px solid rgba(34, 224, 196,.1)', background: 'linear-gradient(160deg, rgba(34, 224, 196,.1), rgba(6,9,7,0))' }}
           >
             <span className="font-heading text-[14px] font-bold tracking-[0.06em] text-text">
               NOTIFICATIONS

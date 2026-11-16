@@ -175,7 +175,7 @@ function ThemeRow() {
 /** Live since doc 09 — the copy now states the real rule, not the design's placeholder. */
 function InviteCard() {
   return (
-    <div className="relative overflow-hidden rounded-[15px] border border-green-solid/[0.24] bg-[linear-gradient(150deg,rgba(34,197,94,0.16),transparent_70%)] p-[18px]">
+    <div className="relative overflow-hidden rounded-[15px] border border-green-solid/[0.24] bg-[linear-gradient(150deg,rgba(24, 200, 180,0.16),transparent_70%)] p-[18px]">
       <div className="mb-1.5 font-heading text-[14.5px] font-bold text-green">Invite &amp; Earn</div>
       <div className="mb-3.5 max-w-[150px] text-[12.5px] leading-[1.5] text-muted">
         Earn 5% of your friend&rsquo;s first winning game.
@@ -437,7 +437,7 @@ export function DashboardShell() {
       className={`flex min-h-screen ${isMobile ? '' : collapsed ? 'pl-[82px]' : 'pl-[264px]'}`}
       style={{
         background:
-          'radial-gradient(ellipse 900px 500px at 50% -10%, rgba(34,197,94,var(--page-glow)), transparent 60%), var(--bg)',
+          'radial-gradient(ellipse 900px 500px at 50% -10%, rgba(24, 200, 180,var(--page-glow)), transparent 60%), radial-gradient(ellipse 700px 600px at 100% 100%, color-mix(in oklab, var(--brand-violet) calc(var(--page-glow) * 70%), transparent), transparent 70%), var(--bg)',
       }}
     >
       {!isMobile && <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} />}

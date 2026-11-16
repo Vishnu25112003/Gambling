@@ -19,7 +19,7 @@ const PAGE_SIZE = 5;
 const TEMPLATE = '1.5fr 1.3fr .7fr .7fr .8fr .9fr';
 
 const RESULT_CHIP: Record<MockBetResult, { bg: string; fg: string }> = {
-  won: { bg: 'rgba(47,224,138,.14)', fg: '#2fe08a' },
+  won: { bg: 'rgba(34, 224, 196,.14)', fg: 'var(--green)' },
   lost: { bg: 'rgba(239,83,80,.14)', fg: '#ff8a86' },
   forfeited: { bg: 'rgba(239,83,80,.14)', fg: '#ff8a86' },
   refunded: { bg: 'rgba(196,214,228,.1)', fg: '#c4d6e4' },
@@ -49,7 +49,7 @@ function OpenBetCard({ bet }: { bet: (typeof MOCK_OPEN_BETS)[number] }) {
       <div className="flex items-start justify-between gap-2.5">
         <div className="flex min-w-0 items-center gap-2.5">
           <span
-            className="grid size-[34px] shrink-0 place-items-center rounded-[9px] font-heading text-[13px] font-bold text-[#04160c]"
+            className="grid size-[34px] shrink-0 place-items-center rounded-[9px] font-heading text-[13px] font-bold text-[#031418]"
             style={{ background: visual.tone }}
           >
             {gameLabel(bet.gameType).charAt(0)}
@@ -64,11 +64,11 @@ function OpenBetCard({ bet }: { bet: (typeof MOCK_OPEN_BETS)[number] }) {
         </StatusChip>
       </div>
       <div className="flex gap-2">
-        <div className="flex-1 rounded-[9px] border p-[9px_11px]" style={{ borderColor: 'rgba(47,224,138,.1)', background: 'var(--panel-bg)' }}>
+        <div className="flex-1 rounded-[9px] border p-[9px_11px]" style={{ borderColor: 'rgba(34, 224, 196,.1)', background: 'var(--panel-bg)' }}>
           <div className="font-mono text-[9px] tracking-[0.14em] text-muted">STAKE</div>
           <div className="mt-0.5 font-mono text-[13px] text-text">{formatSol(bet.stake)} SOL</div>
         </div>
-        <div className="flex-1 rounded-[9px] border p-[9px_11px]" style={{ borderColor: 'rgba(47,224,138,.1)', background: 'var(--panel-bg)' }}>
+        <div className="flex-1 rounded-[9px] border p-[9px_11px]" style={{ borderColor: 'rgba(34, 224, 196,.1)', background: 'var(--panel-bg)' }}>
           <div className="font-mono text-[9px] tracking-[0.14em] text-muted">TO WIN</div>
           <div className="mt-0.5 font-mono text-[13px] text-green">{formatSol(bet.toWin)} SOL</div>
         </div>
@@ -76,8 +76,8 @@ function OpenBetCard({ bet }: { bet: (typeof MOCK_OPEN_BETS)[number] }) {
       <div className="flex gap-2">
         <button
           disabled={bet.state !== 'your-turn'}
-          className="flex-1 cursor-pointer rounded-[9px] border-0 py-2.5 font-heading text-[13px] font-bold tracking-[0.06em] text-[#04160c] disabled:cursor-not-allowed disabled:opacity-60"
-          style={{ background: 'linear-gradient(180deg, #35eb95, #16a862)' }}
+          className="flex-1 cursor-pointer rounded-[9px] border-0 py-2.5 font-heading text-[13px] font-bold tracking-[0.06em] text-[#031418] disabled:cursor-not-allowed disabled:opacity-60"
+          style={{ background: 'linear-gradient(180deg, #3ef0d4, #10b4b0)' }}
         >
           {bet.state === 'your-turn' ? 'PLAY' : 'WAITING'}
         </button>
@@ -130,7 +130,7 @@ export function MyBets() {
         <button
           onClick={() => navigate('/dashboard/games')}
           className="flex cursor-pointer items-center gap-2.5 rounded-[10px] border px-5 py-3 font-heading text-[13.5px] font-bold tracking-[0.06em] text-text"
-          style={{ borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.08)' }}
+          style={{ borderColor: 'rgba(34, 224, 196,.3)', background: 'rgba(34, 224, 196,.08)' }}
         >
           <Icon name="gamepad" size={19} className="text-green" />
           PLACE A BET
@@ -203,7 +203,7 @@ export function MyBets() {
                   <span className="text-right font-mono text-[11.5px] text-muted">{formatSol(row.payout)}</span>
                   <span
                     className="text-right font-mono text-[11.5px]"
-                    style={{ color: Number(row.net) > 0 ? '#2fe08a' : Number(row.net) < 0 ? '#ef5350' : '#9fb6a9' }}
+                    style={{ color: Number(row.net) > 0 ? 'var(--green)' : Number(row.net) < 0 ? '#ef5350' : '#9ba8c0' }}
                   >
                     {formatSolSigned(row.net)}
                   </span>
@@ -233,7 +233,7 @@ export function MyBets() {
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => p + 1)}
                   className="cursor-pointer rounded-lg border px-4 py-2 font-heading text-[12.5px] font-semibold text-green disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{ borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.1)' }}
+                  style={{ borderColor: 'rgba(34, 224, 196,.3)', background: 'rgba(34, 224, 196,.1)' }}
                 >
                   NEXT
                 </button>

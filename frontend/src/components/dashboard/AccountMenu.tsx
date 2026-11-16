@@ -47,7 +47,7 @@ export function AccountMenu() {
         aria-haspopup="menu"
         title={label}
         className="flex cursor-pointer items-center gap-2.5 rounded-[11px] border py-[6px] pr-3 pl-[6px] transition"
-        style={{ borderColor: open ? 'rgba(47,224,138,.34)' : 'var(--panel-border-soft)', background: 'var(--panel-bg2)' }}
+        style={{ borderColor: open ? 'rgba(34, 224, 196,.34)' : 'var(--panel-border-soft)', background: 'var(--panel-bg2)' }}
       >
         <Avatar src={user.avatarUrl} address={user.walletAddress} name={user.username ?? undefined} size={30} radiusRatio={0.27} />
         <span className="flex flex-col items-start leading-[1.1]">
@@ -61,7 +61,7 @@ export function AccountMenu() {
         <div
           role="menu"
           className="absolute top-[calc(100%+8px)] right-0 z-50 w-[262px] max-w-[84vw] overflow-hidden rounded-[14px] border shadow-[0_24px_60px_rgba(0,0,0,.6)]"
-          style={{ borderColor: 'rgba(47,224,138,.22)', background: 'var(--panel-bg)' }}
+          style={{ borderColor: 'rgba(34, 224, 196,.22)', background: 'var(--panel-bg)' }}
         >
           <AccountHeader user={user} balance={balance} rank={rank} />
 
@@ -112,7 +112,7 @@ function AccountHeader({ user, balance, rank }: { user: AppUser; balance: Balanc
   return (
     <div
       className="p-3.5"
-      style={{ borderBottom: '1px solid rgba(47,224,138,.1)', background: 'linear-gradient(160deg, rgba(47,224,138,.12), rgba(6,9,7,0))' }}
+      style={{ borderBottom: '1px solid rgba(34, 224, 196,.1)', background: 'linear-gradient(160deg, rgba(34, 224, 196,.12), rgba(6,9,7,0))' }}
     >
       <div className="flex items-center gap-[11px]">
         <Avatar src={user.avatarUrl} address={user.walletAddress} name={user.username ?? undefined} size={38} radiusRatio={0.28} />
@@ -137,7 +137,7 @@ function AccountHeader({ user, balance, rank }: { user: AppUser; balance: Balanc
         onClick={() => void copy()}
         title="Copy wallet address"
         className="mt-3 flex w-full cursor-pointer items-start gap-2 rounded-[9px] border p-2.5 text-left"
-        style={{ borderColor: 'rgba(47,224,138,.14)', background: 'var(--panel-bg)' }}
+        style={{ borderColor: 'rgba(34, 224, 196,.14)', background: 'var(--panel-bg)' }}
       >
         <span className="min-w-0 flex-1 font-mono text-[11px] leading-[1.45] break-all text-muted">
           {user.walletAddress}
@@ -148,7 +148,7 @@ function AccountHeader({ user, balance, rank }: { user: AppUser; balance: Balanc
       </button>
 
       <div className="mt-2.5 flex gap-2">
-        <Figure label="AVAILABLE" value={`${formatSol(balance?.availableBalance ?? '0')} SOL`} color="#2fe08a" />
+        <Figure label="AVAILABLE" value={`${formatSol(balance?.availableBalance ?? '0')} SOL`} color="var(--green)" />
         <Figure label="IN ESCROW" value={`${formatSol(balance?.lockedBalance ?? '0')} SOL`} color="#f0b429" />
       </div>
     </div>
@@ -157,7 +157,7 @@ function AccountHeader({ user, balance, rank }: { user: AppUser; balance: Balanc
 
 function Figure({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="flex-1 rounded-[9px] border p-[8px_10px]" style={{ borderColor: 'rgba(47,224,138,.1)', background: 'var(--panel-bg3)' }}>
+    <div className="flex-1 rounded-[9px] border p-[8px_10px]" style={{ borderColor: 'rgba(34, 224, 196,.1)', background: 'var(--panel-bg3)' }}>
       <div className="font-mono text-[9px] tracking-[0.14em] text-muted">{label}</div>
       <div className="mt-0.5 font-mono text-[12.5px]" style={{ color }}>
         {value}

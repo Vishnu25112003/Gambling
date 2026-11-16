@@ -57,7 +57,7 @@ export function MineCatcherResult({
         : '';
 
   const winColor = winnerId === myId || !winnerId ? 'var(--green)' : 'var(--red)';
-  const winGlow = winnerId === myId || !winnerId ? 'rgba(74,222,128,.35)' : 'rgba(248,113,113,.4)';
+  const winGlow = winnerId === myId || !winnerId ? 'rgba(62, 232, 210,.35)' : 'rgba(248,113,113,.4)';
   const headline = won ? 'Victory' : winnerId ? 'Defeat' : 'No winner';
 
   return (
@@ -72,7 +72,7 @@ export function MineCatcherResult({
       <div className="mt-1.5 text-[13px] text-muted">{endCauseLabel}</div>
 
       <div className="my-7 grid grid-cols-2 gap-2.5 text-left">
-        <div className="rounded-[6px] border border-line bg-[linear-gradient(#0c120d,#080d09)] px-4 py-4">
+        <div className="rounded-[6px] border border-line bg-[linear-gradient(#0d0f1b,#090b14)] px-4 py-4">
           <div className="font-mono text-[10px] tracking-[.18em] text-muted uppercase">You</div>
           <div className="mt-1.5 font-mono text-2xl font-extrabold text-green">
             {foundCounts[myId] ?? 0}
@@ -82,7 +82,7 @@ export function MineCatcherResult({
             {shotLine(foundCounts[myId] ?? 0, breakCounts[myId] ?? 0)} · {lives[myId] ?? 0} lives left
           </div>
         </div>
-        <div className="rounded-[6px] border border-red/15 bg-[linear-gradient(#0c120d,#080d09)] px-4 py-4">
+        <div className="rounded-[6px] border border-red/15 bg-[linear-gradient(#0d0f1b,#090b14)] px-4 py-4">
           <div className="font-mono text-[10px] tracking-[.18em] text-muted uppercase">
             {opponentId ? (playerNames[opponentId] ?? 'Opponent') : 'Opponent'}
           </div>
@@ -97,7 +97,7 @@ export function MineCatcherResult({
       </div>
 
       {pot && (
-        <div className="mb-6 rounded-[6px] border border-line bg-[linear-gradient(#0c120d,#080d09)] px-4 py-3 text-left">
+        <div className="mb-6 rounded-[6px] border border-line bg-[linear-gradient(#0d0f1b,#090b14)] px-4 py-3 text-left">
           <div className="flex justify-between text-xs">
             <span className="text-muted">Stake</span>
             <span className="font-bold">{formatSol(payouts[0]?.payout ?? '0')} SOL</span>
@@ -134,7 +134,7 @@ export function MineCatcherResult({
           <button
             type="button"
             onClick={onRematch}
-            className="w-full rounded-[6px] py-4 text-[14px] font-bold tracking-[.16em] text-[#06170d] uppercase"
+            className="w-full rounded-[6px] py-4 text-[14px] font-bold tracking-[.16em] text-[#061419] uppercase"
             style={{ background: 'linear-gradient(#a8f07a,#5fc23c)', boxShadow: '0 6px 0 #35761f' }}
           >
             Run it back

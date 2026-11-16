@@ -83,15 +83,15 @@ export function Landing() {
       className="min-h-screen"
       style={{
         background:
-          'radial-gradient(ellipse 900px 500px at 50% -10%, rgba(34,197,94,var(--page-glow)), transparent 60%), var(--bg)',
+          'radial-gradient(ellipse 900px 500px at 50% -10%, rgba(24, 200, 180,var(--page-glow)), transparent 60%), radial-gradient(ellipse 700px 600px at 100% 100%, color-mix(in oklab, var(--brand-violet) calc(var(--page-glow) * 70%), transparent), transparent 70%), var(--bg)',
       }}
     >
       <div
         style={{
           background:
-            'radial-gradient(ellipse 55% 30% at 18% 12%, rgba(34,197,94,0.14), transparent 62%),' +
-            'radial-gradient(ellipse 48% 26% at 84% 16%, rgba(34,197,94,0.12), transparent 62%),' +
-            'radial-gradient(ellipse 80% 34% at 50% 104%, rgba(34,197,94,0.08), transparent 66%),' +
+            'radial-gradient(ellipse 55% 30% at 18% 12%, rgba(24, 200, 180,0.14), transparent 62%),' +
+            'radial-gradient(ellipse 48% 26% at 84% 16%, rgba(24, 200, 180,0.12), transparent 62%),' +
+            'radial-gradient(ellipse 80% 34% at 50% 104%, rgba(24, 200, 180,0.08), transparent 66%),' +
             'var(--bg)',
         }}
       >
@@ -126,7 +126,7 @@ export function Landing() {
             </button>
             <button
               onClick={goDashboard}
-              className="cursor-pointer rounded-[11px] border-none bg-[linear-gradient(135deg,var(--green-solid),var(--green-deep))] px-[clamp(14px,3vw,26px)] py-3 text-[clamp(12.5px,3vw,14.5px)] font-bold whitespace-nowrap text-on-green shadow-[0_8px_24px_rgba(34,197,94,0.22)] transition hover:brightness-110"
+              className="cursor-pointer rounded-[11px] border-none bg-[linear-gradient(135deg,var(--green-solid),var(--green-deep))] px-[clamp(14px,3vw,26px)] py-3 text-[clamp(12.5px,3vw,14.5px)] font-bold whitespace-nowrap text-on-green shadow-[0_8px_24px_rgba(24, 200, 180,0.22)] transition hover:brightness-110"
             >
               Launch Dashboard →
             </button>
@@ -178,7 +178,7 @@ export function Landing() {
 
             <button
               onClick={goDashboard}
-              className="cursor-pointer rounded-xl border-none bg-[linear-gradient(135deg,var(--green-solid),var(--green-deep))] px-[34px] py-4 text-base font-bold text-on-green shadow-[0_14px_34px_rgba(34,197,94,0.26)] transition hover:brightness-110"
+              className="cursor-pointer rounded-xl border-none bg-[linear-gradient(135deg,var(--green-solid),var(--green-deep))] px-[34px] py-4 text-base font-bold text-on-green shadow-[0_14px_34px_rgba(24, 200, 180,0.26)] transition hover:brightness-110"
             >
               Enter the Hub →
             </button>

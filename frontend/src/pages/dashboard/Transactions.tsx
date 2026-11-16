@@ -38,7 +38,7 @@ const TYPE_COLOR: Record<LedgerRow['type'], string> = {
 };
 
 const STATUS_CHIP: Record<LedgerRow['status'], { bg: string; fg: string }> = {
-  confirmed: { bg: 'rgba(47,224,138,.14)', fg: '#2fe08a' },
+  confirmed: { bg: 'rgba(34, 224, 196,.14)', fg: 'var(--green)' },
   pending: { bg: 'rgba(240,180,41,.14)', fg: '#f0b429' },
   failed: { bg: 'rgba(239,83,80,.14)', fg: '#ef5350' },
 };
@@ -222,7 +222,7 @@ export function Transactions() {
                 <button
                   onClick={exportCsv}
                   className="flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 font-heading text-[12.5px] font-semibold tracking-[0.06em] text-green"
-                  style={{ borderColor: 'rgba(47,224,138,.2)', background: 'rgba(47,224,138,.06)' }}
+                  style={{ borderColor: 'rgba(34, 224, 196,.2)', background: 'rgba(34, 224, 196,.06)' }}
                 >
                   <Download size={17} />
                   EXPORT CSV

@@ -146,7 +146,7 @@ export function MinePlacementBoard({
               className="size-[16px] rounded-full box-border"
               style={
                 i < placedCount
-                  ? { background: 'rgba(255,255,255,.05)', border: '1px dashed rgba(74,222,128,.3)' }
+                  ? { background: 'rgba(255,255,255,.05)', border: '1px dashed rgba(62, 232, 210,.3)' }
                   : {
                       background: 'radial-gradient(circle at 32% 26%,#767c82,#2b2f33 48%,#0a0c0e)',
                       border: '1px solid rgba(0,0,0,.5)',
@@ -172,7 +172,7 @@ export function MinePlacementBoard({
             canReady
               ? {
                   background: 'linear-gradient(#a8f07a,#5fc23c)',
-                  color: '#06170d',
+                  color: '#061419',
                   boxShadow: '0 6px 0 #35761f',
                 }
               : { background: 'rgba(255,255,255,.03)', color: 'var(--faint)' }

@@ -136,8 +136,8 @@ export function MineAttackBoard({
         <div className="min-w-0">
           {/* Status bar */}
           <div
-            className="mb-3 flex items-center justify-between gap-3 rounded-[6px] border bg-[linear-gradient(#0c120d,#080d09)] px-4 py-2.5"
-            style={{ borderColor: lastWasBlast ? 'rgba(248,113,113,.45)' : 'rgba(74,222,128,.12)' }}
+            className="mb-3 flex items-center justify-between gap-3 rounded-[6px] border bg-[linear-gradient(#0d0f1b,#090b14)] px-4 py-2.5"
+            style={{ borderColor: lastWasBlast ? 'rgba(248,113,113,.45)' : 'rgba(62, 232, 210,.12)' }}
           >
             <div className="flex min-w-0 items-center gap-2.5">
               <div
@@ -170,7 +170,7 @@ export function MineAttackBoard({
                         state === 'blast'
                           ? 'border border-[rgba(248,113,113,.7)] bg-[radial-gradient(circle_at_50%_55%,rgba(248,113,113,.3),rgba(50,10,6,.5))] [box-shadow:inset_0_0_18px_rgba(248,113,113,.28)]'
                           : state === 'break'
-                            ? 'border border-[rgba(74,222,128,.07)] bg-[linear-gradient(160deg,rgba(255,255,255,.02),rgba(0,0,0,.34))]'
+                            ? 'border border-[rgba(62, 232, 210,.07)] bg-[linear-gradient(160deg,rgba(255,255,255,.02),rgba(0,0,0,.34))]'
                             : `${CELL_BASE_CLASS} ${interactive ? CELL_HOVER_CLASS : 'cursor-default'}`
                       }
                     >
@@ -309,9 +309,9 @@ export function MineAttackBoard({
                   const isMine = ownMineSet.has(i);
                   let style: { background: string; border: string };
                   if (revealed === 'blast') style = { background: 'radial-gradient(circle,rgba(248,113,113,.75),rgba(248,113,113,.25))', border: '1px solid rgba(248,113,113,.7)' };
-                  else if (revealed === 'break') style = { background: 'rgba(190,205,196,.14)', border: '1px solid rgba(74,222,128,.1)' };
+                  else if (revealed === 'break') style = { background: 'rgba(190,205,196,.14)', border: '1px solid rgba(62, 232, 210,.1)' };
                   else if (isMine) style = { background: 'rgba(248,113,113,.16)', border: '1px solid rgba(248,113,113,.35)' };
-                  else style = { background: 'rgba(255,255,255,.015)', border: '1px solid rgba(74,222,128,.1)' };
+                  else style = { background: 'rgba(255,255,255,.015)', border: '1px solid rgba(62, 232, 210,.1)' };
                   return (
                     <div
                       key={i}
@@ -377,10 +377,10 @@ function TurnRing({ timeLeft, isMyTurn }: { timeLeft: number; isMyTurn: boolean 
       className="relative mx-auto size-[84px] rounded-full"
       style={{
         background: `conic-gradient(${color} ${(timeLeft / TURN_SECONDS) * 360}deg, rgba(255,255,255,.06) 0deg)`,
-        boxShadow: `0 0 26px ${low ? 'rgba(248,113,113,.35)' : 'rgba(74,222,128,.18)'}`,
+        boxShadow: `0 0 26px ${low ? 'rgba(248,113,113,.35)' : 'rgba(62, 232, 210,.18)'}`,
       }}
     >
-      <div className="absolute inset-[5px] grid place-items-center rounded-full bg-[#080d09]">
+      <div className="absolute inset-[5px] grid place-items-center rounded-full bg-[#090b14]">
         <div className="font-mono text-[23px] leading-none font-extrabold">{timeLeft}</div>
       </div>
     </div>
@@ -413,9 +413,9 @@ function PlayerCard({
   const right = align === 'right';
   return (
     <div
-      className="rounded-[6px] border bg-[linear-gradient(#0c120d,#080d09)] px-4 py-3.5 transition-opacity"
+      className="rounded-[6px] border bg-[linear-gradient(#0d0f1b,#090b14)] px-4 py-3.5 transition-opacity"
       style={{
-        borderColor: active ? (tone === 'green' ? 'rgba(74,222,128,.4)' : 'rgba(248,113,113,.45)') : 'rgba(74,222,128,.1)',
+        borderColor: active ? (tone === 'green' ? 'rgba(62, 232, 210,.4)' : 'rgba(248,113,113,.45)') : 'rgba(62, 232, 210,.1)',
         opacity: active ? 1 : 0.55,
       }}
     >

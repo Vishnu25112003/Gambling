@@ -55,16 +55,16 @@ export function Overview() {
         <section
           className="relative col-span-2 min-w-0 overflow-hidden rounded-[18px] border p-[clamp(18px,2.6vw,34px)] max-[820px]:col-span-1"
           style={{
-            borderColor: 'rgba(47,224,138,.2)',
+            borderColor: 'rgba(34, 224, 196,.2)',
             background:
-              'radial-gradient(700px 300px at 88% 0%, rgba(47,224,138,.2), rgba(6,9,7,0) 65%), linear-gradient(120deg, var(--panel-bg2), var(--panel-bg))',
+              'radial-gradient(700px 300px at 88% 0%, rgba(34, 224, 196,.2), rgba(6,9,7,0) 65%), linear-gradient(120deg, var(--panel-bg2), var(--panel-bg))',
           }}
         >
           <div
             className="pointer-events-none absolute inset-0"
             style={{
               backgroundImage:
-                'linear-gradient(rgba(47,224,138,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(47,224,138,.05) 1px, transparent 1px)',
+                'linear-gradient(rgba(34, 224, 196,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(34, 224, 196,.05) 1px, transparent 1px)',
               backgroundSize: '46px 46px',
             }}
           />
@@ -73,10 +73,10 @@ export function Overview() {
             <div className="min-w-0">
               <span
                 className="inline-flex items-center gap-2 rounded-[6px] border px-[11px] py-[5px]"
-                style={{ borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.14)' }}
+                style={{ borderColor: 'rgba(34, 224, 196,.3)', background: 'rgba(34, 224, 196,.14)' }}
               >
-                <span className="size-1.5 rounded-full bg-[#2fe08a]" style={{ animation: 'irPulse 1.6s infinite' }} />
-                <span className="font-mono text-[10px] tracking-[0.2em] text-[#6ee7b7]">
+                <span className="size-1.5 rounded-full bg-green" style={{ animation: 'irPulse 1.6s infinite' }} />
+                <span className="font-mono text-[10px] tracking-[0.2em] text-green-soft">
                   SEASON 01 · LIVE
                 </span>
               </span>
@@ -86,7 +86,7 @@ export function Overview() {
                   <>
                     WELCOME BACK,
                     <br />
-                    <span className="text-green" style={{ textShadow: '0 0 34px rgba(47,224,138,.5)' }}>
+                    <span className="text-green" style={{ textShadow: '0 0 34px rgba(34, 224, 196,.5)' }}>
                       {(user.username || shortAddress(user.walletAddress)).toUpperCase()}
                     </span>
                   </>
@@ -94,7 +94,7 @@ export function Overview() {
                   <>
                     WELCOME TO
                     <br />
-                    <span className="text-green" style={{ textShadow: '0 0 34px rgba(47,224,138,.5)' }}>
+                    <span className="text-green" style={{ textShadow: '0 0 34px rgba(34, 224, 196,.5)' }}>
                       IAM GAME
                     </span>
                   </>
@@ -107,17 +107,17 @@ export function Overview() {
                     <div className="font-mono text-[10px] tracking-[0.18em] text-muted">READY TO BET</div>
                     <div className="font-heading text-[34px] leading-[1.1] font-bold text-text">
                       {formatSol(balance?.availableBalance ?? '0')}{' '}
-                      <span className="text-[15px] text-[#6ee7b7]">SOL</span>
+                      <span className="text-[15px] text-green-soft">SOL</span>
                     </div>
                   </div>
-                  <div className="h-10 w-px" style={{ background: 'rgba(47,224,138,.18)' }} />
+                  <div className="h-10 w-px" style={{ background: 'rgba(34, 224, 196,.18)' }} />
                   <div>
                     <div className="font-mono text-[10px] tracking-[0.18em] text-muted">MATCHES</div>
                     <div className="font-heading text-[34px] leading-[1.1] font-bold text-text">
                       {user?.gamesPlayed ?? 0}
                     </div>
                   </div>
-                  <div className="h-10 w-px" style={{ background: 'rgba(47,224,138,.18)' }} />
+                  <div className="h-10 w-px" style={{ background: 'rgba(34, 224, 196,.18)' }} />
                   <div>
                     <div className="font-mono text-[10px] tracking-[0.18em] text-muted">STREAK</div>
                     <div className="font-heading text-[34px] leading-[1.1] font-bold text-green">
@@ -145,7 +145,7 @@ export function Overview() {
                       <span className="text-gold-bright">
                         {tier.next ? `NEXT: ${tier.next.label.toUpperCase()}` : 'MAX RANK'}
                       </span>
-                      <span className="text-[#6ee7b7]">
+                      <span className="text-green-soft">
                         {tier.next
                           ? `${formatSol(tier.wagered)} / ${formatSol(tier.next.minWagered)} SOL`
                           : 'COMPLETE'}
@@ -153,14 +153,14 @@ export function Overview() {
                     </div>
                     <div
                       className="h-[9px] overflow-hidden rounded-md border"
-                      style={{ background: 'var(--panel-bg2)', borderColor: 'rgba(47,224,138,.16)' }}
+                      style={{ background: 'var(--panel-bg2)', borderColor: 'rgba(34, 224, 196,.16)' }}
                     >
                       <div
                         className="h-full"
                         style={{
                           width: `${tier.percentToNext}%`,
-                          background: 'linear-gradient(90deg, #0f7d4d, #35eb95)',
-                          boxShadow: '0 0 16px rgba(47,224,138,.6)',
+                          background: 'linear-gradient(90deg, #0b7c86, #3ef0d4)',
+                          boxShadow: '0 0 16px rgba(34, 224, 196,.6)',
                         }}
                       />
                     </div>
@@ -172,10 +172,10 @@ export function Overview() {
                 {isAuthenticated ? (
                   <button
                     onClick={() => navigate('/dashboard/escrow')}
-                    className="flex cursor-pointer items-center gap-[9px] rounded-[10px] border-0 px-6 py-3 font-heading text-sm font-bold whitespace-nowrap text-[#04160c] transition hover:brightness-110"
+                    className="flex cursor-pointer items-center gap-[9px] rounded-[10px] border-0 px-6 py-3 font-heading text-sm font-bold whitespace-nowrap text-[#031418] transition hover:brightness-110"
                     style={{
-                      background: 'linear-gradient(180deg, #35eb95, #16a862)',
-                      boxShadow: '0 8px 26px rgba(47,224,138,.28)',
+                      background: 'linear-gradient(180deg, #3ef0d4, #10b4b0)',
+                      boxShadow: '0 8px 26px rgba(34, 224, 196,.28)',
                     }}
                   >
                     <Icon name="bolt" size={19} />
@@ -185,10 +185,10 @@ export function Overview() {
                   <button
                     onClick={() => void signIn()}
                     disabled={isAuthenticating}
-                    className="flex cursor-pointer items-center gap-[9px] rounded-[10px] border-0 px-6 py-3 font-heading text-sm font-bold whitespace-nowrap text-[#04160c] transition hover:brightness-110 disabled:opacity-60"
+                    className="flex cursor-pointer items-center gap-[9px] rounded-[10px] border-0 px-6 py-3 font-heading text-sm font-bold whitespace-nowrap text-[#031418] transition hover:brightness-110 disabled:opacity-60"
                     style={{
-                      background: 'linear-gradient(180deg, #35eb95, #16a862)',
-                      boxShadow: '0 8px 26px rgba(47,224,138,.28)',
+                      background: 'linear-gradient(180deg, #3ef0d4, #10b4b0)',
+                      boxShadow: '0 8px 26px rgba(34, 224, 196,.28)',
                     }}
                   >
                     <Icon name="bolt" size={19} />
@@ -198,7 +198,7 @@ export function Overview() {
                 <button
                   onClick={() => navigate('/dashboard/games')}
                   className="flex cursor-pointer items-center gap-[9px] rounded-[10px] border px-6 py-3 font-heading text-sm font-bold whitespace-nowrap text-text transition hover:brightness-110"
-                  style={{ borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.06)' }}
+                  style={{ borderColor: 'rgba(34, 224, 196,.3)', background: 'rgba(34, 224, 196,.06)' }}
                 >
                   <Icon name="gamepad" size={19} className="text-green" />
                   ENTER LOBBY
@@ -209,9 +209,9 @@ export function Overview() {
             <div
               className="relative grid aspect-[4/3] min-w-0 place-items-center overflow-hidden rounded-[14px] border"
               style={{
-                borderColor: 'rgba(47,224,138,.22)',
+                borderColor: 'rgba(34, 224, 196,.22)',
                 background:
-                  'repeating-linear-gradient(135deg, rgba(47,224,138,.08) 0 10px, rgba(6,9,7,0) 10px 20px), var(--panel-bg)',
+                  'repeating-linear-gradient(135deg, rgba(34, 224, 196,.08) 0 10px, rgba(6,9,7,0) 10px 20px), var(--panel-bg)',
               }}
             >
               <SceneCanvas
@@ -231,10 +231,10 @@ export function Overview() {
                 <div
                   key={m.id}
                   className="flex items-center gap-3 rounded-[11px] border p-[11px_12px] transition"
-                  style={{ borderColor: 'rgba(47,224,138,.08)', background: 'var(--panel-bg3)' }}
+                  style={{ borderColor: 'rgba(34, 224, 196,.08)', background: 'var(--panel-bg3)' }}
                 >
                   <span
-                    className="grid size-[30px] shrink-0 place-items-center rounded-lg font-heading text-[12px] font-bold text-[#04160c]"
+                    className="grid size-[30px] shrink-0 place-items-center rounded-lg font-heading text-[12px] font-bold text-[#031418]"
                     style={{ background: visual.tone }}
                   >
                     {m.initial}
@@ -245,7 +245,7 @@ export function Overview() {
                     </div>
                     <div className="mt-0.5 font-mono text-[10.5px] text-muted">{m.meta}</div>
                   </div>
-                  <span className="font-mono text-[12px] text-[#6ee7b7]">{m.stake}</span>
+                  <span className="font-mono text-[12px] text-green-soft">{m.stake}</span>
                 </div>
               );
             })}
@@ -253,7 +253,7 @@ export function Overview() {
           <button
             onClick={() => navigate('/dashboard/games')}
             className="mt-3 w-full cursor-pointer rounded-[9px] border border-dashed py-2.5 font-heading text-[12.5px] font-semibold tracking-[0.08em] text-green"
-            style={{ borderColor: 'rgba(47,224,138,.24)' }}
+            style={{ borderColor: 'rgba(34, 224, 196,.24)' }}
           >
             JOIN A TABLE →
           </button>
@@ -338,7 +338,7 @@ export function Overview() {
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'var(--panel-bg2)' }}>
                       <div
                         className="h-full"
-                        style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #16a862, #35eb95)' }}
+                        style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #10b4b0, #3ef0d4)' }}
                       />
                     </div>
                     <span className="font-mono text-[10.5px] text-muted">

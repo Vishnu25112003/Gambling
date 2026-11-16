@@ -18,7 +18,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 const VARIANTS: Record<NonNullable<ButtonProps['variant']>, string> = {
   primary:
     'bg-[linear-gradient(135deg,var(--green-solid),var(--green-deep))] text-on-green font-bold ' +
-    'shadow-[0_8px_24px_rgba(34,197,94,0.22)] hover:brightness-110',
+    'shadow-[0_8px_24px_rgba(24, 200, 180,0.22)] hover:brightness-110',
   solid: 'bg-green-solid text-on-green font-bold hover:brightness-110',
   secondary: 'bg-line2 text-text border border-line font-semibold hover:bg-line',
   ghost: 'bg-transparent text-muted font-semibold hover:text-text hover:bg-line2',

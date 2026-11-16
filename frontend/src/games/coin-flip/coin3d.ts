@@ -84,7 +84,7 @@ export function mountCoin(container: HTMLElement): CoinView {
   const key = new THREE.DirectionalLight(0xfff3d6, 2.4);
   key.position.set(2.2, 3, 3.5);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0x22c55e, 0.6);
+  const rim = new THREE.DirectionalLight(0x18c8b4, 0.6);
   rim.position.set(-3, -1, 2);
   scene.add(rim);
   const fill = new THREE.DirectionalLight(0xffffff, 1.0);

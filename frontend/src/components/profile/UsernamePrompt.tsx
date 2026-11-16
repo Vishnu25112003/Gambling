@@ -49,7 +49,7 @@ export function UsernamePrompt() {
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center px-4">
       <div
-        className="absolute inset-0 bg-[rgba(3,8,5,0.74)] backdrop-blur-[7px]"
+        className="absolute inset-0 bg-[rgba(4, 5, 12,0.74)] backdrop-blur-[7px]"
         onClick={dismissUsernamePrompt}
         aria-hidden
       />

@@ -24,18 +24,18 @@ function StreakStrip() {
             d.state === 'today'
               ? { borderColor: 'rgba(240,180,41,.4)', background: 'rgba(240,180,41,.1)' }
               : d.state === 'done'
-                ? { borderColor: 'rgba(47,224,138,.3)', background: 'rgba(47,224,138,.08)' }
+                ? { borderColor: 'rgba(34, 224, 196,.3)', background: 'rgba(34, 224, 196,.08)' }
                 : { borderColor: 'var(--panel-border-soft)', background: 'var(--panel-bg3)' }
           }
         >
           <Flame
             size={16}
             className="mx-auto"
-            style={{ color: d.state === 'today' ? '#f0b429' : d.state === 'done' ? '#2fe08a' : 'var(--faint)' }}
+            style={{ color: d.state === 'today' ? '#f0b429' : d.state === 'done' ? 'var(--green)' : 'var(--faint)' }}
           />
           <div
             className="mt-1 font-mono text-[9px] tracking-[0.08em]"
-            style={{ color: d.state === 'today' ? '#f7d774' : d.state === 'done' ? '#6ee7b7' : 'var(--faint)' }}
+            style={{ color: d.state === 'today' ? '#f7d774' : d.state === 'done' ? 'var(--green-soft)' : 'var(--faint)' }}
           >
             DAY {d.day}
           </div>
@@ -58,8 +58,8 @@ function RakebackProgress({
   return (
     <Panel>
       <PanelHeader title="RAKEBACK TIER" meta={`${wagered.toFixed(2)} SOL WAGERED`} />
-      <div className="relative h-2 overflow-hidden rounded-md border" style={{ background: 'var(--panel-bg2)', borderColor: 'rgba(47,224,138,.14)' }}>
-        <div className="h-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #0f7d4d, #35eb95)', boxShadow: '0 0 16px rgba(47,224,138,.5)' }} />
+      <div className="relative h-2 overflow-hidden rounded-md border" style={{ background: 'var(--panel-bg2)', borderColor: 'rgba(34, 224, 196,.14)' }}>
+        <div className="h-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #0b7c86, #3ef0d4)', boxShadow: '0 0 16px rgba(34, 224, 196,.5)' }} />
       </div>
       <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2.5">
         {tiers.map((t) => {
@@ -124,7 +124,7 @@ function CrateCard({ crate }: { crate: (typeof MOCK_CRATES)[number] }) {
       </div>
       <div className="flex items-center gap-2.5">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'var(--panel-bg2)' }}>
-          <div className="h-full" style={{ width: `${pct}%`, background: claimable ? 'linear-gradient(90deg,#d69a0e,#f7d774)' : 'linear-gradient(90deg,#16a862,#35eb95)' }} />
+          <div className="h-full" style={{ width: `${pct}%`, background: claimable ? 'linear-gradient(90deg,#d69a0e,#f7d774)' : 'linear-gradient(90deg,#10b4b0,#3ef0d4)' }} />
         </div>
         <span className="font-mono text-[10.5px] text-muted">{crate.progress}/{crate.total}</span>
       </div>
@@ -263,13 +263,13 @@ export function Rewards() {
         </section>
 
         <section className="flex min-w-0 flex-col gap-3">
-          <div className="rounded-[18px] border p-[18px]" style={{ borderColor: 'rgba(47,224,138,.16)', background: 'linear-gradient(160deg, rgba(47,224,138,.1), rgba(6,9,7,0) 62%), var(--panel-bg)' }}>
+          <div className="rounded-[18px] border p-[18px]" style={{ borderColor: 'rgba(34, 224, 196,.16)', background: 'linear-gradient(160deg, rgba(34, 224, 196,.1), rgba(6,9,7,0) 62%), var(--panel-bg)' }}>
             <div className="flex items-center justify-between gap-2.5">
               <div className="flex items-center gap-2.5">
                 <Flame size={20} className="text-green" />
                 <span className="font-heading text-[15px] font-bold tracking-[0.05em] text-text">DAILY STREAK</span>
               </div>
-              <span className="font-mono text-[11px] text-[#6ee7b7]">
+              <span className="font-mono text-[11px] text-green-soft">
                 DAY {MOCK_STREAK.filter((d) => d.state !== 'locked').length} / {MOCK_STREAK.length}
               </span>
             </div>
