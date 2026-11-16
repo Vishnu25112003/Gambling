@@ -225,7 +225,7 @@ function InviteHero({ link, code, rate }: { link: string; code: string; rate: nu
   };
 
   const share = (url: string) => window.open(url, '_blank', 'noopener,noreferrer');
-  const pitch = 'Play on Infinit Respawn with me — provably fair games on Solana.';
+  const pitch = 'Play on IAM GAME with me — provably fair games on Solana.';
 
   return (
     <section

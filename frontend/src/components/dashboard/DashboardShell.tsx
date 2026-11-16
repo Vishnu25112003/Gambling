@@ -6,11 +6,11 @@ import { useTheme } from '../../hooks/useTheme';
 import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed';
 import { formatSol, shortAddress } from '../../lib/format';
 import { Avatar } from '../shared/Avatar';
+import { BrandLogo, BrandMark } from '../shared/Brand';
 import {
   CloseIcon,
   Icon,
   InviteIcon,
-  LogoMark,
   MenuIcon,
   MoonIcon,
   PanelIcon,
@@ -38,24 +38,6 @@ const navRowClass = (active: boolean, fill = false) =>
      active ? 'bg-green-solid/[0.14] text-green' : 'bg-transparent text-muted hover:text-text'
    }`;
 
-function Wordmark({ size = 19 }: { size?: number }) {
-  return (
-    <span className="font-heading font-bold tracking-[-0.01em]" style={{ fontSize: size }}>
-      Infinit <span className="text-green">Respawn</span>
-    </span>
-  );
-}
-
-function LogoBadge({ box, glyph }: { box: number; glyph: number }) {
-  return (
-    <div
-      className="flex items-center justify-center bg-[linear-gradient(135deg,var(--green-solid),var(--green-deep))]"
-      style={{ width: box, height: box, borderRadius: box * 0.29 }}
-    >
-      <LogoMark size={glyph} />
-    </div>
-  );
-}
 
 function NavRows({
   onNavigate,
@@ -223,8 +205,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
     >
       <div className="flex shrink-0 items-center gap-[11px] no-underline">
         <Link to="/" className="flex items-center gap-[11px] no-underline">
-          <LogoBadge box={38} glyph={20} />
-          {!collapsed && <Wordmark />}
+          {collapsed ? <BrandMark size={48} /> : <BrandLogo height={54} />}
         </Link>
       </div>
 
@@ -253,7 +234,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         {!collapsed && <InviteCard />}
         {!collapsed && (
           <p className="text-[11.5px] leading-[1.5] text-faint">
-            © 2026 Infinit Respawn
+            © 2026 IAM GAME
             <br />
             All rights reserved.
           </p>
@@ -296,8 +277,7 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
       <div className="fixed top-0 bottom-0 left-0 z-[100] flex h-[100dvh] w-[min(78vw,272px)] flex-col overflow-hidden border-r border-line bg-bg2 px-3.5 py-3.5">
         <div className="flex shrink-0 items-center justify-between">
           <Link to="/" onClick={onClose} className="flex items-center gap-2.5 no-underline">
-            <LogoBadge box={32} glyph={17} />
-            <Wordmark size={15.5} />
+            <BrandLogo height={44} />
           </Link>
           <button
             onClick={onClose}

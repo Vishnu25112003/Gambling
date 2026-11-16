@@ -97,7 +97,7 @@ export function Transactions() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `infinit-respawn-transactions-page-${data.page}.csv`;
+    a.download = `iamgame-transactions-page-${data.page}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
