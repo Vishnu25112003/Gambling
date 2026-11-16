@@ -13,30 +13,34 @@
 :root {
   color-scheme: dark;
 
-  --bg: #060907;
-  --bg2: #0a110c;
+  --bg: #07080f;
+  --bg2: #0b0d18;
   --card: rgba(255, 255, 255, 0.03);
   --border: rgba(255, 255, 255, 0.08);
   --border2: rgba(255, 255, 255, 0.06);
-  --text: #e8f2ec;
-  --muted: #8fa89b;
-  --faint: #5c6b60;
-  --green: #4ade80;
-  --green-solid: #22c55e;
-  --green-deep: #16a34a;
-  --on-green: #04150a;
+  --text: #e9eef7;
+  --muted: #8f9bb6;
+  --faint: #5d6682;
+  --green: #3ee8d2;
+  /* Paler teal for small labels and figures on dark panels; full-strength in light. */
+  --green-soft: #7ff3e2;
+  --green-solid: #22e0c4;
+  --green-deep: #14b4d4;
+  --on-green: #03141a;
   --gold: #eab308;
   --gold-bright: #f7d774;
   --gold-deep: #8a6410;
   --banner-bg: #1a1505;
-  --stripe1: #101a13;
-  --stripe2: #0b130d;
+  --stripe1: #111426;
+  --stripe2: #0c0f1c;
   --red: #f87171;
   --ludo-blue: #3b82f6;
+  /* Purple from the IAM GAME hex mark — a secondary brand tint, used sparingly. */
+  --brand-violet: #8a2be2;
 
   /* Strength of the ambient green glow behind the page — brighter in light. */
   --page-glow: 0.1;
-  --scroll-thumb: #1c2620;
+  --scroll-thumb: #1d2133;
 
   /*
    * Doc 11 — the loyalty tier ladder now uses badge artwork (see
@@ -51,9 +55,9 @@
    * medal's appearance to it would mean restyling the banner restyled the medal.
    */
   --tier-bronze: #c2703a;
-  --tier-silver: #cbd5c9;
+  --tier-silver: #cdd3e0;
   --tier-gold: #eab308;
-  --tier-locked: #3a4a3f;
+  --tier-locked: #363c55;
 
   /*
    * Infinit Respawn mockup — exact panel/border shades, distinct from the
@@ -64,60 +68,62 @@
    * --card/--border globally, which would also repaint the landing page and
    * every game board.
    */
-  --panel-border: rgba(47, 224, 138, 0.14);
-  --panel-border-soft: rgba(47, 224, 138, 0.1);
-  --panel-bg: #0a110c;
-  --panel-bg2: #0c150f;
-  --panel-bg3: #0d150f;
-  --row-hover: #0e1710;
+  --panel-border: rgba(34, 224, 196, 0.14);
+  --panel-border-soft: rgba(34, 224, 196, 0.1);
+  --panel-bg: #0b0d18;
+  --panel-bg2: #0d1020;
+  --panel-bg3: #0e1121;
+  --row-hover: #11142a;
   --amber-border: rgba(240, 180, 41, 0.2);
 }
 
 html[data-theme='light'] {
   color-scheme: light;
 
-  --bg: #f2f6f2;
+  --bg: #f3f5fa;
   --bg2: #ffffff;
   --card: #ffffff;
-  --border: rgba(12, 32, 18, 0.1);
-  --border2: rgba(12, 32, 18, 0.07);
-  --text: #0e1a12;
-  --muted: #5b6b60;
-  --faint: #8b978f;
-  --green: #15803d;
-  --green-solid: #16a34a;
-  --green-deep: #15803d;
+  --border: rgba(14, 20, 40, 0.1);
+  --border2: rgba(14, 20, 40, 0.07);
+  --text: #0d1222;
+  --muted: #56607a;
+  --faint: #8a92a8;
+  --green: #087f72;
+  --green-soft: #087f72;
+  --green-solid: #088a7c;
+  --green-deep: #0b7d99;
   --on-green: #ffffff;
   --gold: #a16207;
   --banner-bg: #fdf3d3;
-  --stripe1: #eaf0ea;
-  --stripe2: #dfe7e0;
+  --stripe1: #e9edf5;
+  --stripe2: #dfe5f0;
   --red: #dc2626;
   --ludo-blue: #2563eb;
+  --brand-violet: #7a22d4;
   --gold-bright: #ca8a04;
   --gold-deep: #713f12;
 
   --page-glow: 0.14;
-  --scroll-thumb: #cbd6cc;
+  --scroll-thumb: #c9d0de;
 
   /*
    * Darkened for contrast. Silver at its dark-mode value is near-white and
    * effectively invisible on the light #f2f6f2 background.
    */
   --tier-bronze: #9a5528;
-  --tier-silver: #6b7a70;
+  --tier-silver: #68728a;
   --tier-gold: #a16207;
-  --tier-locked: #b6c1b8;
+  --tier-locked: #b4bccd;
 
   /* Light-theme equivalents of the panel tokens above — the mockup itself is
      dark-only, so these are derived to sit consistently on the app's real
      light palette rather than transcribed from the design. */
-  --panel-border: rgba(21, 128, 61, 0.16);
-  --panel-border-soft: rgba(21, 128, 61, 0.12);
+  --panel-border: rgba(8, 127, 114, 0.16);
+  --panel-border-soft: rgba(8, 127, 114, 0.12);
   --panel-bg: #ffffff;
-  --panel-bg2: #eef5ef;
-  --panel-bg3: #eaf0ea;
-  --row-hover: #eef5ef;
+  --panel-bg2: #eef2f9;
+  --panel-bg3: #e9edf5;
+  --row-hover: #eef2f9;
   --amber-border: rgba(161, 98, 7, 0.22);
 }
 
@@ -136,6 +142,7 @@ html[data-theme='light'] {
   --color-muted: var(--muted);
   --color-faint: var(--faint);
   --color-green: var(--green);
+  --color-green-soft: var(--green-soft);
   --color-green-solid: var(--green-solid);
   --color-green-deep: var(--green-deep);
   --color-on-green: var(--on-green);
@@ -171,7 +178,7 @@ a {
   text-decoration: none;
 }
 a:hover {
-  color: #86efac;
+  color: #8af5e6;
 }
 html[data-theme='light'] a:hover {
   color: var(--green-deep);
@@ -220,11 +227,11 @@ html[data-theme='light'] a:hover {
 
 /* ── Scrim ─────────────────────────────────────────────────────────────── */
 .wallet-adapter-modal-overlay {
-  background: rgba(3, 8, 5, 0.74) !important;
+  background: rgba(4, 5, 12, 0.74) !important;
   backdrop-filter: blur(7px) saturate(115%);
 }
 html[data-theme='light'] .wallet-adapter-modal-overlay {
-  background: rgba(8, 26, 15, 0.42) !important;
+  background: rgba(10, 14, 32, 0.42) !important;
 }
 
 /* ── Panel ─────────────────────────────────────────────────────────────── */
@@ -233,12 +240,12 @@ html[data-theme='light'] .wallet-adapter-modal-overlay {
   border-radius: 20px !important;
   /* The same top-down green wash the dashboard uses, over the card surface. */
   background:
-    radial-gradient(125% 85% at 50% -25%, rgba(34, 197, 94, 0.17), transparent 62%),
+    radial-gradient(125% 85% at 50% -25%, rgba(24, 200, 180, 0.17), transparent 62%),
     var(--bg2) !important;
   border: 1px solid var(--border);
   box-shadow:
     0 26px 70px rgba(0, 0, 0, 0.5),
-    0 0 44px rgba(34, 197, 94, 0.07);
+    0 0 44px rgba(24, 200, 180, 0.07);
   font-family: inherit !important;
   color: var(--text) !important;
   padding-bottom: 8px;
@@ -247,8 +254,8 @@ html[data-theme='light'] .wallet-adapter-modal-overlay {
 }
 html[data-theme='light'] .wallet-adapter-modal-wrapper {
   box-shadow:
-    0 26px 60px rgba(12, 32, 18, 0.16),
-    0 0 40px rgba(34, 197, 94, 0.09);
+    0 26px 60px rgba(14, 20, 40, 0.16),
+    0 0 40px rgba(24, 200, 180, 0.09);
 }
 
 /* Accent hairline along the top edge. */

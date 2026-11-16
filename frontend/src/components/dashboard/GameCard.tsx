@@ -72,8 +72,8 @@ export function GameCard({
         />
         <div className="relative flex items-start justify-between gap-2">
           <span
-            className="rounded-[5px] border px-2 py-1 font-mono text-[9.5px] tracking-[0.18em] text-[#6ee7b7]"
-            style={{ background: 'rgba(4,20,12,.6)', borderColor: 'rgba(47,224,138,.3)' }}
+            className="rounded-[5px] border px-2 py-1 font-mono text-[9.5px] tracking-[0.18em] text-green-soft"
+            style={{ background: 'rgba(4,20,12,.6)', borderColor: 'rgba(34, 224, 196,.3)' }}
           >
             {tag}
           </span>
@@ -96,17 +96,17 @@ export function GameCard({
         {lobby && (
           <div
             className="flex items-center gap-[7px] rounded-lg border px-2.5 py-2"
-            style={{ background: 'var(--row-hover)', borderColor: 'rgba(47,224,138,.1)' }}
+            style={{ background: 'var(--row-hover)', borderColor: 'rgba(34, 224, 196,.1)' }}
           >
             <Icon name="bolt" size={17} className="text-green" />
-            <span className="font-mono text-[11px] tracking-[0.1em] text-[#6ee7b7]">INSTANT PAYOUT</span>
+            <span className="font-mono text-[11px] tracking-[0.1em] text-green-soft">INSTANT PAYOUT</span>
           </div>
         )}
         <button
           onClick={() => onClick?.(game)}
           disabled={!interactive}
-          className="w-full cursor-pointer rounded-[9px] border-0 py-3 font-heading text-sm font-bold tracking-[0.08em] text-[#04160c] disabled:cursor-not-allowed disabled:opacity-70"
-          style={{ background: 'linear-gradient(180deg, #35eb95, #16a862)' }}
+          className="w-full cursor-pointer rounded-[9px] border-0 py-3 font-heading text-sm font-bold tracking-[0.08em] text-[#031418] disabled:cursor-not-allowed disabled:opacity-70"
+          style={{ background: 'linear-gradient(180deg, #3ef0d4, #10b4b0)' }}
         >
           PLAY NOW
         </button>

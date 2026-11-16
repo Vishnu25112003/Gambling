@@ -11,11 +11,11 @@ export function Support() {
 
       <div
         className="rounded-[18px] border border-dashed py-[70px] text-center"
-        style={{ borderColor: 'rgba(47,224,138,.2)', background: 'var(--panel-bg)' }}
+        style={{ borderColor: 'rgba(34, 224, 196,.2)', background: 'var(--panel-bg)' }}
       >
         <div
           className="mx-auto mb-4 size-11 rotate-45 rounded-lg border-[1.5px]"
-          style={{ borderColor: 'rgba(47,224,138,.3)' }}
+          style={{ borderColor: 'rgba(34, 224, 196,.3)' }}
         />
         <div className="font-heading text-[18px] font-bold tracking-[0.06em] text-text">
           NOTHING HERE YET

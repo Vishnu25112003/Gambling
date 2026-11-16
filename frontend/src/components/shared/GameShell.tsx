@@ -16,7 +16,7 @@ export function GameShell({ title, children }: { title: string; children: ReactN
       className="relative min-h-screen"
       style={{
         background:
-          'radial-gradient(ellipse 900px 500px at 50% -10%, rgba(34,197,94,var(--page-glow)), transparent 60%), var(--bg)',
+          'radial-gradient(ellipse 900px 500px at 50% -10%, rgba(24, 200, 180,var(--page-glow)), transparent 60%), radial-gradient(ellipse 700px 600px at 100% 100%, color-mix(in oklab, var(--brand-violet) calc(var(--page-glow) * 70%), transparent), transparent 70%), var(--bg)',
       }}
     >
       <GridBackground />

@@ -30,13 +30,13 @@ interface Materials {
 }
 
 const mats = (): Materials => ({
-  shell: new THREE.MeshStandardMaterial({ name: 'dice_shell', color: 0x2a5c39, roughness: 0.34, metalness: 0.28, emissive: 0x0c2c16 }),
-  pip: new THREE.MeshStandardMaterial({ name: 'dice_pip', color: 0x63d98c, roughness: 0.35, emissive: 0x2fce66, emissiveIntensity: 1.15 }),
-  neon: new THREE.MeshStandardMaterial({ name: 'neon', color: 0x2fe07a, roughness: 0.4, emissive: 0x24c364, emissiveIntensity: 1.35 }),
-  neonSoft: new THREE.MeshStandardMaterial({ name: 'neon_soft', color: 0x0d4f2a, roughness: 0.7, emissive: 0x0a4423, emissiveIntensity: 0.32 }),
-  coin: new THREE.MeshStandardMaterial({ name: 'coin_body', color: 0x102b1c, roughness: 0.28, metalness: 0.4, emissive: 0x082014 }),
-  coinRim: new THREE.MeshStandardMaterial({ name: 'coin_rim', color: 0x4bf08a, roughness: 0.25, metalness: 0.3, emissive: 0x2ad275, emissiveIntensity: 1.25 }),
-  card: new THREE.MeshStandardMaterial({ name: 'wallet_card', color: 0x0b1a12, roughness: 0.35, metalness: 0.3, emissive: 0x061309 }),
+  shell: new THREE.MeshStandardMaterial({ name: 'dice_shell', color: 0x3a1f7a, roughness: 0.34, metalness: 0.28, emissive: 0x160a36 }),
+  pip: new THREE.MeshStandardMaterial({ name: 'dice_pip', color: 0x5ff0dc, roughness: 0.35, emissive: 0x22e0c4, emissiveIntensity: 1.15 }),
+  neon: new THREE.MeshStandardMaterial({ name: 'neon', color: 0x22e0c4, roughness: 0.4, emissive: 0x18c8b4, emissiveIntensity: 1.35 }),
+  neonSoft: new THREE.MeshStandardMaterial({ name: 'neon_soft', color: 0x0d3f4a, roughness: 0.7, emissive: 0x0a3440, emissiveIntensity: 0.32 }),
+  coin: new THREE.MeshStandardMaterial({ name: 'coin_body', color: 0x101533, roughness: 0.28, metalness: 0.4, emissive: 0x080c22 }),
+  coinRim: new THREE.MeshStandardMaterial({ name: 'coin_rim', color: 0x3ef0d8, roughness: 0.25, metalness: 0.3, emissive: 0x1fc9c0, emissiveIntensity: 1.25 }),
+  card: new THREE.MeshStandardMaterial({ name: 'wallet_card', color: 0x0d1024, roughness: 0.35, metalness: 0.3, emissive: 0x070a1a }),
   violet: new THREE.MeshStandardMaterial({ name: 'solana_violet', color: 0x9945ff, roughness: 0.3, emissive: 0x5c22b8, emissiveIntensity: 0.7 }),
   blue: new THREE.MeshStandardMaterial({ name: 'solana_blue', color: 0x5b7cf5, roughness: 0.3, emissive: 0x3550bd, emissiveIntensity: 0.7 }),
   teal: new THREE.MeshStandardMaterial({ name: 'solana_teal', color: 0x19e5b0, roughness: 0.3, emissive: 0x0fae87, emissiveIntensity: 0.8 }),
@@ -307,14 +307,14 @@ function makeStage(canvas: HTMLCanvasElement, camPos: Vec3, camTarget: Vec3, fit
   camera.position.set(...camPos);
   camera.lookAt(...camTarget);
 
-  scene.add(new THREE.HemisphereLight(0xbfffd8, 0x04120a, 0.55));
-  const key = new THREE.DirectionalLight(0xd8ffe8, 1.5);
+  scene.add(new THREE.HemisphereLight(0xc8f6ff, 0x060818, 0.55));
+  const key = new THREE.DirectionalLight(0xe0f4ff, 1.5);
   key.position.set(4, 7, 6);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0x2fe07a, 0.9);
+  const rim = new THREE.DirectionalLight(0x22e0c4, 0.9);
   rim.position.set(-6, 2, -4);
   scene.add(rim);
-  const fill = new THREE.PointLight(0x22c55e, 14, 30);
+  const fill = new THREE.PointLight(0x18c8b4, 14, 30);
   fill.position.set(0, 1.5, 4);
   scene.add(fill);
 

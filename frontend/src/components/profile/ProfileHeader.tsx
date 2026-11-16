@@ -35,14 +35,14 @@ export function ProfileHeader({
     <div
       className="relative flex h-full flex-col items-center gap-5 overflow-hidden rounded-[20px] border p-[clamp(20px,3vw,30px)] sm:flex-row sm:items-start"
       style={{
-        borderColor: 'rgba(47,224,138,.2)',
-        background: 'radial-gradient(600px 260px at 85% 0%, rgba(47,224,138,.18), rgba(6,9,7,0) 62%), linear-gradient(120deg, var(--panel-bg2), var(--panel-bg))',
+        borderColor: 'rgba(34, 224, 196,.2)',
+        background: 'radial-gradient(600px 260px at 85% 0%, rgba(34, 224, 196,.18), rgba(6,9,7,0) 62%), linear-gradient(120deg, var(--panel-bg2), var(--panel-bg))',
       }}
     >
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage: 'linear-gradient(rgba(47,224,138,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(47,224,138,.05) 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(rgba(34, 224, 196,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(34, 224, 196,.05) 1px, transparent 1px)',
           backgroundSize: '42px 42px',
         }}
       />

@@ -7,7 +7,7 @@ import type { LeaderboardEntry } from '../../types';
 /** Gold, silver and bronze for the podium ranks; everyone else gets the muted chip. */
 const RANK_STYLES: Record<number, { background: string; color: string }> = {
   1: { background: '#eab308', color: '#1a1505' },
-  2: { background: '#cbd5c9', color: '#111a14' },
+  2: { background: '#cbd5c9', color: '#121524' },
   3: { background: '#c2703a', color: '#1a1505' },
 };
 const DEFAULT_RANK = { background: 'var(--panel-bg2)', color: 'var(--muted)' };

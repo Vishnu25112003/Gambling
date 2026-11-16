@@ -38,8 +38,8 @@ export function frameStyle(shake: boolean): CSSProperties {
     position: 'relative',
     borderRadius: 10,
     padding: 5,
-    background: 'linear-gradient(#141a14,#0a0f0b)',
-    border: '1px solid rgba(74,222,128,.16)',
+    background: 'linear-gradient(#14161f,#0b0c14)',
+    border: '1px solid rgba(62, 232, 210,.16)',
     boxShadow: '0 20px 46px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05)',
     animation: shake ? 'mc-shake .45s ease-in-out' : 'none',
   };
@@ -53,8 +53,8 @@ export function terrainStyle(): CSSProperties {
     display: 'flex',
     justifyContent: 'center',
     background:
-      'radial-gradient(120% 90% at 50% 0%, rgba(74,222,128,.05), transparent 60%), ' +
-      'repeating-linear-gradient(45deg, rgba(255,255,255,.014) 0 6px, transparent 6px 12px), #070c08',
+      'radial-gradient(120% 90% at 50% 0%, rgba(62, 232, 210,.05), transparent 60%), ' +
+      'repeating-linear-gradient(45deg, rgba(255,255,255,.014) 0 6px, transparent 6px 12px), #08090f',
     border: '1px solid rgba(0,0,0,.6)',
     boxShadow: 'inset 0 0 50px rgba(0,0,0,.7)',
   };
@@ -87,10 +87,10 @@ export function cellGeometryStyle(px: number): CSSProperties {
 
 /** Untouched terrain — border + background classes for an empty cell. */
 export const CELL_BASE_CLASS =
-  'border border-[rgba(74,222,128,.14)] bg-[linear-gradient(160deg,rgba(255,255,255,.045),rgba(255,255,255,.008)_55%,rgba(0,0,0,.28))]';
+  'border border-[rgba(62, 232, 210,.14)] bg-[linear-gradient(160deg,rgba(255,255,255,.045),rgba(255,255,255,.008)_55%,rgba(0,0,0,.28))]';
 
 /** Hover affordance for a cell that can still be clicked. */
-export const CELL_HOVER_CLASS = 'hover:border-[rgba(74,222,128,.5)] cursor-crosshair';
+export const CELL_HOVER_CLASS = 'hover:border-[rgba(62, 232, 210,.5)] cursor-crosshair';
 
 /** An armed (mine-holding) cell on the placement board. */
 export const CELL_ARMED_CLASS =

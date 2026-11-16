@@ -139,7 +139,7 @@ export function FilterPills<T extends string>({
           className="cursor-pointer rounded-[7px] border-0 px-3.5 py-[7px] font-heading text-[12px] font-semibold tracking-[0.05em]"
           style={
             active === o.key
-              ? { background: 'rgba(47,224,138,.16)', color: 'var(--green)' }
+              ? { background: 'rgba(34, 224, 196,.16)', color: 'var(--green)' }
               : { background: 'transparent', color: 'var(--muted)' }
           }
         >
