@@ -81,6 +81,9 @@ function generateRoomCode(): string {
   return code;
 }
 
+/** Users with a CREATE_MATCH in flight — a double-tapped Publish must not host twice. */
+const creatingHosts = new Set<string>();
+
 /** roomCode → matchId */
 const roomCodes = new Map<string, string>();
 
@@ -351,6 +354,8 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
     stake?: number;
     minBet?: number;
   }) => {
+    if (creatingHosts.has(userId)) return;
+    creatingHosts.add(userId);
     try {
       const seatCount = data.seatCount ?? 2;
       const stakeAmount = data.stake ?? 0.1;
@@ -365,6 +370,15 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
       if (stakeAmount <= 0) {
         socket.emit(LUDO_EVENTS.ERROR, { message: 'Stake must be positive' });
         return;
+      }
+
+      // One open listing per host: drop any earlier one before publishing.
+      for (const [mid, info] of lobbyInfo) {
+        if (info.hostUserId !== userId) continue;
+        lobbyInfo.delete(mid);
+        for (const [code, rid] of roomCodes) {
+          if (rid === mid) roomCodes.delete(code);
+        }
       }
 
       // Create match in DB
@@ -450,6 +464,8 @@ export function registerLudoSocket(namespace: Namespace, socket: Socket): void {
     } catch (err) {
       log.error('create_match error', { userId, err });
       socket.emit(LUDO_EVENTS.ERROR, { message: 'Failed to create match' });
+    } finally {
+      creatingHosts.delete(userId);
     }
   });
 

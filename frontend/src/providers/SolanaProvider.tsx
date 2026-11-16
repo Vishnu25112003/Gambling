@@ -1,8 +1,8 @@
 import { useCallback, useMemo, type ReactNode } from 'react';
 import type { WalletError } from '@solana/wallet-adapter-base';
-import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
+import { ConnectionContext, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
-import { clusterApiUrl } from '@solana/web3.js';
+import { Connection, clusterApiUrl } from '@solana/web3.js';
 
 /**
  * Doc 01: wallet-connect only, Phantom and Solflare.
@@ -30,6 +30,20 @@ export function SolanaProvider({ children }: { children: ReactNode }) {
     [cluster],
   );
 
+  /**
+   * The wallet adapter picks the chain it asks the wallet to sign for by
+   * pattern-matching the RPC URL: anything that does not literally contain
+   * "devnet" (a custom Helius/Alchemy/proxy URL, say) is treated as MAINNET, and
+   * the wallet then refuses with "network mismatch". So the cluster is declared
+   * from VITE_SOLANA_CLUSTER and shown to the adapter as the canonical public
+   * URL for that cluster, while real requests still go to `endpoint`.
+   */
+  const connection = useMemo(() => {
+    const conn = new Connection(endpoint, 'confirmed');
+    Object.defineProperty(conn, 'rpcEndpoint', { value: clusterApiUrl(cluster) });
+    return conn;
+  }, [endpoint, cluster]);
+
   const wallets = useMemo(() => [], []);
 
   /**
@@ -50,10 +64,10 @@ export function SolanaProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ConnectionProvider endpoint={endpoint}>
+    <ConnectionContext.Provider value={{ connection }}>
       <WalletProvider wallets={wallets} autoConnect onError={onError}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
-    </ConnectionProvider>
+    </ConnectionContext.Provider>
   );
 }

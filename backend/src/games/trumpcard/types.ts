@@ -86,6 +86,7 @@ export const TRUMPCARD_EVENTS = {
   JOIN_MATCH: 'trumpcard:join',
   LIST_MATCHES: 'trumpcard:list',
   LEAVE_LOBBY: 'trumpcard:leave',
+  CANCEL_MATCH: 'trumpcard:cancel',
   CHOOSE_STAT: 'trumpcard:choose_stat',
 
   // Server -> Client

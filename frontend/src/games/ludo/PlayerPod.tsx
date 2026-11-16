@@ -28,6 +28,8 @@ interface PlayerPodProps {
   diceTransform: string;
   /** A roll is currently in flight for this color (broadcast to all seats). */
   isRolling?: boolean;
+  /** Present only while this player holds the turn: time left and 0-1 fraction of the window. */
+  timer?: { secondsLeft: number; fraction: number } | null;
   onRoll?: () => void;
 }
 
@@ -42,10 +44,13 @@ export function PlayerPod({
   side,
   diceTransform,
   isRolling,
+  timer,
   onRoll,
 }: PlayerPodProps) {
   const sh = SHADE[color];
   const ring = active ? sh.light : 'rgba(255,255,255,.1)';
+  const low = !!timer && timer.secondsLeft <= 5;
+  const barColor = low ? '#ff5d5d' : sh.light;
 
   const pod = (
     <div
@@ -54,6 +59,7 @@ export function PlayerPod({
       aria-label={canRoll ? 'Roll the dice' : undefined}
       className={canRoll ? 'cursor-pointer animate-[podGlow_1.4s_ease-in-out_infinite]' : ''}
       style={{
+        position: 'relative',
         display: 'flex',
         flexDirection: reversed ? 'row-reverse' : 'row',
         alignItems: 'center',
@@ -76,6 +82,24 @@ export function PlayerPod({
         {name.charAt(0).toUpperCase()}
       </div>
       <Dice3D size={DICE_SIZE} transform={diceTransform} spinning={isRolling} />
+      {/* Turn countdown — absolutely placed in the pod's bottom padding, so it
+          adds no height and nothing else on the board moves. */}
+      {timer && (
+        <div
+          role="timer"
+          aria-label={`${timer.secondsLeft} seconds left`}
+          className="pointer-events-none absolute right-3 bottom-[1.5px] left-3 h-[3px] overflow-hidden rounded-full bg-white/15"
+        >
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${Math.max(0, Math.min(1, timer.fraction)) * 100}%`,
+              background: barColor,
+              transition: 'width .2s linear, background-color .2s',
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 
@@ -88,6 +112,14 @@ export function PlayerPod({
       <span className="text-[11px] font-bold" style={{ color: sh.mid }}>
         {finishedCount}/4
       </span>
+      {timer && (
+        <span
+          className="min-w-[2ch] text-center font-mono text-[11px] font-bold tabular-nums"
+          style={{ color: low ? '#ff5d5d' : sh.light }}
+        >
+          {timer.secondsLeft}s
+        </span>
+      )}
       <span className="flex items-center gap-px" aria-label={`${lives} lives remaining`}>
         {[0, 1, 2].map((i) => (
           <Heart

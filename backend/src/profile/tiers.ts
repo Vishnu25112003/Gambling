@@ -27,25 +27,26 @@ import { Decimal, toAmountString, toDecimal, type MoneyInput } from '../lib/mone
  * like `0.1` cannot be represented exactly, and a tier boundary is precisely the
  * place where "just under" and "just over" must be decided correctly.
  *
- * 11 rungs: `unranked` (0 SOL, no badge — nobody has earned one yet) followed by
- * the 10 earnable ranks, Recruit through Grandmaster. Recruit unlocks at 5 SOL
- * wagered, not 0, so `unranked` exists specifically to keep `tierFor` honest for
- * a brand-new player rather than claiming an unearned badge. Badge artwork for
- * these 10 keys lives in the frontend only (`lib/tierBadges.ts`) — this table
- * has no business knowing about image filenames.
+ * 11 rungs: a placeholder `unranked` followed by the 10 earnable ranks, Recruit
+ * through Grandmaster. Recruit is granted at registration (0 SOL wagered) and
+ * Scout, the second badge, unlocks at 5 SOL wagered. `unranked` shares Recruit's
+ * 0 threshold so `tierFor` (highest rung reached) never returns it; it stays only
+ * so rung indexes and `level` numbers remain stable. Badge artwork for these 10
+ * keys lives in the frontend only (`lib/tierBadges.ts`) — this table has no
+ * business knowing about image filenames.
  */
 export const TIERS = [
   { key: 'unranked', label: 'Unranked', minWagered: '0' },
-  { key: 'recruit', label: 'Recruit', minWagered: '5' },
-  { key: 'scout', label: 'Scout', minWagered: '10' },
-  { key: 'raider', label: 'Raider', minWagered: '20' },
-  { key: 'striker', label: 'Striker', minWagered: '40' },
-  { key: 'veteran', label: 'Veteran', minWagered: '75' },
-  { key: 'elite', label: 'Elite', minWagered: '125' },
-  { key: 'champion', label: 'Champion', minWagered: '200' },
-  { key: 'master', label: 'Master', minWagered: '350' },
-  { key: 'legend', label: 'Legend', minWagered: '600' },
-  { key: 'grandmaster', label: 'Grandmaster', minWagered: '1000' },
+  { key: 'recruit', label: 'Recruit', minWagered: '0' },
+  { key: 'scout', label: 'Scout', minWagered: '5' },
+  { key: 'raider', label: 'Raider', minWagered: '10' },
+  { key: 'striker', label: 'Striker', minWagered: '20' },
+  { key: 'veteran', label: 'Veteran', minWagered: '40' },
+  { key: 'elite', label: 'Elite', minWagered: '75' },
+  { key: 'champion', label: 'Champion', minWagered: '125' },
+  { key: 'master', label: 'Master', minWagered: '200' },
+  { key: 'legend', label: 'Legend', minWagered: '350' },
+  { key: 'grandmaster', label: 'Grandmaster', minWagered: '600' },
 ] as const;
 
 export type TierKey = (typeof TIERS)[number]['key'];

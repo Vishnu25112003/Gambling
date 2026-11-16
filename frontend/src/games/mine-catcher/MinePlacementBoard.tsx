@@ -85,7 +85,7 @@ export function MinePlacementBoard({
 
   return (
     <div className="mx-auto w-full max-w-[640px]" style={{ fontFamily: "'Chakra Petch',Inter,sans-serif" }}>
-      <div className="mb-4 flex items-end justify-between gap-4">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div>
           <div className="font-mono text-[10px] tracking-[.24em] text-green uppercase">You · deployment</div>
           <div className="mt-1 text-[26px] font-bold tracking-tight">Arm your field</div>

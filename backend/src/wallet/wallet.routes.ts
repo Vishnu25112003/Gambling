@@ -149,7 +149,7 @@ walletRouter.get(
       // are stored negative (debits) — `.abs()` reports both as a magnitude.
       totalDeposited: toAmountString(sumOf('deposit')),
       totalWithdrawn: toAmountString(sumOf('withdrawal').abs()),
-      totalRewards: toAmountString(sumOf('referral')),
+      totalRewards: toAmountString(sumOf('referral').plus(sumOf('rakeback'))),
       totalFees: toAmountString(sumOf('fee').abs()),
     });
   }),

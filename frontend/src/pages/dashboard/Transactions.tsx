@@ -22,6 +22,7 @@ const TYPE_ICON: Record<LedgerRow['type'], IconName> = {
   forfeit: 'bomb',
   fee: 'percent',
   referral: 'gift',
+  rakeback: 'gift',
 };
 
 const TYPE_COLOR: Record<LedgerRow['type'], string> = {
@@ -33,6 +34,7 @@ const TYPE_COLOR: Record<LedgerRow['type'], string> = {
   forfeit: 'var(--red)',
   fee: 'var(--red)',
   referral: 'var(--gold-bright)',
+  rakeback: 'var(--gold-bright)',
 };
 
 const STATUS_CHIP: Record<LedgerRow['status'], { bg: string; fg: string }> = {

@@ -10,6 +10,7 @@ import {
 } from '../lib/money.js';
 import { createLogger } from '../lib/logger.js';
 import { awardReferralOnWin } from '../referral/awardReferral.js';
+import { accrueRakeback } from '../rewards/accrueRakeback.js';
 import { emitLedgerEntryCreated } from '../lib/ledgerEvents.js';
 import type { LedgerEntryLike } from '../lib/ledgerRow.js';
 import type { Id, SettleResult, SettleMatchOptions, SettlementPayout } from './types.js';
@@ -239,6 +240,23 @@ export async function settleMatch(
         gameType: match.gameType,
       });
       if (referral) pushedEntries.push(referral.ledgerEntry);
+
+      /**
+       * Rewards — accrue this player's rakeback: a tier-based share of the
+       * slice of `feeCollected` their own stake paid. Same transaction, so it
+       * commits with the settlement; claiming it later is a separate, explicit
+       * action. A forfeited player already lost their whole stake and has no
+       * claim on the fee, and a no-fee match (draw) accrues nothing.
+       */
+      if (!alreadyCounted) {
+        await accrueRakeback(tx, {
+          userId: uid,
+          totalWagered: user.totalWagered,
+          stake: totalStake,
+          pot,
+          feeCollected,
+        });
+      }
     }
 
     if (feeCollected.greaterThan(0)) {

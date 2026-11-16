@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { Delete } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ConnectWalletPlaceholder } from '../../components/dashboard/ConnectWalletPlaceholder';
@@ -155,7 +155,7 @@ function AmountEditor({
           <button
             key={c.label}
             onClick={() => onAmountChange(c.value)}
-            className="flex-1 basis-[70px] cursor-pointer rounded-lg border px-3 py-2.5 font-mono text-xs text-text transition hover:text-text"
+            className="flex-1 basis-[70px] cursor-pointer rounded-lg border px-2 py-2.5 font-mono text-xs whitespace-nowrap text-text transition hover:text-text sm:px-3"
             style={{ borderColor: 'rgba(34, 224, 196,.16)', background: 'var(--panel-bg3)' }}
           >
             {c.label}
@@ -163,15 +163,20 @@ function AmountEditor({
         ))}
       </div>
 
-      <button
-        onClick={onSubmit}
-        disabled={busy || disabled}
-        className="mt-auto flex w-full items-center justify-center gap-2.5 rounded-[10px] border-0 py-3.5 font-heading text-[14.5px] font-bold tracking-[0.07em] text-[#031418] disabled:cursor-not-allowed disabled:opacity-60"
-        style={{ background: 'linear-gradient(180deg, #3ef0d4, #10b4b0)', boxShadow: '0 8px 24px rgba(34, 224, 196,.24)' }}
-      >
-        <Icon name={ctaIcon} size={20} />
-        {busy ? 'WORKING…' : ctaLabel}
-      </button>
+      {/* `mt-auto` pushes the button to the card's bottom when the card is taller
+          than its content, but collapses to 0 when it isn't (e.g. on a phone) —
+          so the padding is what guarantees a gap under the amount chips. */}
+      <div className="mt-auto pt-4">
+        <button
+          onClick={onSubmit}
+          disabled={busy || disabled}
+          className="flex w-full items-center justify-center gap-2.5 rounded-[10px] border-0 py-3.5 font-heading text-[14.5px] font-bold tracking-[0.07em] text-[#031418] disabled:cursor-not-allowed disabled:opacity-60"
+          style={{ background: 'linear-gradient(180deg, #3ef0d4, #10b4b0)', boxShadow: '0 8px 24px rgba(34, 224, 196,.24)' }}
+        >
+          <Icon name={ctaIcon} size={20} />
+          {busy ? 'WORKING…' : ctaLabel}
+        </button>
+      </div>
 
       <div className="mt-3 flex justify-between gap-2.5 font-mono text-[10.5px] text-muted">
         <span>{note}</span>
@@ -191,7 +196,7 @@ function AmountEditor({
  */
 function DepositPanel({ hidden, onDone }: { hidden: boolean; onDone: () => Promise<void> }) {
   const { connection } = useConnection();
-  const { publicKey, sendTransaction } = useWallet();
+  const { publicKey, sendTransaction, signTransaction } = useWallet();
   const { socket } = useAuth();
   const [info, setInfo] = useState<WalletInfo | null>(null);
   const [amount, setAmount] = useState('0.1');
@@ -232,18 +237,35 @@ function DepositPanel({ hidden, onDone }: { hidden: boolean; onDone: () => Promi
 
     setBusy(true);
     try {
-      const tx = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: new PublicKey(info.treasuryAddress),
-          lamports: Math.round(sol * LAMPORTS_PER_SOL),
-        }),
-      );
+      // Mobile wallets re-serialize a legacy Transaction and fail with
+      // "recentBlockhash required" / "Signature verification failed. Missing
+      // signature" because it is still unsigned. A v0 VersionedTransaction is
+      // serialized as-is, so it goes through every wallet unchanged.
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+      const message = new TransactionMessage({
+        payerKey: publicKey,
+        recentBlockhash: blockhash,
+        instructions: [
+          SystemProgram.transfer({
+            fromPubkey: publicKey,
+            toPubkey: new PublicKey(info.treasuryAddress),
+            lamports: Math.round(sol * LAMPORTS_PER_SOL),
+          }),
+        ],
+      }).compileToV0Message();
+      const tx = new VersionedTransaction(message);
 
-      const signature = await sendTransaction(tx, connection);
+      // Sign in the wallet, submit ourselves: some mobile wallets hand back a
+      // "signature" from signAndSend that is not base58 (confirmTransaction then
+      // throws "signature must be base58 encoded"). The RPC's own return value
+      // is always a well-formed signature.
+      const signature = signTransaction
+        ? await connection.sendRawTransaction((await signTransaction(tx)).serialize(), {
+            preflightCommitment: 'confirmed',
+          })
+        : await sendTransaction(tx, connection);
       setStatus('Sent — waiting for confirmation…');
 
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
       await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
 
       setStatus('Confirmed on-chain. Crediting your balance…');
@@ -358,6 +380,7 @@ const ACTIVITY_ICON: Record<LedgerRow['type'], IconName> = {
   forfeit: 'bomb',
   fee: 'percent',
   referral: 'gift',
+  rakeback: 'gift',
 };
 
 const STATUS_CHIP: Record<LedgerRow['status'], { bg: string; fg: string }> = {

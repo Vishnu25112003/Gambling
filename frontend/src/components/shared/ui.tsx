@@ -109,7 +109,7 @@ export function SectionHeading({
 export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`rounded-[9px] border border-line bg-bg2 px-3.5 py-[11px] text-sm text-text
+      className={`rounded-[9px] border border-line bg-bg2 px-3.5 py-[11px] text-base text-text sm:text-sm
         placeholder:text-faint focus:border-green focus:outline-none ${className}`}
       {...props}
     />

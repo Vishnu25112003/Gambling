@@ -66,43 +66,41 @@ beforeEach(clearTables);
 
 describe('tier ladder', () => {
   it('places a player on the highest rung they have reached', () => {
-    expect(tierFor('0')).toBe('unranked');
-    expect(tierFor('4.999999999')).toBe('unranked');
-    expect(tierFor('5')).toBe('recruit');
-    expect(tierFor('9.999999999')).toBe('recruit');
-    expect(tierFor('10')).toBe('scout');
-    expect(tierFor('19.999999999')).toBe('scout');
-    expect(tierFor('20')).toBe('raider');
-    expect(tierFor('39.999999999')).toBe('raider');
-    expect(tierFor('40')).toBe('striker');
-    expect(tierFor('74.999999999')).toBe('striker');
-    expect(tierFor('75')).toBe('veteran');
-    expect(tierFor('124.999999999')).toBe('veteran');
-    expect(tierFor('125')).toBe('elite');
-    expect(tierFor('199.999999999')).toBe('elite');
-    expect(tierFor('200')).toBe('champion');
-    expect(tierFor('349.999999999')).toBe('champion');
-    expect(tierFor('350')).toBe('master');
-    expect(tierFor('599.999999999')).toBe('master');
-    expect(tierFor('600')).toBe('legend');
-    expect(tierFor('999.999999999')).toBe('legend');
-    expect(tierFor('1000')).toBe('grandmaster');
+    expect(tierFor('0')).toBe('recruit');
+    expect(tierFor('4.999999999')).toBe('recruit');
+    expect(tierFor('5')).toBe('scout');
+    expect(tierFor('9.999999999')).toBe('scout');
+    expect(tierFor('10')).toBe('raider');
+    expect(tierFor('19.999999999')).toBe('raider');
+    expect(tierFor('20')).toBe('striker');
+    expect(tierFor('39.999999999')).toBe('striker');
+    expect(tierFor('40')).toBe('veteran');
+    expect(tierFor('74.999999999')).toBe('veteran');
+    expect(tierFor('75')).toBe('elite');
+    expect(tierFor('124.999999999')).toBe('elite');
+    expect(tierFor('125')).toBe('champion');
+    expect(tierFor('199.999999999')).toBe('champion');
+    expect(tierFor('200')).toBe('master');
+    expect(tierFor('349.999999999')).toBe('master');
+    expect(tierFor('350')).toBe('legend');
+    expect(tierFor('599.999999999')).toBe('legend');
+    expect(tierFor('600')).toBe('grandmaster');
     expect(tierFor('999999')).toBe('grandmaster');
   });
 
   it('treats a threshold as inclusive to the lamport', () => {
     // The whole reason thresholds are compared as Decimal and not as floats: one
     // lamport either side of a boundary has to land on the correct side.
-    expect(tierFor('4.999999999')).toBe('unranked');
-    expect(tierFor('5.000000000')).toBe('recruit');
+    expect(tierFor('4.999999999')).toBe('recruit');
+    expect(tierFor('5.000000000')).toBe('scout');
   });
 
   it('reports exact remaining progress, never a float', () => {
     const p = tierProgress('7.5');
 
-    expect(p.key).toBe('recruit');
-    expect(p.level).toBe(2);
-    expect(p.next?.key).toBe('scout');
+    expect(p.key).toBe('scout');
+    expect(p.level).toBe(3);
+    expect(p.next?.key).toBe('raider');
     expect(p.remainingToNext).toBe(sol('2.5'));
     expect(p.wagered).toBe(sol('7.5'));
     // (7.5 - 5) / (10 - 5) = 50%
@@ -127,9 +125,9 @@ describe('tier ladder', () => {
       'unranked',
       'recruit',
       'scout',
+      'raider',
     ]);
     expect(p.ladder.filter((r) => !r.reached).map((r) => r.key)).toEqual([
-      'raider',
       'striker',
       'veteran',
       'elite',

@@ -46,22 +46,28 @@ export function AvatarUploader({
   const pick = async (file: File) => {
     setError(null);
 
-    if (file.size > MAX_BYTES) {
-      setError('That image is larger than 2 MB.');
-      return;
-    }
-    if (!ACCEPT.split(',').includes(file.type)) {
+    // Some mobile browsers report an empty type; those are decoded below anyway.
+    if (file.type && !file.type.startsWith('image/')) {
       setError('Use a PNG, JPEG or WebP image.');
       return;
     }
 
-    // Shown immediately, so the avatar reacts to the click rather than to the
-    // round trip.
-    setPreview(URL.createObjectURL(file));
     setBusy(true);
 
     try {
-      const res = await authApi.uploadAvatar(file);
+      // Phone photos are routinely 3-10 MB, far over the server's cap. Downscale
+      // in the browser so a normal camera shot uploads instead of being refused.
+      const upload = await shrink(file);
+      if (upload.size > MAX_BYTES) {
+        setError('That image is larger than 2 MB.');
+        setBusy(false);
+        return;
+      }
+
+      // Shown immediately, so the avatar reacts to the click rather than to the
+      // round trip.
+      setPreview(URL.createObjectURL(upload));
+      const res = await authApi.uploadAvatar(upload);
       // The URL is used VERBATIM: it carries the server's ?v= counter, which is
       // the only thing that makes a replaced image bypass the browser cache.
       setUser({ ...user, avatarUrl: res.user.avatarUrl });
@@ -108,7 +114,7 @@ export function AvatarUploader({
         <label
           htmlFor={inputId}
           title="Change profile picture"
-          className="absolute -right-1 -bottom-1 flex size-8 cursor-pointer items-center justify-center
+          className="absolute -right-1.5 -bottom-1.5 flex size-10 cursor-pointer items-center justify-center sm:size-8
             rounded-full border border-line bg-bg2 text-muted transition
             hover:text-text focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-green"
         >
@@ -148,6 +154,28 @@ export function AvatarUploader({
       )}
     </div>
   );
+}
+
+/** Re-encodes to a <=640px JPEG. PNG/WebP under the cap that can't be decoded pass through. */
+async function shrink(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 640 / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.88));
+    if (!blob) return file;
+    return new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+  } catch {
+    return file;
+  }
 }
 
 function CameraIcon() {

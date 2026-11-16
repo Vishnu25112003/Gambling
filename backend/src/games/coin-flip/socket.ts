@@ -166,6 +166,9 @@ function generateRoomCode(): string {
 /** roomCode → matchId */
 const roomCodes = new Map<string, string>();
 
+/** Users with a CREATE_MATCH in flight — a double-tapped Publish must not host twice. */
+const creatingHosts = new Set<string>();
+
 /** socketId → matchId (for disconnect handling). */
 const socketToMatch = new Map<string, string>();
 
@@ -659,6 +662,32 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
     }
   }
 
+  /**
+   * Tears down every not-yet-started listing this user is hosting. Used when
+   * they cancel, and before they host again, so one player can never have two
+   * open listings (the old one used to survive for LISTING_GRACE_MS and was
+   * even re-claimed when the same player reconnected).
+   */
+  const dropHostListings = () => {
+    let changed = false;
+    for (const [mid, listing] of publicMatches) {
+      if (listing.hostUserId !== userId) continue;
+      publicMatches.delete(mid);
+      const timer = listingGraceTimers.get(mid);
+      if (timer) {
+        clearTimeout(timer);
+        listingGraceTimers.delete(mid);
+      }
+      for (const [code, rid] of roomCodes) {
+        if (rid === mid) roomCodes.delete(code);
+      }
+      changed = true;
+    }
+    if (changed) broadcastMatchesList();
+  };
+
+  socket.on(CF_EVENTS.CANCEL_MATCH, () => dropHostListings());
+
   // --- LIST_MATCHES: return public Random Play matches ---
   socket.on(CF_EVENTS.LIST_MATCHES, async () => {
     // Marks this socket as "watching the lobby" so broadcastMatchesList()
@@ -676,6 +705,8 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
     stake?: number;
     minBet?: number;
   }) => {
+    if (creatingHosts.has(userId)) return;
+    creatingHosts.add(userId);
     try {
       const roundCount = data.rounds ?? 3;
       const stakeAmount = data.stake ?? 0.1;
@@ -691,6 +722,8 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
         socket.emit(CF_EVENTS.ERROR, { message: 'Stake must be positive' });
         return;
       }
+
+      dropHostListings();
 
       // Create match in DB
       const matchId = await escrow.createMatch({
@@ -756,6 +789,8 @@ export function registerCoinFlipSocket(namespace: Namespace, socket: Socket): vo
     } catch (err) {
       log.error('create_match error', { userId, err });
       socket.emit(CF_EVENTS.ERROR, { message: 'Failed to create match' });
+    } finally {
+      creatingHosts.delete(userId);
     }
   });
 

@@ -10,13 +10,11 @@ import { Games } from './pages/dashboard/Games';
 import { Leaderboard } from './pages/dashboard/Leaderboard';
 import { Escrow } from './pages/dashboard/Escrow';
 import { Transactions } from './pages/dashboard/Transactions';
-import { Settings } from './pages/dashboard/Settings';
 import { Profile } from './pages/dashboard/Profile';
 import { PublicProfile } from './pages/dashboard/PublicProfile';
 import { InviteEarn } from './pages/dashboard/InviteEarn';
 import { MyBets } from './pages/dashboard/MyBets';
 import { Rewards } from './pages/dashboard/Rewards';
-import { Support } from './pages/dashboard/Support';
 import { NotFound } from './pages/NotFound';
 import { CoinFlipBoard } from './games/coin-flip/CoinFlipBoard';
 import { LudoBoard } from './games/ludo/LudoBoard';
@@ -30,7 +28,7 @@ import { HandCricketBoard } from './games/hand-cricket/HandCricketBoard';
  * inside the dashboard, which is exactly what the doc specifies.
  *
  * The dashboard's ten sections are the design's sidebar. Every section now
- * renders real content — My Bets, Rewards and Support ship with static/mock
+ * renders real content — My Bets and Rewards ship with static/mock
  * data (their own `lib/*Mock.ts` module) until a backend exists for them.
  */
 export default function App() {
@@ -56,8 +54,6 @@ export default function App() {
                 {/* Doc 09. The path stays `affiliates` so existing links hold. */}
                 <Route path="affiliates" element={<InviteEarn />} />
                 <Route path="invite" element={<Navigate to="/dashboard/affiliates" replace />} />
-                <Route path="settings" element={<Settings />} />
-                <Route path="support" element={<Support />} />
 
                 {/* Doc 11 — own profile, and anyone's by handle. */}
                 <Route path="profile" element={<Profile />} />

@@ -25,6 +25,7 @@ const TRUMPCARD = {
   JOIN_MATCH: 'trumpcard:join',
   LIST_MATCHES: 'trumpcard:list',
   LEAVE_LOBBY: 'trumpcard:leave',
+  CANCEL_MATCH: 'trumpcard:cancel',
   CHOOSE_STAT: 'trumpcard:choose_stat',
   MATCH_CREATED: 'trumpcard:created',
   MATCHES_LIST: 'trumpcard:matches',
@@ -86,6 +87,7 @@ interface StateSnapshot {
   seatCount?: number;
   cardsPerPlayer?: number;
   activePlayerIds?: string[];
+  disconnectedPlayers?: string[];
   handCounts?: Record<string, number>;
   lives?: Record<string, number>;
   poolSize?: number;
@@ -178,6 +180,9 @@ function TrumpcardBoardInner() {
   }, [user, refreshBalance]);
 
   const socketRef = useRef<Socket | null>(null);
+  // Bumped by goHome to rebuild the socket *through the main effect*, so every
+  // event handler is attached again (a hand-made replacement socket had none).
+  const [socketEpoch, setSocketEpoch] = useState(0);
   const [connected, setConnected] = useState(false);
 
   const [page, setPage] = useState<Page>('lobby');
@@ -213,6 +218,10 @@ function TrumpcardBoardInner() {
 
   const [revealData, setRevealData] = useState<RoundRevealPayload | null>(null);
   const [waitingReason, setWaitingReason] = useState<string | null>(null);
+  // Players currently away. Kept as its own state because `waitingReason` is
+  // overwritten by every LEADER_TURN_START / ROUND_REVEAL, which used to wipe the
+  // "disconnected" notice a moment after it appeared.
+  const [disconnectedIds, setDisconnectedIds] = useState<string[]>([]);
   const [matchResult, setMatchResult] = useState<MatchResultPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -235,6 +244,7 @@ function TrumpcardBoardInner() {
 
   const applySnapshot = useCallback((data: StateSnapshot) => {
     if (data.activePlayerIds) setActivePlayerIds(data.activePlayerIds);
+    if (data.disconnectedPlayers) setDisconnectedIds(data.disconnectedPlayers);
     if (data.handCounts) setHandCounts(data.handCounts);
     if (data.lives) setLives(data.lives);
     if (data.poolSize !== undefined) setPoolSize(data.poolSize);
@@ -355,11 +365,11 @@ function TrumpcardBoardInner() {
     });
 
     s.on(TRUMPCARD.OPPONENT_DISCONNECTED, (data: { userId: string }) => {
-      setWaitingReason(`${getDisplayName(data.userId)} disconnected…`);
+      setDisconnectedIds((prev) => (prev.includes(data.userId) ? prev : [...prev, data.userId]));
     });
 
-    s.on(TRUMPCARD.OPPONENT_RECONNECTED, () => {
-      setWaitingReason(null);
+    s.on(TRUMPCARD.OPPONENT_RECONNECTED, (data: { userId: string }) => {
+      setDisconnectedIds((prev) => prev.filter((id) => id !== data.userId));
     });
 
     s.on(TRUMPCARD.ERROR, (data: { message: string }) => {
@@ -376,7 +386,7 @@ function TrumpcardBoardInner() {
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, applySnapshot]);
+  }, [user, applySnapshot, socketEpoch]);
 
   useEffect(() => {
     return () => { socketRef.current?.disconnect(); };
@@ -448,12 +458,12 @@ function TrumpcardBoardInner() {
   };
 
   const goHome = () => {
-    socketRef.current?.disconnect();
-    socketRef.current = null;
+    socketRef.current?.emit(TRUMPCARD.CANCEL_MATCH);
     setPage('lobby');
     setMatchResult(null);
     setPlayers([]);
     setActivePlayerIds([]);
+    setDisconnectedIds([]);
     setHandCounts({});
     setLives({});
     setPoolSize(0);
@@ -469,14 +479,7 @@ function TrumpcardBoardInner() {
     setMatchDeadlineAt(null);
     setJoinStakeInfo(null);
     setStakeError(null);
-
-    const token = tokenStore.get();
-    if (!token || !user) return;
-    const BASE = import.meta.env.VITE_API_URL || '';
-    const s = io(BASE || '/', { auth: { token }, transports: ['websocket'] });
-    socketRef.current = s;
-    s.on('connect', () => { setConnected(true); s.emit(TRUMPCARD.LIST_MATCHES); });
-    s.on(TRUMPCARD.MATCHES_LIST, (data: { matches: ListedMatch[] }) => setMatches(data.matches));
+    setSocketEpoch((e) => e + 1);
   };
 
   // --- Lobby ---
@@ -665,6 +668,15 @@ function TrumpcardBoardInner() {
   } else if (phase === 'leader_choosing' && currentLeaderId) {
     bannerTitle = `${getDisplayName(currentLeaderId).toUpperCase()}'S TURN`;
     bannerNote = waitingReason ?? 'Waiting for their pick…';
+  }
+
+  // An away opponent outranks the generic note: they lose a life every 15s
+  // until they return or are eliminated, so say so for as long as it's true.
+  const awayNames = disconnectedIds
+    .filter((id) => id !== myId && activePlayerIds.includes(id))
+    .map((id) => getDisplayName(id));
+  if (awayNames.length > 0 && phase !== 'reveal') {
+    bannerNote = `${awayNames.join(', ')} disconnected — loses a life every 15s until back`;
   }
 
   const labelStyle = (color: string) => ({
